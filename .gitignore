@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.log
+seen_jobs.json
+jobs.html
+.env
+venv/
