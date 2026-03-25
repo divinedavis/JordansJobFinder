@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f8f4ec">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>{% block title %}Jordan's Job Finder{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --paper: rgba(255, 255, 255, 0.74);
+      --paper-strong: rgba(255, 255, 255, 0.9);
+      --ink: #1d2433;
+      --muted: #667085;
+      --line: rgba(29, 36, 51, 0.1);
+      --shadow: 0 28px 60px rgba(29, 36, 51, 0.12);
+      --accent: #1947e5;
+      --accent-soft: rgba(25, 71, 229, 0.08);
+      --danger: #b42318;
+      --success: #067647;
+      --warning: #b54708;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html {
+      background: #f8f4ec;
+    }
+    body {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(25, 71, 229, 0.08), transparent 26%),
+        radial-gradient(circle at top right, rgba(184, 92, 56, 0.08), transparent 24%),
+        linear-gradient(180deg, #f8f4ec 0%, #efe7d8 100%);
+      min-height: 100vh;
+      padding: 24px 18px 56px;
+    }
+    a { color: inherit; }
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      background: var(--paper);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(29, 36, 51, 0.08);
+      padding: 14px 18px;
+    }
+    .auth-topbar {
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .brand {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 1.5rem;
+      text-decoration: none;
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .nav a, .nav button {
+      border: 0;
+      background: transparent;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      color: var(--muted);
+    }
+    .shell {
+      display: grid;
+      gap: 20px;
+    }
+    .panel {
+      background: var(--paper);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 26px;
+    }
+    h1, h2, h3 {
+      font-family: "Iowan Old Style", Georgia, serif;
+      letter-spacing: -0.03em;
+    }
+    h1 { font-size: clamp(2rem, 4vw, 4rem); line-height: 0.98; }
+    h2 { font-size: clamp(1.45rem, 2vw, 2.25rem); margin-bottom: 14px; }
+    h3 { font-size: 1.15rem; }
+    p { color: #465164; line-height: 1.7; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid rgba(29, 36, 51, 0.08);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      padding: 8px 12px;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+    .grid.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .hero-layout {
+      display: grid;
+      gap: 24px;
+      align-items: end;
+      grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+    }
+    .hero-copy p {
+      max-width: 62ch;
+      margin-top: 16px;
+    }
+    .hero-art-wrap {
+      justify-self: end;
+      width: 100%;
+      max-width: 360px;
+    }
+    .hero-art-card {
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(29, 36, 51, 0.08);
+      border-radius: 24px;
+      padding: 18px 18px 12px;
+    }
+    .hero-art-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 0.82;
+      object-fit: contain;
+    }
+    .hero-art-credit {
+      margin-top: 10px;
+      text-align: right;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(29, 36, 51, 0.08);
+      border-radius: 22px;
+      padding: 20px;
+    }
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .stat-value {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 2rem;
+      line-height: 1;
+    }
+    .button, button.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
+      padding: 12px 18px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .button.secondary, button.button.secondary {
+      background: rgba(255, 255, 255, 0.84);
+      color: var(--ink);
+      border-color: rgba(29, 36, 51, 0.12);
+    }
+    .button.danger, button.button.danger {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+    .button-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+    .flash-stack {
+      display: grid;
+      gap: 10px;
+    }
+    .flash {
+      border-radius: 16px;
+      padding: 14px 16px;
+      border: 1px solid rgba(29, 36, 51, 0.1);
+      background: rgba(255, 255, 255, 0.8);
+      color: var(--ink);
+    }
+    .flash.error { border-color: rgba(180, 35, 24, 0.2); color: var(--danger); }
+    .flash.success { border-color: rgba(6, 118, 71, 0.2); color: var(--success); }
+    .flash.warning { border-color: rgba(181, 71, 8, 0.2); color: var(--warning); }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    input, select {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(29, 36, 51, 0.12);
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--ink);
+      font: inherit;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .muted {
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 0;
+      border-top: 1px solid rgba(29, 36, 51, 0.08);
+    }
+    .list-item:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .match-section {
+      margin-top: 22px;
+      padding-top: 22px;
+      border-top: 1px solid rgba(29, 36, 51, 0.08);
+    }
+    .match-section:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: 0;
+    }
+    .match-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+    }
+    .match-kicker {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .match-title {
+      margin: 0;
+    }
+    .match-count {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 1.8rem;
+      line-height: 1;
+    }
+    .match-cards {
+      display: grid;
+      gap: 14px;
+    }
+    .match-card {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(29, 36, 51, 0.08);
+      border-radius: 22px;
+      padding: 20px;
+    }
+    .match-card-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+    .match-company {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .match-posted {
+      color: #685c4a;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .match-role {
+      font-size: 1.1rem;
+      line-height: 1.45;
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+    .match-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 780px) {
+      body {
+        padding: 16px 16px 40px;
+      }
+      .page {
+        width: 100%;
+      }
+      .shell,
+      .grid,
+      .panel,
+      .card {
+        width: 100%;
+      }
+      .grid.two, .grid.three {
+        grid-template-columns: 1fr;
+      }
+      .hero-layout {
+        grid-template-columns: 1fr;
+        gap: 18px;
+        align-items: start;
+      }
+      .hero-copy p {
+        max-width: none;
+      }
+      .hero-art-wrap {
+        justify-self: center;
+        max-width: 100%;
+      }
+      .hero-art-card {
+        padding: 14px 14px 10px;
+      }
+      .hero-art-credit {
+        text-align: center;
+      }
+      .button-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .button,
+      button.button {
+        width: 100%;
+      }
+      .topbar {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 16px 18px;
+        margin-bottom: 16px;
+      }
+      .auth-topbar {
+        max-width: none;
+      }
+      .brand {
+        font-size: 1.18rem;
+      }
+      .nav {
+        width: auto;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+      .match-card-top {
+        flex-direction: column;
+      }
+      .match-posted {
+        white-space: normal;
+      }
+      .panel {
+        width: 100%;
+        padding: 20px 18px;
+        border-radius: 22px;
+      }
+      .card {
+        width: 100%;
+      }
+      h1 {
+        font-size: clamp(2.15rem, 11vw, 3.2rem);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar{% if request.endpoint in ['web.sign_in', 'web.login'] and not user %} auth-topbar{% endif %}">
+      <a class="brand" href="{{ url_for('web.home') }}">Jordan's Job Finder</a>
+      <nav class="nav">
+        {% if user %}
+          <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
+          <a href="{{ url_for('web.settings') }}">Settings</a>
+          <form method="post" action="{{ url_for('web.sign_out') }}">
+            <button type="submit">Sign out</button>
+          </form>
+        {% else %}
+          <a href="{{ url_for('web.login') }}">Log in</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    <div class="shell">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</body>
+</html>

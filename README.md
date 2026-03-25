@@ -35,10 +35,13 @@ The website displays the latest matching jobs found by the scheduled scraper run
 ## Tech Stack
 
 - Python
+- Flask
+- SQLAlchemy
 - Requests
 - Beautiful Soup
 - Playwright
 - JSON file storage
+- SQLite for local app development
 - Cron for scheduled runs
 - Static HTML generation
 - Linux server hosting
@@ -50,3 +53,67 @@ The scraper checks a curated set of company career systems, including APIs and b
 ## Repo Purpose
 
 This repository contains the scraper logic, the generated job page, and the data files that support the live site.
+
+## Private App Foundation
+
+The repo now also includes the foundation for the next version of the product:
+
+- passwordless email sign-in
+- one saved search per user
+- private dashboard pages
+- saved-search rules for free and paid city plans
+- database models for users, searches, jobs, and matches
+- shared-job sync commands that prepare the app for daily per-user matching
+
+## Local Development
+
+Create a virtual environment and install dependencies:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+Initialize the local database:
+
+```bash
+.venv/bin/python manage.py init-db
+```
+
+Run the local app:
+
+```bash
+.venv/bin/python manage.py runserver --host 127.0.0.1 --port 5000
+```
+
+Run smoke tests:
+
+```bash
+.venv/bin/python -m unittest tests/test_app.py
+```
+
+Optional app sync commands:
+
+```bash
+.venv/bin/flask --app manage.py sync-shared-jobs
+.venv/bin/flask --app manage.py rebuild-matches
+.venv/bin/flask --app manage.py run-daily-sync
+```
+
+## Deployment Scaffolding
+
+The repo now includes:
+
+- [wsgi.py](/Users/divinedavis/job-scraper/wsgi.py) for Gunicorn entry
+- [deploy/gunicorn.conf.py](/Users/divinedavis/job-scraper/deploy/gunicorn.conf.py)
+- [deploy/jordansjobfinder.service.example](/Users/divinedavis/job-scraper/deploy/jordansjobfinder.service.example)
+- [deploy/production.env.example](/Users/divinedavis/job-scraper/deploy/production.env.example)
+- [deploy/DEPLOYMENT.md](/Users/divinedavis/job-scraper/deploy/DEPLOYMENT.md)
+
+These are examples only. Final production deployment still needs the real `.env`, SMTP, and Stripe values.
+
+These private-app features still need production secrets and wiring before deployment:
+
+- SMTP credentials for real magic-link email delivery
+- Stripe keys, products, and webhooks
+- future Google and LinkedIn auth setup

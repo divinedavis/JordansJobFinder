@@ -2,9 +2,9 @@
 """
 Jordan's Job Finder — Expanded Multi-Company Scraper
 -----------------------------------------------------
-Cities   : NYC (VP only) | Atlanta (VP or Senior)
-Finance  : Top 500 finance + hedge funds with NYC / Atlanta presence
-Tech     : Top 100 tech companies with NYC / Atlanta offices
+Cities   : NYC (VP only) | Atlanta (VP or Senior) | Miami (VP or Senior)
+Finance  : Top 500 finance + hedge funds with NYC / Atlanta / Miami presence
+Tech     : Top 100 tech companies with NYC / Atlanta / Miami offices
 Output   : /var/www/jordansjobfinder/jobs.html
 Cron     : daily at 12:00 PM
 """
@@ -25,6 +25,7 @@ SEEN_FILE   = SCRIPT_DIR / "seen_jobs.json"
 OUTPUT_FILE = SCRIPT_DIR / "jobs.html"
 LOG_FILE    = SCRIPT_DIR / "scraper.log"
 STORE_FILE  = SCRIPT_DIR / "jobs_store.json"
+SHARED_JOBS_FILE = SCRIPT_DIR / "shared_jobs.json"
 
 # ── Filters ───────────────────────────────────────────────────────────────────
 TARGET_ROLES      = ["product manager", "program manager",
@@ -38,6 +39,28 @@ EXCLUDE_SENIORITY = [r"senior vice", r"assistant vice", r"\bavp\b", r"\bsvp\b",
 NYC_LOCS     = ["new york", "nyc", "manhattan", "brooklyn", "jersey city"]
 ATLANTA_LOCS = ["atlanta", "alpharetta", "buckhead", "sandy springs",
                 "dunwoody", "midtown", "ga,", ", ga", "georgia"]
+MIAMI_LOCS   = ["miami", "miami, fl", "miami fl", "miami, florida",
+                "miami florida", "miami beach", "miami-dade", "greater miami",
+                "south florida", "brickell", "coral gables", "doral",
+                "fort lauderdale", "ft lauderdale", "aventura", "boca raton"]
+
+CITY_LABELS = {
+    "nyc": "New York, NY",
+    "atlanta": "Atlanta, GA",
+    "miami": "Miami, FL",
+}
+
+CITY_SEARCH = {
+    "nyc": "New York",
+    "atlanta": "Atlanta",
+    "miami": "Miami",
+}
+
+AMAZON_LOCATIONS = {
+    "nyc": "New York,New York,United States",
+    "atlanta": "Atlanta,Georgia,United States",
+    "miami": "Miami,Florida,United States",
+}
 
 MIN_SALARY   = 180_000
 VALID_POST_DAYS = 2
@@ -61,7 +84,7 @@ HEADERS = {
 
 # ── Company Configs ────────────────────────────────────────────────────────────
 # (name, tenant, workday_ver, site_name, city)
-# city: "nyc" | "atlanta"
+# city: "nyc" | "atlanta" | "miami"
 WORKDAY_COMPANIES = [
     # ── Finance · NYC ──────────────────────────────────────────────────────────
     ("TIAA",             "tiaa",          1,   "Search",                  "nyc"),
@@ -142,6 +165,14 @@ WORKDAY_COMPANIES = [
     ("SAP ATL",          "sap",           5,   "SAP",                     "atlanta"),
     ("Oracle ATL",       "oracle",        5,   "oracle",                  "atlanta"),
     ("ServiceNow ATL",   "servicenow",    5,   "External",                "atlanta"),
+    ("IBM MIA",          "ibm",           5,   "External",                "miami"),
+    ("Accenture MIA",    "accenture",     5,   "AccentureCareers",        "miami"),
+    ("Oracle MIA",       "oracle",        5,   "oracle",                  "miami"),
+    ("ServiceNow MIA",   "servicenow",    5,   "External",                "miami"),
+    ("Salesforce MIA",   "salesforce",    12,  "External_Career_Site",    "miami"),
+    ("Visa MIA",         "visa",          5,   "Visa",                    "miami"),
+    ("PayPal MIA",       "paypal",        5,   "paypal",                  "miami"),
+    ("Mastercard MIA",   "mastercard",    1,   "CorporateCareers",        "miami"),
     # ── Finance & Corporate · Atlanta (new) ────────────────────────────────────
     ("ICE",              "ice",           5,   "ice",                     "atlanta"),
     ("Honeywell",        "honeywell",     5,   "Honeywell",               "atlanta"),
@@ -182,16 +213,21 @@ GREENHOUSE_COMPANIES = [
     ("Lyft",          "lyft",          "nyc"),
     ("SoFi",          "sofi",          "nyc"),
     ("LinkedIn",      "linkedin",      "nyc"),
+    ("Stripe MIA",    "stripe",        "miami"),
+    ("Datadog MIA",   "datadog",       "miami"),
+    ("MongoDB MIA",   "mongodb",       "miami"),
 ]
 
 # (name, lever_token, city)
 LEVER_COMPANIES = [
     ("Palantir",   "palantir",         "nyc"),
+    ("Palantir MIA", "palantir",       "miami"),
 ]
 
 # Eightfold: (name, domain, base_url, city)
 EIGHTFOLD_COMPANIES = [
     ("American Express", "aexp", "https://aexp.eightfold.ai/careers/job", "nyc"),
+    ("American Express MIA", "aexp", "https://aexp.eightfold.ai/careers/job", "miami"),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -224,6 +260,10 @@ def save_store(store):
     STORE_FILE.write_text(json.dumps(store, indent=2))
 
 
+def save_shared_jobs(shared_jobs):
+    SHARED_JOBS_FILE.write_text(json.dumps(shared_jobs, indent=2))
+
+
 def purge_old_store(store):
     cutoff = datetime.now(timezone.utc) - timedelta(days=VALID_POST_DAYS)
     kept = []
@@ -252,7 +292,7 @@ def is_senior(title):
 
 
 def level_ok(title, city):
-    """VP required for NYC; VP or Senior for Atlanta."""
+    """VP required for NYC; VP or Senior for Atlanta and Miami."""
     return is_vp(title) if city == "nyc" else (is_vp(title) or is_senior(title))
 
 
@@ -271,8 +311,19 @@ def is_atlanta(text):
     return any(loc in t for loc in ATLANTA_LOCS)
 
 
+def is_miami(text):
+    t = text.lower()
+    return any(loc in t for loc in MIAMI_LOCS)
+
+
 def location_ok(text, city):
-    return is_nyc(text) if city == "nyc" else is_atlanta(text)
+    if city == "nyc":
+        return is_nyc(text)
+    if city == "atlanta":
+        return is_atlanta(text)
+    if city == "miami":
+        return is_miami(text)
+    return False
 
 
 def is_recent_rfc(pub_date_str):
@@ -323,14 +374,215 @@ def salary_ok(salary_text):
     return max_sal >= MIN_SALARY
 
 
+def normalize_title(text):
+    return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
 def is_tech(description):
     desc = description.lower()
     return sum(1 for kw in TECH_SIGNALS if kw in desc) >= TECH_THRESHOLD
 
 
-def make_job(title, url, company, city, salary="", posted="Unknown", location=""):
+def normalize_posted_date(value):
+    value = (value or "").strip()
+    if not value:
+        return ""
+
+    iso_match = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", value)
+    if iso_match:
+        try:
+            return datetime.strptime(iso_match.group(1), "%Y-%m-%d").strftime("%B %d, %Y")
+        except ValueError:
+            pass
+
+    for fmt in ("%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(value.replace(".", ""), fmt).strftime("%B %d, %Y")
+        except ValueError:
+            continue
+
+    rel_match = re.search(r"\b(\d+)\s+(day|hour|minute)s?\s+ago\b", value, re.I)
+    if rel_match:
+        qty = int(rel_match.group(1))
+        unit = rel_match.group(2).lower()
+        delta_args = {f"{unit}s": qty}
+        dt = datetime.now() - timedelta(**delta_args)
+        return dt.strftime("%B %d, %Y")
+
+    lower = value.lower()
+    if lower == "today":
+        return datetime.now().strftime("%B %d, %Y")
+    if lower == "yesterday":
+        return (datetime.now() - timedelta(days=1)).strftime("%B %d, %Y")
+
+    return value
+
+
+def extract_posted_date(soup, full_text):
+    for script in soup.find_all("script", type="application/ld+json"):
+        raw = script.get_text(strip=True)
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        stack = payload if isinstance(payload, list) else [payload]
+        while stack:
+            item = stack.pop()
+            if isinstance(item, dict):
+                for key in ("datePosted", "datePublished", "dateCreated", "uploadDate"):
+                    if item.get(key):
+                        normalized = normalize_posted_date(str(item[key]))
+                        if normalized:
+                            return normalized
+                stack.extend(item.values())
+            elif isinstance(item, list):
+                stack.extend(item)
+
+    for meta_selector in [
+        ("meta", {"property": "article:published_time"}),
+        ("meta", {"name": "publish-date"}),
+        ("meta", {"name": "date"}),
+        ("meta", {"name": "dc.date"}),
+        ("meta", {"itemprop": "datePosted"}),
+    ]:
+        tag = soup.find(*meta_selector)
+        if tag and tag.get("content"):
+            normalized = normalize_posted_date(tag["content"])
+            if normalized:
+                return normalized
+
+    patterns = [
+        r"(?:posted|date posted|posted on|job posted|published|publication date|updated|last updated)\s*[:\-]?\s*([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4})",
+        r"(?:posted|date posted|posted on|job posted|published|publication date|updated|last updated)\s*[:\-]?\s*(20\d{2}-\d{2}-\d{2})",
+        r"(?:posted|date posted|posted on|job posted|published|publication date|updated|last updated)\s*[:\-]?\s*(today|yesterday|\d+\s+(?:day|hour|minute)s?\s+ago)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, full_text, re.I)
+        if match:
+            normalized = normalize_posted_date(match.group(1))
+            if normalized:
+                return normalized
+
+    return "Unknown"
+
+
+def format_posted_label(job):
+    posted = job.get("posted", "").strip()
+    if posted and posted != "Unknown":
+        return f"Posted: {posted}"
+
+    found_at = job.get("found_at", "").strip()
+    if found_at:
+        try:
+            found_dt = datetime.fromisoformat(found_at.replace("Z", "+00:00"))
+            return f"Found: {found_dt.strftime('%B %d, %Y')}"
+        except ValueError:
+            pass
+
+    return "Posted: Unknown"
+
+
+def make_job(title, url, company, city, salary="", posted="Unknown", location="", source="unknown"):
     return dict(title=title, url=url, company=company, city=city,
-                salary=salary, posted=posted, location=location)
+                salary=salary, posted=posted, location=location, source=source)
+
+
+def city_display(city, location):
+    if location:
+        return location
+    return CITY_LABELS.get(city, "")
+
+
+def parse_salary_bounds(salary_text):
+    parsed = parse_salary(salary_text or "")
+    if not parsed:
+        return None, None
+    return parsed
+
+
+def parse_posted_datetime_from_label(posted):
+    posted = (posted or "").strip()
+    if not posted or posted == "Unknown":
+        return None
+
+    if posted.lower() == "posted today" or posted.lower() == "today":
+        return datetime.now(timezone.utc)
+    if posted.lower() == "yesterday":
+        return datetime.now(timezone.utc) - timedelta(days=1)
+
+    for fmt in ("%Y-%m-%d", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(posted, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def extract_experience_bounds(text):
+    combined = (text or "").lower()
+    range_match = re.search(r"\b(\d+)\s*(?:-|to)\s*(\d+)\s+years?\b", combined)
+    if range_match:
+        return int(range_match.group(1)), int(range_match.group(2))
+
+    through_match = re.search(r"\b(\d+)\s*(?:through|–|—)\s*(\d+)\s+years?\b", combined)
+    if through_match:
+        return int(through_match.group(1)), int(through_match.group(2))
+
+    plus_match = re.search(r"\b(\d+)\+\s+years?\b", combined)
+    if plus_match:
+        return int(plus_match.group(1)), None
+
+    min_match = re.search(
+        r"\b(?:at least|minimum of|min\.?|minimum|required|required minimum|over|more than|with)\s*(\d+)\+?\s+years?\b",
+        combined,
+    )
+    if min_match:
+        return int(min_match.group(1)), None
+
+    alt_min_match = re.search(
+        r"\b(\d+)\s+years?\s+(?:of )?(?:experience|required|preferred|in)\b",
+        combined,
+    )
+    if alt_min_match:
+        return int(alt_min_match.group(1)), None
+
+    return None, None
+
+
+def normalize_shared_job(job, description=""):
+    salary_min, salary_max = parse_salary_bounds(job.get("salary"))
+    exp_min, exp_max = extract_experience_bounds(f"{job.get('title', '')} {description}")
+    posted_label = job.get("posted", "Unknown")
+    posted_at = parse_posted_datetime_from_label(posted_label)
+    found_at_raw = job.get("found_at")
+    found_at = None
+    if found_at_raw:
+        try:
+            found_at = datetime.fromisoformat(found_at_raw)
+        except ValueError:
+            found_at = None
+
+    return {
+        "source": job.get("source", "jordansjobfinder-shared"),
+        "company": job.get("company", ""),
+        "title": job.get("title", ""),
+        "normalized_title": normalize_title(job.get("title", "")),
+        "url": job.get("url", ""),
+        "city": job.get("city", ""),
+        "location": city_display(job.get("city", ""), job.get("location", "")),
+        "description": description,
+        "salary_label": job.get("salary", ""),
+        "salary_min": salary_min,
+        "salary_max": salary_max,
+        "posted_label": posted_label,
+        "posted_at": posted_at.isoformat() if posted_at else None,
+        "experience_min": exp_min,
+        "experience_max": exp_max,
+        "is_technical": True,
+        "found_at": found_at.isoformat() if found_at else datetime.now(timezone.utc).isoformat(),
+    }
 
 
 # ── Playwright detail fetcher ──────────────────────────────────────────────────
@@ -370,8 +622,7 @@ def fetch_detail(page, url):
             salary = f"${match[0]}" + (f" – ${match[1]}" if match[1] else "")
             break
 
-    date_m = re.search(r"[Pp]osted[:\s]+([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4})", full_text)
-    posted = date_m.group(1).strip() if date_m else "Unknown"
+    posted = extract_posted_date(soup, full_text)
 
     return salary, full_text, posted
 
@@ -405,7 +656,7 @@ def scrape_citi():
             continue
         candidates.append(make_job(
             title=title.split(" - (")[0].strip(),
-            url=url, company="Citigroup", city="nyc", posted=pub_date
+            url=url, company="Citigroup", city="nyc", posted=pub_date, source="talentbrew-rss"
         ))
     log(f"  [Citigroup] {len(candidates)} candidate(s)")
     return candidates
@@ -454,7 +705,7 @@ def scrape_workday_company(name, tenant, wd_ver, site, city):
                        f"/en-US/{site}{ext_path}")
                 candidates.append(make_job(
                     title=title, url=url, company=name, city=city,
-                    posted=posted, location=location
+                    posted=posted, location=location, source="workday"
                 ))
 
             offset += 20
@@ -496,7 +747,7 @@ def scrape_greenhouse_company(name, token, city):
 
         candidates.append(make_job(
             title=title, url=job_url, company=name, city=city,
-            posted=updated, location=location
+            posted=updated, location=location, source="greenhouse"
         ))
 
     return candidates
@@ -540,7 +791,7 @@ def scrape_lever_company(name, token, city):
         posted = datetime.fromtimestamp(created / 1000, tz=timezone.utc).strftime("%Y-%m-%d") if created else ""
         candidates.append(make_job(
             title=title, url=job_url, company=name, city=city,
-            posted=posted, location=location
+            posted=posted, location=location, source="lever"
         ))
 
     return candidates
@@ -549,7 +800,7 @@ def scrape_lever_company(name, token, city):
 # ── Generic Eightfold API ──────────────────────────────────────────────────────
 
 def scrape_eightfold_company(name, domain, base_url, city):
-    loc_query = "New York" if city == "nyc" else "Atlanta"
+    loc_query = CITY_SEARCH[city]
     candidates = []
 
     for term in ["product manager", "program manager"]:
@@ -584,7 +835,7 @@ def scrape_eightfold_company(name, domain, base_url, city):
             url = f"{base_url}/{job_id}"
             candidates.append(make_job(
                 title=title, url=url, company=name, city=city,
-                posted=posted, location=location
+                posted=posted, location=location, source="eightfold"
             ))
         time.sleep(1)
 
@@ -620,7 +871,7 @@ def scrape_jpmorgan(page):
             if not (is_target_role(title) and is_vp(title) and is_nyc(location or title)):
                 continue
             candidates.append(make_job(title=title, url=href,
-                                       company="JPMorgan Chase", city="nyc", location=location))
+                                       company="JPMorgan Chase", city="nyc", location=location, source="playwright-jpmc"))
         time.sleep(2)
     log(f"  [JPMorgan Chase] {len(candidates)} candidate(s)")
     return candidates
@@ -664,7 +915,7 @@ def scrape_goldman(page):
 
             candidates.append(make_job(title=title, url=href,
                                        company="Goldman Sachs", city="nyc",
-                                       location=location or "New York, NY"))
+                                       location=location or "New York, NY", source="playwright-goldman"))
         time.sleep(2)
     log(f"  [Goldman Sachs] {len(candidates)} candidate(s)")
     return candidates
@@ -698,7 +949,7 @@ def scrape_metlife(page):
             if not (is_nyc(location) and is_target_role(title) and is_vp(title)):
                 continue
             candidates.append(make_job(title=title, url=href,
-                                       company="MetLife", city="nyc", location=location))
+                                       company="MetLife", city="nyc", location=location, source="playwright-metlife"))
         time.sleep(1)
     log(f"  [MetLife] {len(candidates)} candidate(s)")
     return candidates
@@ -709,7 +960,7 @@ def scrape_metlife(page):
 def scrape_google(page, city="nyc"):
     log(f"  [Google] Playwright ({city})...")
     candidates = []
-    loc_param  = "New+York%2C+NY" if city == "nyc" else "Atlanta%2C+GA"
+    loc_param  = urllib.parse.quote(CITY_LABELS[city])
     for term in ["product manager", "program manager"]:
         url = (f"https://www.google.com/about/careers/applications/jobs/results/"
                f"?q={urllib.parse.quote(term)}&location={loc_param}&employment_type=FULL_TIME")
@@ -738,7 +989,7 @@ def scrape_google(page, city="nyc"):
             if not location_ok(location or url, city):
                 continue
             candidates.append(make_job(title=title, url=href,
-                                       company="Google", city=city, location=location))
+                                       company="Google", city=city, location=location, source="playwright-google"))
         time.sleep(2)
     log(f"  [Google] {len(candidates)} candidate(s)")
     return candidates
@@ -749,10 +1000,9 @@ def scrape_google(page, city="nyc"):
 def scrape_meta(page, city="nyc"):
     log(f"  [Meta] Playwright ({city})...")
     candidates = []
-    loc_param  = "New+York%2C+NY" if city == "nyc" else "Atlanta%2C+GA"
     for term in ["product manager", "program manager"]:
         url = (f"https://www.metacareers.com/jobs?q={urllib.parse.quote(term)}"
-               f"&offices[]={urllib.parse.quote('New York, NY' if city == 'nyc' else 'Atlanta, GA')}")
+               f"&offices[]={urllib.parse.quote(CITY_LABELS[city])}")
         try:
             page.goto(url, wait_until="domcontentloaded", timeout=20_000)
             page.wait_for_timeout(5000)
@@ -773,7 +1023,7 @@ def scrape_meta(page, city="nyc"):
                 continue
             candidates.append(make_job(title=title, url=href,
                                        company="Meta", city=city,
-                                       location="New York, NY" if city == "nyc" else "Atlanta, GA"))
+                                       location=CITY_LABELS[city], source="playwright-meta"))
         time.sleep(2)
     log(f"  [Meta] {len(candidates)} candidate(s)")
     return candidates
@@ -784,7 +1034,7 @@ def scrape_meta(page, city="nyc"):
 def scrape_amazon(city="nyc"):
     log(f"  [Amazon] API ({city})...")
     candidates = []
-    loc = "New York,New York,United States" if city == "nyc" else "Atlanta,Georgia,United States"
+    loc = AMAZON_LOCATIONS[city]
 
     for term in ["product manager", "program manager"]:
         try:
@@ -817,7 +1067,7 @@ def scrape_amazon(city="nyc"):
 
             candidates.append(make_job(
                 title=title, url=job_url, company="Amazon",
-                city=city, posted=updated, location=location
+                city=city, posted=updated, location=location, source="amazon-api"
             ))
         time.sleep(1)
 
@@ -835,6 +1085,7 @@ def main():
 
     seen     = load_seen()
     new_jobs = []
+    shared_jobs = []
 
     # ── Phase 1: No-browser scrapers ──────────────────────────────────────────
     all_candidates = []
@@ -867,6 +1118,7 @@ def main():
 
     all_candidates += scrape_amazon("nyc")
     all_candidates += scrape_amazon("atlanta")
+    all_candidates += scrape_amazon("miami")
 
     # ── Phase 2: Playwright scrapers ──────────────────────────────────────────
     with sync_playwright() as p:
@@ -878,8 +1130,10 @@ def main():
         all_candidates += scrape_metlife(pw_page)
         all_candidates += scrape_google(pw_page, "nyc")
         all_candidates += scrape_google(pw_page, "atlanta")
+        all_candidates += scrape_google(pw_page, "miami")
         all_candidates += scrape_meta(pw_page, "nyc")
         all_candidates += scrape_meta(pw_page, "atlanta")
+        all_candidates += scrape_meta(pw_page, "miami")
 
         # ── Phase 3: Enrich candidates with detail page ───────────────────────
         log(f"Enriching {len(all_candidates)} candidates with detail pages...")
@@ -902,6 +1156,7 @@ def main():
                     pass  # include it
                 if not job["salary"]:
                     job["salary"] = "See posting"
+                description = ""
             else:
                 salary, description, posted = fetch_detail(pw_page, url)
                 if salary:
@@ -930,6 +1185,7 @@ def main():
 
             log(f"    ✓ MATCH — {job['salary']} | {job['posted']}")
             new_jobs.append(job)
+            shared_jobs.append(normalize_shared_job(job, description))
             seen.add(url)
 
         browser.close()
@@ -946,6 +1202,7 @@ def main():
             store.append(job)
             added += 1
     save_store(store)
+    save_shared_jobs(shared_jobs)
     write_html(store)
     save_seen(seen)
     log(f"Done. {added} new job(s) added; {len(store)} total in store")
@@ -955,32 +1212,106 @@ def main():
 
 def write_html(jobs):
     run_date = datetime.now().strftime("%B %d, %Y — %I:%M %p")
+    illustration_assets = [
+        {
+            "svg": "https://cdn.undraw.co/illustrations/tasks_l9ct.svg",
+            "page": "https://undraw.co/illustration/tasks_l9ct",
+            "title": "Tasks",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/business-analytics_y8m6.svg",
+            "page": "https://undraw.co/illustration/business-analytics_y8m6",
+            "title": "Business Analytics",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/analytics_6mru.svg",
+            "page": "https://undraw.co/illustration/analytics_6mru",
+            "title": "Analytics",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/in-the-office_ma2b.svg",
+            "page": "https://undraw.co/illustration/in-the-office_ma2b",
+            "title": "In The Office",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/working-remotely_ivtz.svg",
+            "page": "https://undraw.co/illustration/working-remotely_ivtz",
+            "title": "Working Remotely",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/co-working_becw.svg",
+            "page": "https://undraw.co/illustration/co-working_becw",
+            "title": "Co Working",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/business-chat_xea1.svg",
+            "page": "https://undraw.co/illustration/business-chat_xea1",
+            "title": "Business Chat",
+        },
+        {
+            "svg": "https://cdn.undraw.co/illustrations/contemplating_v4x1.svg",
+            "page": "https://undraw.co/illustration/contemplating_v4x1",
+            "title": "Contemplating",
+        },
+    ]
 
     nyc_jobs = [j for j in jobs if j["city"] == "nyc"]
     atl_jobs = [j for j in jobs if j["city"] == "atlanta"]
+    mia_jobs = [j for j in jobs if j["city"] == "miami"]
+    city_meta = {
+        "nyc": {
+            "label": "New York City",
+            "kicker": "VP only",
+            "accent": "var(--accent-nyc)",
+            "description": "Technical product and program leadership with a premium compensation floor.",
+            "empty": "No New York matches landed in the last two days.",
+        },
+        "atl": {
+            "label": "Atlanta",
+            "kicker": "VP or Senior",
+            "accent": "var(--accent-atl)",
+            "description": "Senior and executive technical PM and PgM roles across enterprise, fintech, and infrastructure.",
+            "empty": "No Atlanta matches landed in the last two days.",
+        },
+        "mia": {
+            "label": "Miami",
+            "kicker": "VP or Senior",
+            "accent": "var(--accent-mia)",
+            "description": "South Florida technical PM and PgM coverage with the same screening logic as Atlanta.",
+            "empty": "No Miami matches landed in the last two days.",
+        },
+    }
 
-    def make_cards(job_list, badge_color):
+    def make_cards(job_list, city):
         if not job_list:
-            return '<p class="none">No matching jobs found in the last 2 days.</p>'
+            meta = city_meta[city]
+            return f"""
+        <div class="empty-state {city}">
+          <div class="empty-copy">
+            <p class="empty-title">{meta['label']}</p>
+            <p class="empty-text">{meta['empty']}</p>
+          </div>
+        </div>"""
         cards = ""
         for job in job_list:
             cards += f"""
-        <div class="card">
-          <div class="card-header">
+        <article class="card {city}">
+          <div class="card-topline">
             <span class="company">{job['company']}</span>
-            <span class="posted">Posted: {job['posted']}</span>
+            <span class="posted">{format_posted_label(job)}</span>
           </div>
-          <div class="title">{job['title']}</div>
+          <h3 class="title">{job['title']}</h3>
           <div class="meta">
-            <span class="salary">💰 {job['salary'] or 'Salary not listed'}</span>
-            <span class="location">📍 {job['location'] or ('New York, NY' if job['city'] == 'nyc' else 'Atlanta, GA')}</span>
+            <span class="meta-chip salary">{job['salary'] or 'Salary not listed'}</span>
+            <span class="meta-chip location">{job['location'] or CITY_LABELS.get(job['city'], '')}</span>
           </div>
-          <a class="apply-btn" href="{job['url']}" target="_blank">View Job →</a>
-        </div>"""
+          <a class="apply-btn" href="{job['url']}" target="_blank" rel="noreferrer">View Role</a>
+        </article>"""
         return cards
 
-    nyc_cards = make_cards(nyc_jobs, "#38bdf8")
-    atl_cards = make_cards(atl_jobs, "#f97316")
+    nyc_cards = make_cards(nyc_jobs, "nyc")
+    atl_cards = make_cards(atl_jobs, "atl")
+    mia_cards = make_cards(mia_jobs, "mia")
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -989,56 +1320,455 @@ def write_html(jobs):
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Jordan's Job Finder — {run_date}</title>
 <style>
+  :root {{
+    --bg: #f5f1e8;
+    --paper: rgba(255, 255, 255, 0.74);
+    --paper-strong: rgba(255, 255, 255, 0.9);
+    --ink: #1d2433;
+    --muted: #667085;
+    --line: rgba(29, 36, 51, 0.1);
+    --shadow: 0 28px 60px rgba(29, 36, 51, 0.12);
+    --accent-nyc: #1947e5;
+    --accent-atl: #b85c38;
+    --accent-mia: #1f8f6b;
+  }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #0f172a; color: #e2e8f0;
-    padding: 32px 20px; max-width: 900px; margin: 0 auto;
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at top left, rgba(25, 71, 229, 0.08), transparent 26%),
+      radial-gradient(circle at top right, rgba(184, 92, 56, 0.08), transparent 24%),
+      linear-gradient(180deg, #f8f4ec 0%, #efe7d8 100%);
+    padding: 28px 18px 56px;
   }}
-  h1 {{ color: #38bdf8; font-size: 24px; margin-bottom: 4px; }}
-  .subtitle {{ color: #64748b; font-size: 13px; margin-bottom: 32px; }}
-  h2 {{ font-size: 16px; font-weight: 700; letter-spacing: 0.08em;
-         text-transform: uppercase; margin: 28px 0 14px;
-         padding-bottom: 8px; border-bottom: 1px solid #1e293b; }}
-  h2.nyc {{ color: #38bdf8; }}
-  h2.atl {{ color: #f97316; }}
+  .page {{
+    max-width: 1120px;
+    margin: 0 auto;
+  }}
+  .hero {{
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+    gap: 32px;
+    align-items: center;
+    background: var(--paper);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(18px);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    padding: 34px;
+    margin-bottom: 26px;
+  }}
+  .eyebrow {{
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 8px 12px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }}
+  h1 {{
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: clamp(2.3rem, 4vw, 4.25rem);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+    margin-bottom: 14px;
+  }}
+  .hero-copy {{
+    max-width: 640px;
+  }}
+  .hero-lead {{
+    color: #404b5f;
+    font-size: 1rem;
+    line-height: 1.7;
+    margin-bottom: 22px;
+    max-width: 58ch;
+  }}
+  .hero-meta {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }}
+  .hero-pill {{
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--ink);
+    font-size: 13px;
+    padding: 10px 14px;
+  }}
+  .hero-visual {{
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 228, 0.88));
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    border-radius: 24px;
+    padding: 18px;
+    text-align: center;
+  }}
+  .hero-visual img {{
+    width: 100%;
+    max-width: 360px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }}
+  .credit {{
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 10px;
+  }}
+  .credit a {{
+    color: inherit;
+  }}
+  .stats {{
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }}
+  .stat {{
+    background: var(--paper-strong);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 20px;
+    box-shadow: 0 16px 38px rgba(29, 36, 51, 0.08);
+    padding: 20px;
+  }}
+  .stat-label {{
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }}
+  .stat-value {{
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: 2rem;
+    line-height: 1;
+  }}
+  .sections {{
+    display: grid;
+    gap: 22px;
+  }}
+  .section {{
+    background: var(--paper);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    padding: 26px;
+  }}
+  .section-head {{
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+  }}
+  .section-kicker {{
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }}
+  h2 {{
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: clamp(1.65rem, 2.2vw, 2.2rem);
+    line-height: 1.05;
+    margin-bottom: 8px;
+  }}
+  .section-copy {{
+    color: #4e596c;
+    font-size: 14px;
+    line-height: 1.65;
+    max-width: 60ch;
+  }}
+  .section-count {{
+    min-width: 86px;
+    text-align: right;
+    color: var(--muted);
+    font-size: 13px;
+  }}
+  .section-count strong {{
+    display: block;
+    color: var(--ink);
+    font-size: 28px;
+    line-height: 1;
+  }}
+  .card-list {{
+    display: grid;
+    gap: 14px;
+  }}
   .card {{
-    background: #1e293b; border-radius: 10px;
-    padding: 20px 24px; margin-bottom: 14px;
-    border-left: 4px solid #38bdf8;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    border-left: 4px solid var(--accent-nyc);
+    border-radius: 22px;
+    padding: 22px;
   }}
-  .card.atl {{ border-color: #f97316; }}
-  .card:hover {{ filter: brightness(1.05); }}
-  .card-header {{ display: flex; justify-content: space-between; margin-bottom: 8px; }}
-  .company {{ color: #94a3b8; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }}
-  .posted  {{ color: #f97316; font-size: 12px; }}
-  .title   {{ font-size: 17px; font-weight: 600; color: #f1f5f9; margin-bottom: 12px; line-height: 1.4; }}
-  .meta    {{ display: flex; gap: 24px; margin-bottom: 16px; flex-wrap: wrap; }}
-  .salary  {{ color: #4ade80; font-weight: 600; font-size: 14px; }}
-  .location {{ color: #94a3b8; font-size: 14px; }}
+  .card.atl {{ border-left-color: var(--accent-atl); }}
+  .card.mia {{ border-left-color: var(--accent-mia); }}
+  .card-topline {{
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }}
+  .company {{
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }}
+  .posted  {{
+    color: #685c4a;
+    font-size: 12px;
+    white-space: nowrap;
+  }}
+  .title {{
+    font-size: 1.12rem;
+    line-height: 1.45;
+    margin-bottom: 14px;
+  }}
+  .meta {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+  }}
+  .meta-chip {{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    background: rgba(255, 255, 255, 0.82);
+    color: #495265;
+    font-size: 13px;
+    padding: 9px 12px;
+  }}
+  .salary {{
+    color: #1f6f50;
+    font-weight: 700;
+  }}
   .apply-btn {{
-    display: inline-block; background: #38bdf8; color: #0f172a;
-    padding: 8px 18px; border-radius: 6px; text-decoration: none;
-    font-weight: 700; font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 118px;
+    border-radius: 999px;
+    text-decoration: none;
+    background: var(--accent-nyc);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 11px 16px;
   }}
-  .card.atl .apply-btn {{ background: #f97316; }}
-  .apply-btn:hover {{ opacity: 0.85; }}
-  .none {{ color: #64748b; font-style: italic; margin-top: 8px; }}
-  .count {{ font-size: 12px; color: #64748b; margin-left: 8px; font-weight: normal; }}
+  .card.atl .apply-btn {{ background: var(--accent-atl); }}
+  .card.mia .apply-btn {{ background: var(--accent-mia); }}
+  .empty-state {{
+    border-radius: 22px;
+    border: 1px dashed rgba(29, 36, 51, 0.16);
+    background: rgba(255, 255, 255, 0.58);
+    padding: 22px;
+  }}
+  .empty-title {{
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }}
+  .empty-text {{
+    color: #4e596c;
+    font-size: 15px;
+    line-height: 1.6;
+  }}
+  @media (max-width: 920px) {{
+    .hero {{
+      grid-template-columns: 1fr;
+      padding: 24px;
+    }}
+    .stats {{
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }}
+    .section-head {{
+      flex-direction: column;
+      align-items: start;
+    }}
+    .section-count {{
+      text-align: left;
+    }}
+  }}
+  @media (max-width: 640px) {{
+    body {{
+      padding: 18px 14px 36px;
+    }}
+    .stats {{
+      grid-template-columns: 1fr;
+    }}
+    .hero,
+    .section {{
+      border-radius: 22px;
+      padding: 20px;
+    }}
+    .card {{
+      padding: 18px;
+    }}
+    .card-topline {{
+      flex-direction: column;
+      align-items: start;
+    }}
+    .posted {{
+      white-space: normal;
+    }}
+  }}
 </style>
 </head>
 <body>
-  <h1>Jordan's Job Finder</h1>
-  <p class="subtitle">
-    Run: {run_date} &nbsp;·&nbsp; {len(nyc_jobs)} NYC job(s) &nbsp;·&nbsp; {len(atl_jobs)} Atlanta job(s)
-  </p>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Curated Technical Leadership Search</span>
+        <h1>Jordan's Job Finder</h1>
+        <p class="hero-lead">
+          A focused board for technical product and program management roles across New York City, Atlanta, and Miami. The scraper reviews selected company career pages and surfaces only the matches that clear the current role, location, recency, and compensation filters.
+        </p>
+        <div class="hero-meta">
+          <span class="hero-pill">Last run: {run_date}</span>
+          <span class="hero-pill">Live public website</span>
+          <span class="hero-pill">Technical PM / PgM only</span>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img
+          id="hero-illustration"
+          src="{illustration_assets[0]['svg']}"
+          alt="{illustration_assets[0]['title']} illustration by unDraw"
+          data-illustrations='{json.dumps(illustration_assets)}'
+        >
+        <p class="credit">Illustration by <a id="hero-illustration-link" href="{illustration_assets[0]['page']}" target="_blank" rel="noreferrer">unDraw</a></p>
+      </div>
+    </section>
 
-  <h2 class="nyc">🗽 New York City <span class="count">VP · Technical PM/PgM · $180k+</span></h2>
-  {nyc_cards}
+    <section class="stats">
+      <div class="stat">
+        <span class="stat-label">New York City</span>
+        <strong class="stat-value">{len(nyc_jobs)}</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Atlanta</span>
+        <strong class="stat-value">{len(atl_jobs)}</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Miami</span>
+        <strong class="stat-value">{len(mia_jobs)}</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Total Live Matches</span>
+        <strong class="stat-value">{len(jobs)}</strong>
+      </div>
+    </section>
 
-  <h2 class="atl">🍑 Atlanta <span class="count">VP or Senior · Technical PM/PgM</span></h2>
-  {atl_cards}
+    <section class="sections">
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">NYC · {city_meta['nyc']['kicker']}</p>
+            <h2>New York City</h2>
+            <p class="section-copy">{city_meta['nyc']['description']}</p>
+          </div>
+          <div class="section-count"><strong>{len(nyc_jobs)}</strong>matches</div>
+        </div>
+        <div class="card-list">
+          {nyc_cards}
+        </div>
+      </section>
 
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Atlanta · {city_meta['atl']['kicker']}</p>
+            <h2>Atlanta</h2>
+            <p class="section-copy">{city_meta['atl']['description']}</p>
+          </div>
+          <div class="section-count"><strong>{len(atl_jobs)}</strong>matches</div>
+        </div>
+        <div class="card-list">
+          {atl_cards}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Miami · {city_meta['mia']['kicker']}</p>
+            <h2>Miami</h2>
+            <p class="section-copy">{city_meta['mia']['description']}</p>
+          </div>
+          <div class="section-count"><strong>{len(mia_jobs)}</strong>matches</div>
+        </div>
+        <div class="card-list">
+          {mia_cards}
+        </div>
+      </section>
+    </section>
+  </div>
+  <script>
+    (() => {{
+      const image = document.getElementById("hero-illustration");
+      const link = document.getElementById("hero-illustration-link");
+      if (!image || !link) return;
+
+      const raw = image.dataset.illustrations;
+      if (!raw) return;
+
+      let illustrations = [];
+      try {{
+        illustrations = JSON.parse(raw);
+      }} catch (_error) {{
+        return;
+      }}
+      if (!illustrations.length) return;
+
+      const formatter = new Intl.DateTimeFormat("en-CA", {{
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }});
+      const hourFormatter = new Intl.DateTimeFormat("en-US", {{
+        timeZone: "America/New_York",
+        hour: "2-digit",
+        hour12: false,
+      }});
+
+      const now = new Date();
+      const nyDateKey = formatter.format(now);
+      const nyHour = Number(hourFormatter.format(now));
+      const [year, month, day] = nyDateKey.split("-").map(Number);
+      const anchorDay = nyHour < 6 ? day - 1 : day;
+      const rotationSeed = Date.UTC(year, month - 1, anchorDay);
+      const index = Math.abs(Math.floor(rotationSeed / 86400000)) % illustrations.length;
+      const asset = illustrations[index];
+
+      image.src = asset.svg;
+      image.alt = `${{asset.title}} illustration by unDraw`;
+      link.href = asset.page;
+    }})();
+  </script>
 </body>
 </html>"""
 

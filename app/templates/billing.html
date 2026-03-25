@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Billing | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Billing Architecture In Place</span>
+    <h1>Billing is scaffolded, not connected yet.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      The data model supports the $2.99 monthly custom-city plan and the $9.99 unlimited-change unlock. The Stripe integration is now wired in code and activates once valid env credentials and price IDs are present.
+    </p>
+    {% if is_superuser %}
+    <p class="muted" style="margin-top: 12px;">
+      Super-user access is active on this account, so billing limits are bypassed here.
+    </p>
+    {% endif %}
+  </section>
+
+  <section class="grid two">
+    <article class="card">
+      <span class="stat-label">Custom City Plan</span>
+      <strong class="stat-value" style="font-size: 1.6rem;">$2.99/mo</strong>
+      <p style="margin-top: 12px;">Replaces the default New York, Atlanta, and Miami set with up to three cities of the user's choice.</p>
+    </article>
+    <article class="card">
+      <span class="stat-label">Unlimited Changes</span>
+      <strong class="stat-value" style="font-size: 1.6rem;">$9.99</strong>
+      <p style="margin-top: 12px;">One-time unlock after the first two free saved-search changes have been used.</p>
+    </article>
+  </section>
+
+  <section class="panel">
+    <h2>Current Account State</h2>
+    <div class="list">
+      <div class="list-item">
+        <span>City override active</span>
+        <strong>{{ "Included" if is_superuser else ("Yes" if user.subscription and user.subscription.city_override_active else "No") }}</strong>
+      </div>
+      <div class="list-item">
+        <span>Unlimited changes unlocked</span>
+        <strong>{{ "Included" if is_superuser else ("Yes" if user.subscription and user.subscription.unlimited_changes_unlocked else "No") }}</strong>
+      </div>
+      <div class="list-item">
+        <span>Status</span>
+        <strong>{{ user.subscription.status if user.subscription else "free" }}</strong>
+      </div>
+      <div class="list-item">
+        <span>Stripe configured</span>
+        <strong>{{ "Yes" if stripe_configured else "No" }}</strong>
+      </div>
+    </div>
+    {% if not is_superuser %}
+    <div class="button-row">
+      <form method="post" action="{{ url_for('web.billing_checkout', kind='city-plan') }}">
+        <button class="button" type="submit">Start $2.99 City Plan</button>
+      </form>
+      <form method="post" action="{{ url_for('web.billing_checkout', kind='unlock-changes') }}">
+        <button class="button secondary" type="submit">Unlock Unlimited Changes</button>
+      </form>
+      <form method="post" action="{{ url_for('web.cancel_city_plan') }}">
+        <button class="button secondary" type="submit">Cancel City Plan</button>
+      </form>
+    </div>
+    {% endif %}
+    {% if not stripe_configured %}
+      <p class="muted" style="margin-top: 14px;">
+        Stripe checkout buttons are wired, but they will not work until a rotated secret key, publishable key, webhook secret, and real price IDs are present in the environment.
+      </p>
+    {% endif %}
+  </section>
+{% endblock %}

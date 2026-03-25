@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Private Jobs</span>
+    <h1>Your current job matches.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      This dashboard now focuses on jobs only. Saved search details, account controls, and billing live under Settings.
+    </p>
+  </section>
+
+  {% if not saved_search %}
+    <section class="panel">
+      <h2>No saved search yet</h2>
+      <p>Create your saved search first so the app has a title, experience bucket, and city set to match against.</p>
+      <div class="button-row">
+        <a class="button" href="{{ url_for('web.settings') }}">Open Settings</a>
+      </div>
+    </section>
+  {% else %}
+    <section class="panel">
+      <h2>Current Board</h2>
+      {% if matches %}
+        {% for city, city_matches in grouped_matches.items() %}
+          <div class="match-section">
+            <div class="match-header">
+              <div>
+                <p class="match-kicker">{{ city }}</p>
+                <h3 class="match-title">{{ city }}</h3>
+              </div>
+              <strong class="match-count">{{ city_matches|length }}</strong>
+            </div>
+            {% if city_matches %}
+              <div class="match-cards">
+                {% for match in city_matches %}
+                  <article class="match-card">
+                    <div class="match-card-top">
+                      <span class="match-company">{{ match.company }}</span>
+                      <span class="match-posted">{{ match.posted_label }}</span>
+                    </div>
+                    <div class="match-role">{{ match.title }}</div>
+                    <div class="match-meta">
+                      <span>{{ match.salary_label }}</span>
+                      <span>{{ match.location }}</span>
+                    </div>
+                    <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View Role</a>
+                  </article>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="muted">No current matches in this city.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% elif preview_matches %}
+        <div class="list">
+          {% for match in preview_matches %}
+            <div class="list-item" style="align-items: start;">
+              <div>
+                <strong>{{ match.company }}</strong>
+                <div style="margin-top: 4px;">{{ match.title }}</div>
+                <div class="muted" style="margin-top: 6px;">{{ match.display_city }} · {{ match.posted_label }}</div>
+              </div>
+              <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View</a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p>No matches exist yet for this saved search.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}
