@@ -10,7 +10,9 @@ os.environ["SECRET_KEY"] = "test-secret"
 
 from app import create_app  # noqa: E402
 from app.db import get_db, init_db  # noqa: E402
+from app.matching import ParsedExperience, match_job_for_user, parse_experience_years  # noqa: E402
 from app.models import SavedSearch, Subscription, User  # noqa: E402
+from scraper import extract_experience_bounds, parse_salary  # noqa: E402
 
 
 class AppSmokeTest(unittest.TestCase):
@@ -184,6 +186,39 @@ class AppSmokeTest(unittest.TestCase):
             db = get_db()
             deleted = db.query(User).filter(User.id == self.user_id).one_or_none()
             self.assertIsNone(deleted)
+
+
+class MatchingLogicTest(unittest.TestCase):
+    def test_superuser_no_longer_requires_technical_keyword(self):
+        matched = match_job_for_user(
+            "technical-product-manager",
+            "10+",
+            "Senior Product Manager - Vice President",
+            "Requires 8+ years of product management experience.",
+            salary_min=None,
+            salary_max=None,
+            user_email="divinejdavis@gmail.com",
+        )
+        self.assertTrue(matched)
+
+    def test_parse_experience_years_handles_embedded_requirement(self):
+        parsed = parse_experience_years(
+            "Technical Program Manager",
+            "Candidates require 8 or more years of relevant product delivery experience.",
+        )
+        self.assertEqual(parsed, ParsedExperience(min_years=8, max_years=None))
+
+    def test_scraper_parse_salary_handles_k_ranges(self):
+        self.assertEqual(
+            parse_salary("Compensation range: $180k - $240k annually"),
+            (180000, 240000),
+        )
+
+    def test_scraper_extract_experience_handles_word_numbers(self):
+        self.assertEqual(
+            extract_experience_bounds("Minimum eight years of professional experience required."),
+            (8, None),
+        )
 
 
 if __name__ == "__main__":

@@ -10,7 +10,11 @@ YEARS_RANGE_PATTERN = re.compile(
     re.I,
 )
 YEARS_MIN_PATTERN = re.compile(
-    r"(?:at least|minimum of|min\.?|over|more than)?\s*(?P<low>\d+)\+?\s*years?",
+    r"(?:at least|minimum of|min\.?|over|more than)?\s*(?P<low>\d+)(?:\+|\s+or\s+more)?\s*years?",
+    re.I,
+)
+YEARS_EMBEDDED_PATTERN = re.compile(
+    r"(?:minimum|required|requires|requiring|preferred|preference for|with)\s+(?P<low>\d+)\+?\s*(?:\w+\s+){0,4}?years?",
     re.I,
 )
 
@@ -36,10 +40,6 @@ def title_matches_superuser_scope(title: str) -> bool:
     return "product manager" in normalized or "program manager" in normalized
 
 
-def technical_scope_matches(title: str, description: str) -> bool:
-    return "technical" in normalize_text(description)
-
-
 def parse_experience_years(*texts: str) -> ParsedExperience:
     combined = " ".join(normalize_text(text) for text in texts if text)
     best = ParsedExperience()
@@ -58,6 +58,8 @@ def parse_experience_years(*texts: str) -> ParsedExperience:
 
     mins = []
     for match in YEARS_MIN_PATTERN.finditer(combined):
+        mins.append(int(match.group("low")))
+    for match in YEARS_EMBEDDED_PATTERN.finditer(combined):
         mins.append(int(match.group("low")))
     if mins:
         low = min(mins)
@@ -144,7 +146,6 @@ def match_job_for_user(
     if is_superuser_email(user_email):
         return (
             title_matches_superuser_scope(title)
-            and technical_scope_matches(title, description)
             and experience_at_least(8, parsed)
             and salary_meets_minimum(salary_min, salary_max, 180000)
         )

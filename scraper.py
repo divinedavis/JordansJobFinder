@@ -82,6 +82,25 @@ HEADERS = {
     "Accept": "application/json",
 }
 
+NUMBER_WORDS = {
+    "zero": 0,
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+}
+
 # ── Company Configs ────────────────────────────────────────────────────────────
 # (name, tenant, workday_ver, site_name, city)
 # city: "nyc" | "atlanta" | "miami"
@@ -356,13 +375,35 @@ def is_recent_iso(date_str):
     return False
 
 
+def normalize_numeric_language(text):
+    normalized = f" {(text or '').lower()} "
+    for word, value in NUMBER_WORDS.items():
+        normalized = re.sub(rf"\b{word}\b", str(value), normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
 def parse_salary(text):
-    nums = [int(n.replace(",", "")) for n in re.findall(r"[\d,]+", text.replace(".00", ""))
-            if int(n.replace(",", "")) >= 50_000]
-    if len(nums) >= 2:
-        return min(nums), max(nums)
-    if len(nums) == 1:
-        return nums[0], nums[0]
+    normalized = normalize_numeric_language(text).replace(".00", "")
+    if not normalized:
+        return None
+
+    amounts = []
+    pattern = re.compile(r"\$?\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
+    for raw_amount, suffix in pattern.findall(normalized):
+        amount = float(raw_amount.replace(",", ""))
+        suffix = suffix.lower()
+        if suffix == "k":
+            amount *= 1_000
+        elif suffix == "m":
+            amount *= 1_000_000
+        amount = int(amount)
+        if amount >= 50_000:
+            amounts.append(amount)
+
+    if len(amounts) >= 2:
+        return min(amounts), max(amounts)
+    if len(amounts) == 1:
+        return amounts[0], amounts[0]
     return None
 
 
@@ -521,32 +562,42 @@ def parse_posted_datetime_from_label(posted):
 
 
 def extract_experience_bounds(text):
-    combined = (text or "").lower()
-    range_match = re.search(r"\b(\d+)\s*(?:-|to)\s*(\d+)\s+years?\b", combined)
+    combined = normalize_numeric_language(text)
+    range_match = re.search(
+        r"\b(\d+)\s*(?:\+)?\s*(?:-|to|through|–|—)\s*(\d+)\+?\s+(?:years?|yrs?)\b",
+        combined,
+    )
     if range_match:
         return int(range_match.group(1)), int(range_match.group(2))
 
-    through_match = re.search(r"\b(\d+)\s*(?:through|–|—)\s*(\d+)\s+years?\b", combined)
+    through_match = re.search(r"\b(\d+)\s*(?:through|–|—)\s*(\d+)\s+(?:years?|yrs?)\b", combined)
     if through_match:
         return int(through_match.group(1)), int(through_match.group(2))
 
-    plus_match = re.search(r"\b(\d+)\+\s+years?\b", combined)
+    plus_match = re.search(r"\b(\d+)(?:\+|\s+or\s+more)\s*(?:years?|yrs?)\b", combined)
     if plus_match:
         return int(plus_match.group(1)), None
 
     min_match = re.search(
-        r"\b(?:at least|minimum of|min\.?|minimum|required|required minimum|over|more than|with)\s*(\d+)\+?\s+years?\b",
+        r"\b(?:at least|minimum of|min\.?|minimum|required|required minimum|over|more than|with|requires?|requiring|preferred|preference for)\s*(\d+)\+?\s*(?:years?|yrs?)\b",
         combined,
     )
     if min_match:
         return int(min_match.group(1)), None
 
     alt_min_match = re.search(
-        r"\b(\d+)\s+years?\s+(?:of )?(?:experience|required|preferred|in)\b",
+        r"\b(\d+)\s*(?:years?|yrs?)\s+(?:of )?(?:experience|required|preferred|in|working experience|professional experience)\b",
         combined,
     )
     if alt_min_match:
         return int(alt_min_match.group(1)), None
+
+    embedded_match = re.search(
+        r"\b(?:minimum|required|requires?|requiring|preferred)\s+(\d+)\+?\s*(?:\w+\s+){0,4}?(?:years?|yrs?)\b",
+        combined,
+    )
+    if embedded_match:
+        return int(embedded_match.group(1)), None
 
     return None, None
 
@@ -607,20 +658,24 @@ def fetch_detail(page, url):
     except Exception:
         return "", "", ""
 
-    soup      = BeautifulSoup(page.content(), "html.parser")
+    html = page.content()
+    soup      = BeautifulSoup(html, "html.parser")
     full_text = soup.get_text(separator=" ", strip=True)
 
-    # Salary: only match amounts that look like annual compensation ($50k+)
-    salary_m = re.findall(
-        r"\$\s*(\d{1,3}(?:,\d{3})+)(?:\s*[-–to]+\s*\$\s*(\d{1,3}(?:,\d{3})+))?",
-        full_text)
     salary = ""
-    for match in salary_m:
-        low = int(match[0].replace(",", ""))
-        high = int(match[1].replace(",", "")) if match[1] else low
-        if high >= 50_000:
-            salary = f"${match[0]}" + (f" – ${match[1]}" if match[1] else "")
-            break
+    salary_sources = [full_text, html]
+    for script in soup.find_all("script", type="application/ld+json"):
+        raw = script.get_text(" ", strip=True)
+        if raw:
+            salary_sources.append(raw)
+
+    for source_text in salary_sources:
+        parsed_salary = parse_salary(source_text)
+        if not parsed_salary:
+            continue
+        low, high = parsed_salary
+        salary = f"${low:,.0f}" if low == high else f"${low:,.0f} – ${high:,.0f}"
+        break
 
     posted = extract_posted_date(soup, full_text)
 
