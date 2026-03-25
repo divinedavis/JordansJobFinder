@@ -3,7 +3,13 @@ __pycache__/
 *.log
 seen_jobs.json
 jobs.html
+jobs_store.json
+shared_jobs.json
+.env.local
+.env.production
 .env
+!.env.example
+!deploy/production.env.example
 venv/
 .venv/
 instance/
