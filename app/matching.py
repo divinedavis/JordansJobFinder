@@ -102,11 +102,13 @@ def salary_meets_minimum(
     salary_max: Optional[int],
     minimum_salary: int,
 ) -> bool:
+    if salary_min is None and salary_max is None:
+        return True
     if salary_max is not None:
         return salary_max >= minimum_salary
     if salary_min is not None:
         return salary_min >= minimum_salary
-    return False
+    return True
 
 
 def match_job(title_slug: str, experience_bucket: str, title: str, description: str) -> bool:
