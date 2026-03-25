@@ -10,6 +10,7 @@ os.environ["SECRET_KEY"] = "test-secret"
 
 from app import create_app  # noqa: E402
 from app.db import get_db, init_db  # noqa: E402
+from app.ingest import normalize_legacy_job  # noqa: E402
 from app.matching import ParsedExperience, match_job_for_user, parse_experience_years  # noqa: E402
 from app.models import SavedSearch, Subscription, User  # noqa: E402
 from scraper import extract_experience_bounds, parse_salary  # noqa: E402
@@ -219,6 +220,29 @@ class MatchingLogicTest(unittest.TestCase):
             extract_experience_bounds("Minimum eight years of professional experience required."),
             (8, None),
         )
+
+    def test_parse_experience_years_prefers_required_over_preferred(self):
+        parsed = parse_experience_years(
+            "Technical Product Manager",
+            "Requires 8+ years of product management experience and 15+ years preferred in leadership roles.",
+        )
+        self.assertEqual(parsed, ParsedExperience(min_years=8, max_years=None))
+
+    def test_normalize_legacy_job_parses_salary_from_description(self):
+        normalized = normalize_legacy_job(
+            {
+                "title": "Senior Product Manager - Vice President",
+                "company": "Morgan Stanley",
+                "url": "https://example.com/job",
+                "city": "nyc",
+                "salary": "See posting",
+                "posted": "Posted Today",
+                "location": "New York, New York, United States of America",
+                "description": "New York, NY expected annual base salary for this role is $180,000 - $220,000.",
+            }
+        )
+        self.assertEqual(normalized["salary_min"], 180000)
+        self.assertEqual(normalized["salary_max"], 220000)
 
 
 if __name__ == "__main__":

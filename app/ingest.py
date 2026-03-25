@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from .matching import normalize_text, parse_experience_years
+from .matching import normalize_text
+from .parsing import format_salary_label, parse_experience_years, parse_salary
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -41,7 +42,12 @@ def load_shared_jobs() -> list[dict]:
 def normalize_legacy_job(job: dict) -> dict:
     title = job.get("title", "")
     posted_label = job.get("posted") or "Unknown"
-    parsed_experience = parse_experience_years(title, job.get("description", ""))
+    description = job.get("description", "")
+    parsed_experience = parse_experience_years(title, description)
+    salary_label = job.get("salary") or ""
+    salary_bounds = parse_salary(salary_label) or parse_salary(description or "")
+    if salary_bounds and (not salary_label or salary_label == "See posting"):
+        salary_label = format_salary_label(salary_bounds)
     found_at = job.get("found_at")
     found_dt = None
     if found_at:
@@ -58,8 +64,10 @@ def normalize_legacy_job(job: dict) -> dict:
         "url": job.get("url", ""),
         "city": job.get("city", ""),
         "location": job.get("location", ""),
-        "description": job.get("description"),
-        "salary_label": job.get("salary"),
+        "description": description,
+        "salary_label": salary_label,
+        "salary_min": salary_bounds[0] if salary_bounds else None,
+        "salary_max": salary_bounds[1] if salary_bounds else None,
         "posted_label": posted_label,
         "posted_at": parse_posted_datetime(posted_label),
         "experience_min": parsed_experience.min_years,

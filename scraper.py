@@ -19,6 +19,13 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+from app.parsing import (
+    format_salary_label,
+    normalize_numeric_language,
+    parse_experience_years,
+    parse_salary,
+)
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR  = Path(__file__).parent
 SEEN_FILE   = SCRIPT_DIR / "seen_jobs.json"
@@ -80,25 +87,6 @@ HEADERS = {
                    "AppleWebKit/537.36 (KHTML, like Gecko) "
                    "Chrome/120.0.0.0 Safari/537.36"),
     "Accept": "application/json",
-}
-
-NUMBER_WORDS = {
-    "zero": 0,
-    "one": 1,
-    "two": 2,
-    "three": 3,
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-    "nine": 9,
-    "ten": 10,
-    "eleven": 11,
-    "twelve": 12,
-    "thirteen": 13,
-    "fourteen": 14,
-    "fifteen": 15,
 }
 
 # ── Company Configs ────────────────────────────────────────────────────────────
@@ -375,38 +363,6 @@ def is_recent_iso(date_str):
     return False
 
 
-def normalize_numeric_language(text):
-    normalized = f" {(text or '').lower()} "
-    for word, value in NUMBER_WORDS.items():
-        normalized = re.sub(rf"\b{word}\b", str(value), normalized)
-    return re.sub(r"\s+", " ", normalized).strip()
-
-
-def parse_salary(text):
-    normalized = normalize_numeric_language(text).replace(".00", "")
-    if not normalized:
-        return None
-
-    amounts = []
-    pattern = re.compile(r"\$?\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
-    for raw_amount, suffix in pattern.findall(normalized):
-        amount = float(raw_amount.replace(",", ""))
-        suffix = suffix.lower()
-        if suffix == "k":
-            amount *= 1_000
-        elif suffix == "m":
-            amount *= 1_000_000
-        amount = int(amount)
-        if amount >= 50_000:
-            amounts.append(amount)
-
-    if len(amounts) >= 2:
-        return min(amounts), max(amounts)
-    if len(amounts) == 1:
-        return amounts[0], amounts[0]
-    return None
-
-
 def salary_ok(salary_text):
     result = parse_salary(salary_text)
     if not result:
@@ -562,48 +518,16 @@ def parse_posted_datetime_from_label(posted):
 
 
 def extract_experience_bounds(text):
-    combined = normalize_numeric_language(text)
-    range_match = re.search(
-        r"\b(\d+)\s*(?:\+)?\s*(?:-|to|through|–|—)\s*(\d+)\+?\s+(?:years?|yrs?)\b",
-        combined,
-    )
-    if range_match:
-        return int(range_match.group(1)), int(range_match.group(2))
-
-    through_match = re.search(r"\b(\d+)\s*(?:through|–|—)\s*(\d+)\s+(?:years?|yrs?)\b", combined)
-    if through_match:
-        return int(through_match.group(1)), int(through_match.group(2))
-
-    plus_match = re.search(r"\b(\d+)(?:\+|\s+or\s+more)\s*(?:years?|yrs?)\b", combined)
-    if plus_match:
-        return int(plus_match.group(1)), None
-
-    min_match = re.search(
-        r"\b(?:at least|minimum of|min\.?|minimum|required|required minimum|over|more than|with|requires?|requiring|preferred|preference for)\s*(\d+)\+?\s*(?:years?|yrs?)\b",
-        combined,
-    )
-    if min_match:
-        return int(min_match.group(1)), None
-
-    alt_min_match = re.search(
-        r"\b(\d+)\s*(?:years?|yrs?)\s+(?:of )?(?:experience|required|preferred|in|working experience|professional experience)\b",
-        combined,
-    )
-    if alt_min_match:
-        return int(alt_min_match.group(1)), None
-
-    embedded_match = re.search(
-        r"\b(?:minimum|required|requires?|requiring|preferred)\s+(\d+)\+?\s*(?:\w+\s+){0,4}?(?:years?|yrs?)\b",
-        combined,
-    )
-    if embedded_match:
-        return int(embedded_match.group(1)), None
-
-    return None, None
+    parsed = parse_experience_years(text)
+    return parsed.min_years, parsed.max_years
 
 
 def normalize_shared_job(job, description=""):
-    salary_min, salary_max = parse_salary_bounds(job.get("salary"))
+    salary_min, salary_max = parse_salary_bounds(job.get("salary") or description)
+    salary_bounds = (salary_min, salary_max) if salary_min is not None else None
+    salary_label = job.get("salary", "")
+    if salary_bounds and (not salary_label or salary_label == "See posting"):
+        salary_label = format_salary_label(salary_bounds)
     exp_min, exp_max = extract_experience_bounds(f"{job.get('title', '')} {description}")
     posted_label = job.get("posted", "Unknown")
     posted_at = parse_posted_datetime_from_label(posted_label)
@@ -624,7 +548,7 @@ def normalize_shared_job(job, description=""):
         "city": job.get("city", ""),
         "location": city_display(job.get("city", ""), job.get("location", "")),
         "description": description,
-        "salary_label": job.get("salary", ""),
+        "salary_label": salary_label or "See posting",
         "salary_min": salary_min,
         "salary_max": salary_max,
         "posted_label": posted_label,
@@ -1214,6 +1138,7 @@ def main():
                 description = ""
             else:
                 salary, description, posted = fetch_detail(pw_page, url)
+                job["description"] = description
                 if salary:
                     job["salary"] = salary
                 if posted and posted != "Unknown":

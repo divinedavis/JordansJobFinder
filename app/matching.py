@@ -1,31 +1,11 @@
-import re
-from dataclasses import dataclass
 from typing import Optional
 
 from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS
-
-
-YEARS_RANGE_PATTERN = re.compile(
-    r"(?P<low>\d+)\s*(?:\+|plus)?\s*(?:-|to)\s*(?P<high>\d+)?\s*years?",
-    re.I,
-)
-YEARS_MIN_PATTERN = re.compile(
-    r"(?:at least|minimum of|min\.?|over|more than)?\s*(?P<low>\d+)(?:\+|\s+or\s+more)?\s*years?",
-    re.I,
-)
-YEARS_EMBEDDED_PATTERN = re.compile(
-    r"(?:minimum|required|requires|requiring|preferred|preference for|with)\s+(?P<low>\d+)\+?\s*(?:\w+\s+){0,4}?years?",
-    re.I,
-)
-
-
-@dataclass
-class ParsedExperience:
-    min_years: Optional[int] = None
-    max_years: Optional[int] = None
+from .parsing import ParsedExperience, parse_experience_years
 
 
 def normalize_text(value: str) -> str:
+    import re
     return re.sub(r"\s+", " ", (value or "").strip().lower())
 
 
@@ -38,35 +18,6 @@ def title_matches(title: str, selected_slug: str) -> bool:
 def title_matches_superuser_scope(title: str) -> bool:
     normalized = normalize_text(title)
     return "product manager" in normalized or "program manager" in normalized
-
-
-def parse_experience_years(*texts: str) -> ParsedExperience:
-    combined = " ".join(normalize_text(text) for text in texts if text)
-    best = ParsedExperience()
-
-    for match in YEARS_RANGE_PATTERN.finditer(combined):
-        low = int(match.group("low"))
-        high = match.group("high")
-        high_value = int(high) if high else low
-        if best.min_years is None or low < best.min_years:
-            best.min_years = low
-        if best.max_years is None or high_value > best.max_years:
-            best.max_years = high_value
-
-    if best.min_years is not None:
-        return best
-
-    mins = []
-    for match in YEARS_MIN_PATTERN.finditer(combined):
-        mins.append(int(match.group("low")))
-    for match in YEARS_EMBEDDED_PATTERN.finditer(combined):
-        mins.append(int(match.group("low")))
-    if mins:
-        low = min(mins)
-        return ParsedExperience(min_years=low, max_years=None)
-
-    return best
-
 
 def experience_bucket_matches(bucket: str, parsed: ParsedExperience) -> bool:
     if parsed.min_years is None and parsed.max_years is None:
