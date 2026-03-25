@@ -68,7 +68,15 @@ The exact Nginx config is still environment-specific and should be added once we
 
 ## 8. Daily jobs
 
-For the private app foundation, the daily job should run:
+Production currently runs two daily jobs in cron with `CRON_TZ=America/New_York` so they stay aligned to 6:00 AM New York time across DST changes:
+
+```cron
+CRON_TZ=America/New_York
+0 6 * * * python3 /var/www/jordansjobfinder/scraper.py >> /var/www/jordansjobfinder/scraper.log 2>&1
+5 6 * * * cd /var/www/jordansjobfinder && set -a && . ./.env && set +a && .venv/bin/python manage.py run-daily-sync >> /var/www/jordansjobfinder/app-sync.log 2>&1
+```
+
+The app sync job should run after the scraper completes:
 
 ```bash
 .venv/bin/python manage.py run-daily-sync
