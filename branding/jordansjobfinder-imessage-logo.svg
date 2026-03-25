@@ -1,0 +1,37 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glowBlue" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(220 156) rotate(34.4676) scale(291.476 268.94)">
+      <stop stop-color="#1947E5" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#1947E5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowClay" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(824 164) rotate(135.304) scale(258.111 235.351)">
+      <stop stop-color="#B85C38" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#B85C38" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="paperBg" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8F4EC"/>
+      <stop offset="1" stop-color="#EFE7D8"/>
+    </linearGradient>
+    <filter id="shadow" x="164" y="203" width="696" height="574" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="24"/>
+      <feGaussianBlur stdDeviation="28"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.113725 0 0 0 0 0.141176 0 0 0 0 0.2 0 0 0 0.12 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#paperBg)"/>
+  <rect width="1024" height="1024" fill="url(#glowBlue)"/>
+  <rect width="1024" height="1024" fill="url(#glowClay)"/>
+  <g filter="url(#shadow)">
+    <rect x="220" y="235" width="584" height="462" rx="44" fill="white" fill-opacity="0.74"/>
+    <rect x="220.75" y="235.75" width="582.5" height="460.5" rx="43.25" stroke="white" stroke-opacity="0.7" stroke-width="1.5"/>
+  </g>
+  <text x="512" y="374" text-anchor="middle" fill="#1D2433" font-family="Iowan Old Style, Georgia, serif" font-size="54" letter-spacing="10">JORDAN'S</text>
+  <text x="512" y="506" text-anchor="middle" fill="#1D2433" font-family="Iowan Old Style, Georgia, serif" font-size="116" font-weight="600" letter-spacing="-4">Job Finder</text>
+  <line x1="356" y1="561" x2="668" y2="561" stroke="#1D2433" stroke-opacity="0.16" stroke-width="2"/>
+  <text x="512" y="625" text-anchor="middle" fill="#667085" font-family="Avenir Next, Segoe UI, sans-serif" font-size="28" font-weight="700" letter-spacing="8">DAILY TECHNICAL SEARCHES</text>
+</svg>
