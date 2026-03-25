@@ -73,6 +73,8 @@ def preview_matches(saved_search) -> list[dict]:
             saved_search.experience_bucket,
             job.get("title", ""),
             job.get("description", "") or "",
+            job.get("salary_min"),
+            job.get("salary_max"),
             getattr(saved_search.user, "email", None),
         ):
             continue

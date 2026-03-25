@@ -32,9 +32,13 @@ def title_matches(title: str, selected_slug: str) -> bool:
 
 
 def title_matches_superuser_scope(title: str) -> bool:
-    return title_matches(title, "technical-product-manager") or title_matches(
-        title, "technical-program-manager"
-    )
+    normalized = normalize_text(title)
+    return "product manager" in normalized or "program manager" in normalized
+
+
+def technical_scope_matches(title: str, description: str) -> bool:
+    combined = normalize_text(" ".join(part for part in [title, description] if part))
+    return "technical" in combined
 
 
 def parse_experience_years(*texts: str) -> ParsedExperience:
@@ -94,6 +98,18 @@ def experience_at_least(minimum_years: int, parsed: ParsedExperience) -> bool:
     return low >= minimum_years or (high is not None and high >= minimum_years)
 
 
+def salary_meets_minimum(
+    salary_min: Optional[int],
+    salary_max: Optional[int],
+    minimum_salary: int,
+) -> bool:
+    if salary_max is not None:
+        return salary_max >= minimum_salary
+    if salary_min is not None:
+        return salary_min >= minimum_salary
+    return False
+
+
 def match_job(title_slug: str, experience_bucket: str, title: str, description: str) -> bool:
     if not title_matches(title, title_slug):
         return False
@@ -119,11 +135,18 @@ def match_job_for_user(
     experience_bucket: str,
     title: str,
     description: str,
+    salary_min: Optional[int] = None,
+    salary_max: Optional[int] = None,
     user_email: Optional[str] = None,
 ) -> bool:
     parsed = parse_experience_years(title, description)
     if is_superuser_email(user_email):
-        return title_matches_superuser_scope(title) and experience_at_least(8, parsed)
+        return (
+            title_matches_superuser_scope(title)
+            and technical_scope_matches(title, description)
+            and experience_at_least(8, parsed)
+            and salary_meets_minimum(salary_min, salary_max, 180000)
+        )
 
     if not title_matches(title, title_slug):
         return False

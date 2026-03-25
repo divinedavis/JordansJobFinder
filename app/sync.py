@@ -51,6 +51,8 @@ def rebuild_matches() -> int:
                 search.experience_bucket,
                 job.title,
                 job.description or "",
+                job.salary_min,
+                job.salary_max,
                 users_by_id.get(search.user_id).email if users_by_id.get(search.user_id) else None,
             ):
                 continue
