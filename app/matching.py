@@ -37,8 +37,7 @@ def title_matches_superuser_scope(title: str) -> bool:
 
 
 def technical_scope_matches(title: str, description: str) -> bool:
-    combined = normalize_text(" ".join(part for part in [title, description] if part))
-    return "technical" in combined
+    return "technical" in normalize_text(description)
 
 
 def parse_experience_years(*texts: str) -> ParsedExperience:
