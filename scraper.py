@@ -606,6 +606,37 @@ def fetch_detail(page, url):
     return salary, full_text, posted
 
 
+def fetch_google_detail(url):
+    """Fetch a careers.google.com job page via plain HTTP — Google server-renders the description."""
+    try:
+        resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=20)
+        if resp.status_code != 200:
+            return "", "", ""
+    except Exception:
+        return "", "", ""
+
+    html = resp.text
+    soup = BeautifulSoup(html, "html.parser")
+    full_text = soup.get_text(separator=" ", strip=True)
+
+    salary = ""
+    salary_sources = [full_text, html]
+    for script in soup.find_all("script", type="application/ld+json"):
+        raw = script.get_text(" ", strip=True)
+        if raw:
+            salary_sources.append(raw)
+
+    for source_text in salary_sources:
+        parsed_salary = parse_salary(source_text)
+        if not parsed_salary:
+            continue
+        salary = format_salary_label(parsed_salary)
+        break
+
+    posted = extract_posted_date(soup, full_text)
+    return salary, full_text, posted
+
+
 def fetch_workday_detail(url):
     try:
         resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=20)
@@ -1157,9 +1188,13 @@ def main():
             log(f"  Detail: {job['company']} [{job['city'].upper()}] | {job['title'][:50]}")
 
             is_workday = "myworkdayjobs.com" in url
+            is_google = "careers.google.com" in url
 
-            if is_workday:
-                salary, description, posted = fetch_workday_detail(url)
+            if is_workday or is_google:
+                if is_workday:
+                    salary, description, posted = fetch_workday_detail(url)
+                else:
+                    salary, description, posted = fetch_google_detail(url)
                 job["description"] = description
                 if salary:
                     job["salary"] = salary
