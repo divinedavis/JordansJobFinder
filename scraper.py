@@ -406,7 +406,13 @@ def normalize_posted_date(value):
         dt = datetime.now() - timedelta(**delta_args)
         return dt.strftime("%B %d, %Y")
 
+    # Strip common prefixes like "Posted today" → "today"
     lower = value.lower()
+    for prefix in ("posted ", "date posted: ", "published "):
+        if lower.startswith(prefix):
+            lower = lower[len(prefix):]
+            break
+
     if lower == "today":
         return datetime.now().strftime("%B %d, %Y")
     if lower == "yesterday":

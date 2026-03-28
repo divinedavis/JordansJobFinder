@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 
 from .catalog import TITLE_LABELS
@@ -17,6 +19,22 @@ CITY_LABELS = {
 def _display_city(job: dict) -> str:
     city_value = job.get("city", "")
     return CITY_LABELS.get(city_value, job.get("location", ""))
+
+
+def _posted_display(posted_label: str, found_at) -> str:
+    """Return a stable, human-readable posted label.
+
+    - If we have a real label (not Unknown/relative), use it.
+    - Otherwise fall back to 'Found <Month Day>' using found_at.
+    """
+    label = (posted_label or "").strip()
+    stale_relative = label.lower() in ("", "unknown", "posted today", "posted yesterday", "today", "yesterday")
+    if not stale_relative:
+        return label
+    if found_at:
+        dt = found_at if found_at.tzinfo else found_at.replace(tzinfo=timezone.utc)
+        return f"Found {dt.strftime('%b %-d')}"
+    return "Unknown"
 
 
 def group_matches_by_city(matches: list[dict]) -> dict:
@@ -50,7 +68,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "url": job.url,
                 "display_city": CITY_LABELS.get(job.city, job.location or ""),
                 "location": job.location or CITY_LABELS.get(job.city, ""),
-                "posted_label": job.posted_label or "Unknown",
+                "posted_label": _posted_display(job.posted_label, job.found_at),
                 "salary_label": job.salary_label or "See posting",
                 "matched_at": job_match.matched_at,
             }
