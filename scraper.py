@@ -188,6 +188,63 @@ WORKDAY_COMPANIES = [
     ("Chick-fil-A",      "cfacorp",       5,   "CFA_External",            "atlanta"),
     ("Porsche Cars NA",  "porschecars",   5,   "External",                "atlanta"),
     ("Inspire Brands",   "inspirebrands", 5,   "External",                "atlanta"),
+    # ── Fortune 1000 · Finance · NYC ──────────────────────────────────────────
+    ("Capital One",      "capitalone",    1,   "Capital_One",             "nyc"),
+    ("Synchrony",        "synchronyfinancial", 5, "careers",              "nyc"),
+    ("Discover",         "discover",      5,   "Discover",                "nyc"),
+    ("Guardian Life",    "guardianlife",  5,   "Guardian-Life-Careers",   "nyc"),
+    ("MassMutual",       "massmutual",    1,   "MMAscendCareers",         "nyc"),
+    ("Northwestern Mut", "northwesternmutual", 5, "CORPORATE-CAREERS",   "nyc"),
+    # ── Fortune 1000 · Pharma/Health · NYC ────────────────────────────────────
+    ("Pfizer",           "pfizer",        1,   "PfizerCareers",           "nyc"),
+    ("Johnson & Johnson","jj",            5,   "JJ",                      "nyc"),
+    ("Bristol-Myers",    "bristolmyerssquibb", 5, "BMS",                  "nyc"),
+    ("Merck",            "msd",           5,   "SearchJobs",              "nyc"),
+    ("CVS Health",       "cvshealth",     1,   "CVS_Health_Careers",      "nyc"),
+    ("Cigna",            "cigna",         5,   "cignacareers",            "nyc"),
+    ("Humana",           "humana",        5,   "Humana_External_Career_Site", "nyc"),
+    ("Cardinal Health",  "cardinalhealth",1,   "EXT",                     "nyc"),
+    ("Abbott",           "abbott",        5,   "abbottcareers",           "nyc"),
+    ("Becton Dickinson", "bdx",           1,   "EXTERNAL_CAREER_SITE_USA","nyc"),
+    # ── Fortune 1000 · Media/Telecom · NYC ────────────────────────────────────
+    ("Verizon",          "verizon",       12,  "verizon-careers",         "nyc"),
+    ("AT&T",             "att",           1,   "ATTGeneral",              "nyc"),
+    ("Comcast",          "comcast",       5,   "Comcast_Careers",         "nyc"),
+    ("Walt Disney",      "disney",        5,   "disneycareer",            "nyc"),
+    ("Warner Bros",      "warnerbros",    5,   "global",                  "nyc"),
+    ("Fox Corp",         "fox",           1,   "Domestic",                "nyc"),
+    ("PwC",              "pwc",           3,   "Global_Experienced_Careers", "nyc"),
+    ("New York Times",   "nytimes",       5,   "NYT",                     "nyc"),
+    # ── Fortune 1000 · Tech/Cyber · NYC ───────────────────────────────────────
+    ("Cisco",            "cisco",         5,   "Cisco_Careers",           "nyc"),
+    ("Intel",            "intel",         1,   "External",                "nyc"),
+    ("CrowdStrike",      "crowdstrike",   5,   "crowdstrikecareers",      "nyc"),
+    # ── Fortune 1000 · Consumer · NYC ─────────────────────────────────────────
+    ("PVH Corp",         "pvh",           1,   "PVH_Careers",             "nyc"),
+    # ── Fortune 1000 · Atlanta ────────────────────────────────────────────────
+    ("Coca-Cola",        "coke",          1,   "coca-cola-careers",       "atlanta"),
+    ("Truist Financial", "truist",        1,   "Careers",                 "atlanta"),
+    ("Invesco",          "invesco",       1,   "IVZ",                     "atlanta"),
+    ("Corpay",           "corpay",        103, "Ext_001",                 "atlanta"),
+    ("Carter's",         "carters",       1,   "CartersCareers",          "atlanta"),
+    ("Assurant",         "assurant",      1,   "Assurant_Careers",        "atlanta"),
+    ("Veritiv",          "veritiv",       5,   "VeritivCareers",          "atlanta"),
+    ("HD Supply",        "hdsupply",      1,   "External",                "atlanta"),
+    ("Capital One ATL",  "capitalone",    1,   "Capital_One",             "atlanta"),
+    ("Verizon ATL",      "verizon",       12,  "verizon-careers",         "atlanta"),
+    ("AT&T ATL",         "att",           1,   "ATTGeneral",              "atlanta"),
+    ("Cisco ATL",        "cisco",         5,   "Cisco_Careers",           "atlanta"),
+    ("CVS Health ATL",   "cvshealth",     1,   "CVS_Health_Careers",      "atlanta"),
+    # ── Fortune 1000 · Miami ──────────────────────────────────────────────────
+    ("Norwegian Cruise", "nclh",          108, "NCLH_Careers",            "miami"),
+    ("Ryder System",     "ryder",         5,   "RyderCareers",            "miami"),
+    ("Lennar",           "lennar",        1,   "Lennar_Jobs",             "miami"),
+    ("World Fuel Svc",   "wfscorp",       5,   "wfscareers",              "miami"),
+    ("Capital One MIA",  "capitalone",    1,   "Capital_One",             "miami"),
+    ("Verizon MIA",      "verizon",       12,  "verizon-careers",         "miami"),
+    ("AT&T MIA",         "att",           1,   "ATTGeneral",              "miami"),
+    ("Cisco MIA",        "cisco",         5,   "Cisco_Careers",           "miami"),
+    ("Walt Disney MIA",  "disney",        5,   "disneycareer",            "miami"),
 ]
 
 # (name, greenhouse_token, city)
@@ -223,12 +280,24 @@ GREENHOUSE_COMPANIES = [
     ("Stripe MIA",    "stripe",        "miami"),
     ("Datadog MIA",   "datadog",       "miami"),
     ("MongoDB MIA",   "mongodb",       "miami"),
+    # ── Fortune 1000 · NYC ────────────────────────────────────────────────────
+    ("Twilio",        "twilio",          "nyc"),
+    ("HubSpot",       "hubspotjobs",     "nyc"),
+    ("Okta",          "okta",            "nyc"),
+    ("Cloudflare",    "cloudflare",      "nyc"),
+    ("Coinbase",      "coinbase",        "nyc"),
+    ("Toast",         "toast",           "nyc"),
+    ("Virtu Financial","virtu",          "nyc"),
+    ("NY Times GH",   "thenewyorktimes", "nyc"),
+    # ── Fortune 1000 · Miami ──────────────────────────────────────────────────
+    ("Chewy",         "chewycom",        "miami"),
 ]
 
 # (name, lever_token, city)
 LEVER_COMPANIES = [
-    ("Palantir",   "palantir",         "nyc"),
-    ("Palantir MIA", "palantir",       "miami"),
+    ("Palantir",       "palantir",       "nyc"),
+    ("Palantir MIA",   "palantir",       "miami"),
+    ("Veeva Systems",  "veeva",          "nyc"),
 ]
 
 # Eightfold: (name, domain, base_url, city)
