@@ -42,6 +42,16 @@ YEARS_EMBEDDED_PATTERN = re.compile(
     re.I,
 )
 
+# Seniority signals used as a fallback when no explicit years are found in the text.
+# Each entry is (pattern, min_years, max_years).
+SENIORITY_EXPERIENCE = [
+    (re.compile(r"\b(junior|entry[\s-]level|associate)\b", re.I), 0, 2),
+    (re.compile(r"\b(vp|vice\s+president)\b", re.I), 8, None),
+    (re.compile(r"\bprincipal\b", re.I), 8, 12),
+    (re.compile(r"\bstaff\b", re.I), 7, 10),
+    (re.compile(r"\b(senior|sr\.?|lead)\b", re.I), 5, 8),
+]
+
 
 @dataclass
 class ParsedExperience:
@@ -137,4 +147,14 @@ def parse_experience_years(*texts: str) -> ParsedExperience:
         target.append(ParsedExperience(min_years=int(match.group("low")), max_years=None))
 
     chosen = _best_candidate(required_or_general) if required_or_general else _best_candidate(preferred)
+
+    # Fallback: infer from seniority signals in the title (first text arg) when
+    # no explicit year patterns were found anywhere in the combined text.
+    if chosen.min_years is None and chosen.max_years is None and texts:
+        title = texts[0] or ""
+        for pattern, min_y, max_y in SENIORITY_EXPERIENCE:
+            if pattern.search(title):
+                chosen = ParsedExperience(min_years=min_y, max_years=max_y)
+                break
+
     return chosen

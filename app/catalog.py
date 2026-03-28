@@ -6,8 +6,8 @@ TITLE_OPTIONS = [
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
 
 TITLE_KEYWORDS = {
-    "technical-product-manager": ["technical product manager"],
-    "technical-program-manager": ["technical program manager"],
+    "technical-product-manager": ["product manager"],
+    "technical-program-manager": ["program manager"],
 }
 
 EXPERIENCE_BUCKETS = [
