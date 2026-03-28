@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Matches | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Private Results</span>
+    <h1>Your current saved-search matches.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      This page uses database-backed matches created from the shared daily crawl. When no stored matches exist yet, it falls back to a preview against the current shared job export.
+    </p>
+  </section>
+
+  {% if not saved_search %}
+    <section class="panel">
+      <h2>No saved search yet</h2>
+      <p>Create your saved search first so the app has a title, experience bucket, and city set to match against.</p>
+      <div class="button-row">
+        <a class="button" href="{{ url_for('web.saved_search') }}">Create Saved Search</a>
+      </div>
+    </section>
+  {% else %}
+    <section class="grid three">
+      <article class="card">
+        <span class="stat-label">Title</span>
+        <strong class="stat-value" style="font-size: 1.35rem;">{{ title_labels[saved_search.title_slug] }}</strong>
+      </article>
+      <article class="card">
+        <span class="stat-label">Experience</span>
+        <strong class="stat-value" style="font-size: 1.35rem;">{{ saved_search.experience_bucket }}</strong>
+      </article>
+      <article class="card">
+        <span class="stat-label">Stored Matches</span>
+        <strong class="stat-value">{{ matches|length if matches else preview_matches|length }}</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Current Board</h2>
+      {% if matches %}
+        {% for city, city_matches in grouped_matches.items() %}
+          <div class="match-section">
+            <div class="match-header">
+              <div>
+                <p class="match-kicker">{{ city }}</p>
+                <h3 class="match-title">{{ city }}</h3>
+              </div>
+              <strong class="match-count">{{ city_matches|length }}</strong>
+            </div>
+            {% if city_matches %}
+              <div class="match-cards">
+                {% for match in city_matches %}
+                  <article class="match-card">
+                    <div class="match-card-top">
+                      <span class="match-company">{{ match.company }}</span>
+                      <span class="match-posted">{{ match.posted_label }}</span>
+                    </div>
+                    <div class="match-role">{{ match.title }}</div>
+                    <div class="match-meta">
+                      <span>{{ match.salary_label }}</span>
+                      <span>{{ match.location }}</span>
+                    </div>
+                    <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View Role</a>
+                  </article>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="muted">No current matches in this city.</p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% elif preview_matches %}
+        <div class="list">
+          {% for match in preview_matches %}
+            <div class="list-item" style="align-items: start;">
+              <div>
+                <strong>{{ match.company }}</strong>
+                <div style="margin-top: 4px;">{{ match.title }}</div>
+                <div class="muted" style="margin-top: 6px;">{{ match.display_city }} · {{ match.posted_label }}</div>
+              </div>
+              <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View</a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p>No matches exist yet for this saved search.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

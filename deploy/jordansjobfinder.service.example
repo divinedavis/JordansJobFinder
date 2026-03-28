@@ -1,0 +1,16 @@
+[Unit]
+Description=Jordan's Job Finder Web App
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/jordansjobfinder
+Environment="PATH=/var/www/jordansjobfinder/.venv/bin"
+EnvironmentFile=/var/www/jordansjobfinder/.env
+ExecStart=/var/www/jordansjobfinder/.venv/bin/gunicorn -c /var/www/jordansjobfinder/deploy/gunicorn.conf.py wsgi:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

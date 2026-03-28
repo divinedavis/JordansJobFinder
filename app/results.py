@@ -1,0 +1,83 @@
+from sqlalchemy import select
+
+from .catalog import TITLE_LABELS
+from .db import get_db
+from .ingest import normalized_shared_jobs
+from .matching import choose_cities, match_job_for_user
+from .models import Job, JobMatch
+
+
+CITY_LABELS = {
+    "nyc": "New York, NY",
+    "atlanta": "Atlanta, GA",
+    "miami": "Miami, FL",
+}
+
+
+def _display_city(job: dict) -> str:
+    city_value = job.get("city", "")
+    return CITY_LABELS.get(city_value, job.get("location", ""))
+
+
+def group_matches_by_city(matches: list[dict]) -> dict:
+    grouped = {}
+    for match in matches:
+        city = match.get("display_city", "")
+        grouped.setdefault(city, [])
+        grouped[city].append(match)
+    return grouped
+
+
+def load_db_matches(saved_search) -> list[dict]:
+    if not saved_search:
+        return []
+
+    db = get_db()
+    rows = db.execute(
+        select(JobMatch, Job)
+        .join(Job, Job.id == JobMatch.job_id)
+        .where(JobMatch.saved_search_id == saved_search.id)
+        .order_by(Job.found_at.desc())
+    ).all()
+
+    matches = []
+    for job_match, job in rows:
+        matches.append(
+            {
+                "id": job.id,
+                "company": job.company,
+                "title": job.title,
+                "url": job.url,
+                "display_city": CITY_LABELS.get(job.city, job.location or ""),
+                "location": job.location or CITY_LABELS.get(job.city, ""),
+                "posted_label": job.posted_label or "Unknown",
+                "salary_label": job.salary_label or "See posting",
+                "matched_at": job_match.matched_at,
+            }
+        )
+    return matches
+
+
+def preview_matches(saved_search) -> list[dict]:
+    if not saved_search:
+        return []
+
+    cities = set(choose_cities(saved_search.city_1, saved_search.city_2, saved_search.city_3))
+    matches = []
+    for job in normalized_shared_jobs():
+        city_label = _display_city(job)
+        if city_label and city_label not in cities and job.get("location") not in cities:
+            continue
+        if not match_job_for_user(
+            saved_search.title_slug,
+            saved_search.experience_bucket,
+            job.get("title", ""),
+            job.get("description", "") or "",
+            job.get("salary_min"),
+            job.get("salary_max"),
+            getattr(saved_search.user, "email", None),
+        ):
+            continue
+        job["display_city"] = city_label or job.get("location", "")
+        matches.append(job)
+    return matches

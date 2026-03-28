@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  {% set illustrations = [
+    {"svg": "https://cdn.undraw.co/illustrations/tasks_l9ct.svg", "page": "https://undraw.co/illustration/tasks_l9ct"},
+    {"svg": "https://cdn.undraw.co/illustrations/business-analytics_y8m6.svg", "page": "https://undraw.co/illustration/business-analytics_y8m6"},
+    {"svg": "https://cdn.undraw.co/illustrations/analytics_6mru.svg", "page": "https://undraw.co/illustration/analytics_6mru"},
+    {"svg": "https://cdn.undraw.co/illustrations/in-the-office_ma2b.svg", "page": "https://undraw.co/illustration/in-the-office_ma2b"},
+    {"svg": "https://cdn.undraw.co/illustrations/working-remotely_ivtz.svg", "page": "https://undraw.co/illustration/working-remotely_ivtz"},
+    {"svg": "https://cdn.undraw.co/illustrations/co-working_becw.svg", "page": "https://undraw.co/illustration/co-working_becw"},
+    {"svg": "https://cdn.undraw.co/illustrations/business-chat_xea1.svg", "page": "https://undraw.co/illustration/business-chat_xea1"},
+    {"svg": "https://cdn.undraw.co/illustrations/contemplating_v4x1.svg", "page": "https://undraw.co/illustration/contemplating_v4x1"}
+  ] %}
+  <section class="panel">
+    <div class="hero-layout">
+      <div class="hero-copy">
+        <span class="eyebrow">Private Saved Search Platform</span>
+        <h1>Daily Technical Product/Program Manager Job Searches</h1>
+        <p>
+          The public board is evolving into a private, database-backed search product. Each user gets one saved search, one daily run, and private results built from the same curated company coverage as the current site.
+        </p>
+        <div class="button-row">
+          {% if not user %}<a class="button" href="{{ url_for('web.sign_in') }}">Create Email Account</a>{% endif %}
+          <a class="button secondary" href="{{ url_for('web.dashboard') if user else url_for('web.sign_in') }}">View Dashboard</a>
+        </div>
+      </div>
+      <div class="hero-art-wrap">
+        <div class="hero-art-card">
+          <img
+            id="hero-illustration"
+            src="{{ illustrations[0].svg }}"
+            alt="Professional workspace illustration by unDraw"
+            data-illustrations='{{ illustrations | tojson }}'
+            class="hero-art-image"
+          >
+          <p class="muted hero-art-credit">
+            Illustration by <a id="hero-illustration-link" href="{{ illustrations[0].page }}" target="_blank" rel="noreferrer">unDraw</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid three">
+    <article class="card">
+      <span class="stat-label">Pricing</span>
+      <div class="list" style="margin-top: 0;">
+        <div class="list-item" style="padding-top: 0;">
+          <span>Free</span>
+          <strong>$0</strong>
+        </div>
+        <div class="list-item">
+          <span>3 custom cities</span>
+          <strong>$2.99/mo</strong>
+        </div>
+        <div class="list-item">
+          <span>Unlimited search changes</span>
+          <strong>$9.99</strong>
+        </div>
+      </div>
+    </article>
+    <article class="card">
+      <span class="stat-label">Default Cities</span>
+      <strong class="stat-value">3</strong>
+      <p style="margin-top: 12px;">Free searches start with {{ free_cities|join(", ") }}. Paid users can replace them with 3 cities of their choice.</p>
+    </article>
+    <article class="card">
+      <span class="stat-label">Experience Filter</span>
+      <strong class="stat-value">4</strong>
+      <p style="margin-top: 12px;">Buckets use years explicitly mentioned in the posting: 0-2, 3-6, 7-9, and 10+.</p>
+    </article>
+  </section>
+  <script>
+    (() => {
+      const image = document.getElementById("hero-illustration");
+      const link = document.getElementById("hero-illustration-link");
+      if (!image || !link) return;
+
+      const assets = JSON.parse(image.dataset.illustrations || "[]");
+      if (!assets.length) return;
+
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        hour12: false,
+      });
+      const parts = Object.fromEntries(
+        formatter.formatToParts(new Date()).map((part) => [part.type, part.value])
+      );
+      const cycleDate = new Date(Date.UTC(
+        Number(parts.year),
+        Number(parts.month) - 1,
+        Number(parts.day)
+      ));
+      if (Number(parts.hour) < 6) {
+        cycleDate.setUTCDate(cycleDate.getUTCDate() - 1);
+      }
+
+      const cycleIndex = Math.floor(cycleDate.getTime() / 86400000) % assets.length;
+      const chosen = assets[(cycleIndex + assets.length) % assets.length];
+      image.src = chosen.svg;
+      link.href = chosen.page;
+    })();
+  </script>
+{% endblock %}

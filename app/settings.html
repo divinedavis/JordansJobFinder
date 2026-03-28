@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Settings | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Settings</span>
+    <h1>{{ user.email }}</h1>
+    <p style="margin-top: 14px; max-width: 60ch;">
+      Manage your saved search, billing, and account details here.
+    </p>
+  </section>
+
+  <section class="grid three">
+    <article class="card">
+      <span class="stat-label">Saved Search</span>
+      <strong class="stat-value">{{ "1" if saved_search else "0" }}</strong>
+      <p style="margin-top: 12px;">Each account gets exactly one search profile.</p>
+    </article>
+    <article class="card">
+      <span class="stat-label">City Plan</span>
+      <strong class="stat-value">{{ "On" if user.subscription and user.subscription.city_override_active else "Free" }}</strong>
+      <p style="margin-top: 12px;">Paid city replacement remains separate from the core saved search.</p>
+    </article>
+    <article class="card">
+      <span class="stat-label">Unlimited Changes</span>
+      <strong class="stat-value">{{ "On" if user.subscription and user.subscription.unlimited_changes_unlocked else "Off" }}</strong>
+      <p style="margin-top: 12px;">Users get two free changes before the $9.99 unlock applies.</p>
+    </article>
+  </section>
+
+  <section class="grid two">
+    <article class="panel">
+      <h2>Saved Search</h2>
+      {% if saved_search %}
+        <div class="list">
+          <div class="list-item">
+            <span>Title</span>
+            <strong>{{ title_labels[saved_search.title_slug] }}</strong>
+          </div>
+          <div class="list-item">
+            <span>Experience</span>
+            <strong>{{ saved_search.experience_bucket }} years</strong>
+          </div>
+          <div class="list-item">
+            <span>Cities</span>
+            <strong>{{ saved_search.city_1 }}, {{ saved_search.city_2 }}, {{ saved_search.city_3 }}</strong>
+          </div>
+          <div class="list-item">
+            <span>Changes Used</span>
+            <strong>{{ saved_search.change_count }}</strong>
+          </div>
+        </div>
+      {% else %}
+        <p>No saved search exists yet. Create one to start matching against the daily crawl.</p>
+      {% endif %}
+      <div class="button-row">
+        <a class="button" href="{{ url_for('web.saved_search') }}">{{ "Edit Saved Search" if saved_search else "Create Saved Search" }}</a>
+      </div>
+    </article>
+
+    <article class="panel">
+      <h2>Account</h2>
+      <div class="list">
+        <div class="list-item">
+          <span>Free default cities</span>
+          <strong>{{ free_cities|join(", ") }}</strong>
+        </div>
+        <div class="list-item">
+          <span>Account visibility</span>
+          <strong>Private results only</strong>
+        </div>
+        <div class="list-item">
+          <span>Deletion behavior</span>
+          <strong>Delete search and history</strong>
+        </div>
+        <div class="list-item">
+          <span>Billing</span>
+          <strong><a href="{{ url_for('web.billing') }}">Open Billing</a></strong>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('web.delete_account') }}" style="margin-top: 18px;">
+        <button class="button danger" type="submit">Delete Account</button>
+      </form>
+    </article>
+  </section>
+{% endblock %}

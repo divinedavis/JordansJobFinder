@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jordan's Job Finder — March 25, 2026 — 12:06 PM</title>
+<style>
+  :root {
+    --bg: #f5f1e8;
+    --paper: rgba(255, 255, 255, 0.74);
+    --paper-strong: rgba(255, 255, 255, 0.9);
+    --ink: #1d2433;
+    --muted: #667085;
+    --line: rgba(29, 36, 51, 0.1);
+    --shadow: 0 28px 60px rgba(29, 36, 51, 0.12);
+    --accent-nyc: #1947e5;
+    --accent-atl: #b85c38;
+    --accent-mia: #1f8f6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at top left, rgba(25, 71, 229, 0.08), transparent 26%),
+      radial-gradient(circle at top right, rgba(184, 92, 56, 0.08), transparent 24%),
+      linear-gradient(180deg, #f8f4ec 0%, #efe7d8 100%);
+    padding: 28px 18px 56px;
+  }
+  .page {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+    gap: 32px;
+    align-items: center;
+    background: var(--paper);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(18px);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    padding: 34px;
+    margin-bottom: 26px;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.68);
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 8px 12px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  h1 {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: clamp(2.3rem, 4vw, 4.25rem);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+    margin-bottom: 14px;
+  }
+  .hero-copy {
+    max-width: 640px;
+  }
+  .hero-lead {
+    color: #404b5f;
+    font-size: 1rem;
+    line-height: 1.7;
+    margin-bottom: 22px;
+    max-width: 58ch;
+  }
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .hero-pill {
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--ink);
+    font-size: 13px;
+    padding: 10px 14px;
+  }
+  .hero-visual {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 240, 228, 0.88));
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    border-radius: 24px;
+    padding: 18px;
+    text-align: center;
+  }
+  .hero-visual img {
+    width: 100%;
+    max-width: 360px;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+  }
+  .credit {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 10px;
+  }
+  .credit a {
+    color: inherit;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .stat {
+    background: var(--paper-strong);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 20px;
+    box-shadow: 0 16px 38px rgba(29, 36, 51, 0.08);
+    padding: 20px;
+  }
+  .stat-label {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: 2rem;
+    line-height: 1;
+  }
+  .sections {
+    display: grid;
+    gap: 22px;
+  }
+  .section {
+    background: var(--paper);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    padding: 26px;
+  }
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+  }
+  .section-kicker {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  h2 {
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    font-size: clamp(1.65rem, 2.2vw, 2.2rem);
+    line-height: 1.05;
+    margin-bottom: 8px;
+  }
+  .section-copy {
+    color: #4e596c;
+    font-size: 14px;
+    line-height: 1.65;
+    max-width: 60ch;
+  }
+  .section-count {
+    min-width: 86px;
+    text-align: right;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .section-count strong {
+    display: block;
+    color: var(--ink);
+    font-size: 28px;
+    line-height: 1;
+  }
+  .card-list {
+    display: grid;
+    gap: 14px;
+  }
+  .card {
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    border-left: 4px solid var(--accent-nyc);
+    border-radius: 22px;
+    padding: 22px;
+  }
+  .card.atl { border-left-color: var(--accent-atl); }
+  .card.mia { border-left-color: var(--accent-mia); }
+  .card-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .company {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .posted  {
+    color: #685c4a;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .title {
+    font-size: 1.12rem;
+    line-height: 1.45;
+    margin-bottom: 14px;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(29, 36, 51, 0.08);
+    background: rgba(255, 255, 255, 0.82);
+    color: #495265;
+    font-size: 13px;
+    padding: 9px 12px;
+  }
+  .salary {
+    color: #1f6f50;
+    font-weight: 700;
+  }
+  .apply-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 118px;
+    border-radius: 999px;
+    text-decoration: none;
+    background: var(--accent-nyc);
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 11px 16px;
+  }
+  .card.atl .apply-btn { background: var(--accent-atl); }
+  .card.mia .apply-btn { background: var(--accent-mia); }
+  .empty-state {
+    border-radius: 22px;
+    border: 1px dashed rgba(29, 36, 51, 0.16);
+    background: rgba(255, 255, 255, 0.58);
+    padding: 22px;
+  }
+  .empty-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .empty-text {
+    color: #4e596c;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  @media (max-width: 920px) {
+    .hero {
+      grid-template-columns: 1fr;
+      padding: 24px;
+    }
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .section-head {
+      flex-direction: column;
+      align-items: start;
+    }
+    .section-count {
+      text-align: left;
+    }
+  }
+  @media (max-width: 640px) {
+    body {
+      padding: 18px 14px 36px;
+    }
+    .stats {
+      grid-template-columns: 1fr;
+    }
+    .hero,
+    .section {
+      border-radius: 22px;
+      padding: 20px;
+    }
+    .card {
+      padding: 18px;
+    }
+    .card-topline {
+      flex-direction: column;
+      align-items: start;
+    }
+    .posted {
+      white-space: normal;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Curated Technical Leadership Search</span>
+        <h1>Jordan's Job Finder</h1>
+        <p class="hero-lead">
+          A focused board for technical product and program management roles across New York City, Atlanta, and Miami. The scraper reviews selected company career pages and surfaces only the matches that clear the current role, location, recency, and compensation filters.
+        </p>
+        <div class="hero-meta">
+          <span class="hero-pill">Last run: March 25, 2026 — 12:06 PM</span>
+          <span class="hero-pill">Live public website</span>
+          <span class="hero-pill">Technical PM / PgM only</span>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img
+          id="hero-illustration"
+          src="https://cdn.undraw.co/illustrations/tasks_l9ct.svg"
+          alt="Tasks illustration by unDraw"
+          data-illustrations='[{"svg": "https://cdn.undraw.co/illustrations/tasks_l9ct.svg", "page": "https://undraw.co/illustration/tasks_l9ct", "title": "Tasks"}, {"svg": "https://cdn.undraw.co/illustrations/business-analytics_y8m6.svg", "page": "https://undraw.co/illustration/business-analytics_y8m6", "title": "Business Analytics"}, {"svg": "https://cdn.undraw.co/illustrations/analytics_6mru.svg", "page": "https://undraw.co/illustration/analytics_6mru", "title": "Analytics"}, {"svg": "https://cdn.undraw.co/illustrations/in-the-office_ma2b.svg", "page": "https://undraw.co/illustration/in-the-office_ma2b", "title": "In The Office"}, {"svg": "https://cdn.undraw.co/illustrations/working-remotely_ivtz.svg", "page": "https://undraw.co/illustration/working-remotely_ivtz", "title": "Working Remotely"}, {"svg": "https://cdn.undraw.co/illustrations/co-working_becw.svg", "page": "https://undraw.co/illustration/co-working_becw", "title": "Co Working"}, {"svg": "https://cdn.undraw.co/illustrations/business-chat_xea1.svg", "page": "https://undraw.co/illustration/business-chat_xea1", "title": "Business Chat"}, {"svg": "https://cdn.undraw.co/illustrations/contemplating_v4x1.svg", "page": "https://undraw.co/illustration/contemplating_v4x1", "title": "Contemplating"}]'
+        >
+        <p class="credit">Illustration by <a id="hero-illustration-link" href="https://undraw.co/illustration/tasks_l9ct" target="_blank" rel="noreferrer">unDraw</a></p>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="stat">
+        <span class="stat-label">New York City</span>
+        <strong class="stat-value">1</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Atlanta</span>
+        <strong class="stat-value">1</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Miami</span>
+        <strong class="stat-value">0</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Total Live Matches</span>
+        <strong class="stat-value">2</strong>
+      </div>
+    </section>
+
+    <section class="sections">
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">NYC · VP only</p>
+            <h2>New York City</h2>
+            <p class="section-copy">Technical product and program leadership with a premium compensation floor.</p>
+          </div>
+          <div class="section-count"><strong>1</strong>matches</div>
+        </div>
+        <div class="card-list">
+          
+        <article class="card nyc">
+          <div class="card-topline">
+            <span class="company">Morgan Stanley</span>
+            <span class="posted">Posted: Posted Today</span>
+          </div>
+          <h3 class="title">Senior Product Manager - Vice President</h3>
+          <div class="meta">
+            <span class="meta-chip salary">See posting</span>
+            <span class="meta-chip location">New York, New York, United States of America</span>
+          </div>
+          <a class="apply-btn" href="https://ms.wd5.myworkdayjobs.com/en-US/External/job/New-York-New-York-United-States-of-America/Senior-Product-Manager---Vice-President_PT-JR032671" target="_blank" rel="noreferrer">View Role</a>
+        </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Atlanta · VP or Senior</p>
+            <h2>Atlanta</h2>
+            <p class="section-copy">Senior and executive technical PM and PgM roles across enterprise, fintech, and infrastructure.</p>
+          </div>
+          <div class="section-count"><strong>1</strong>matches</div>
+        </div>
+        <div class="card-list">
+          
+        <article class="card atl">
+          <div class="card-topline">
+            <span class="company">Google</span>
+            <span class="posted">Found: March 24, 2026</span>
+          </div>
+          <h3 class="title">Technical Program Manager Lead, Data Center Network Delivery</h3>
+          <div class="meta">
+            <span class="meta-chip salary">$192,000 – $278,000</span>
+            <span class="meta-chip location">Atlanta, GA, USA</span>
+          </div>
+          <a class="apply-btn" href="https://careers.google.com/jobs/results/91313037796876998-technical-program-manager-lead-data-center-network-delivery?q=program%20manager&location=Atlanta%2C%20GA&employment_type=FULL_TIME" target="_blank" rel="noreferrer">View Role</a>
+        </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Miami · VP or Senior</p>
+            <h2>Miami</h2>
+            <p class="section-copy">South Florida technical PM and PgM coverage with the same screening logic as Atlanta.</p>
+          </div>
+          <div class="section-count"><strong>0</strong>matches</div>
+        </div>
+        <div class="card-list">
+          
+        <div class="empty-state mia">
+          <div class="empty-copy">
+            <p class="empty-title">Miami</p>
+            <p class="empty-text">No Miami matches landed in the last two days.</p>
+          </div>
+        </div>
+        </div>
+      </section>
+    </section>
+  </div>
+  <script>
+    (() => {
+      const image = document.getElementById("hero-illustration");
+      const link = document.getElementById("hero-illustration-link");
+      if (!image || !link) return;
+
+      const raw = image.dataset.illustrations;
+      if (!raw) return;
+
+      let illustrations = [];
+      try {
+        illustrations = JSON.parse(raw);
+      } catch (_error) {
+        return;
+      }
+      if (!illustrations.length) return;
+
+      const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const hourFormatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        hour: "2-digit",
+        hour12: false,
+      });
+
+      const now = new Date();
+      const nyDateKey = formatter.format(now);
+      const nyHour = Number(hourFormatter.format(now));
+      const [year, month, day] = nyDateKey.split("-").map(Number);
+      const anchorDay = nyHour < 6 ? day - 1 : day;
+      const rotationSeed = Date.UTC(year, month - 1, anchorDay);
+      const index = Math.abs(Math.floor(rotationSeed / 86400000)) % illustrations.length;
+      const asset = illustrations[index];
+
+      image.src = asset.svg;
+      image.alt = `${asset.title} illustration by unDraw`;
+      link.href = asset.page;
+    })();
+  </script>
+</body>
+</html>

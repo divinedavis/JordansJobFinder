@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Create Account" if auth_mode == "signup" else "Log In" }} | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel" style="max-width: 720px; margin: 0 auto;">
+    <span class="eyebrow">{{ "Email Account Access" if auth_mode == "signup" else "Email Login" }}</span>
+    <h1>{{ "Create your account with email." if auth_mode == "signup" else "Log in with your email." }}</h1>
+    <p style="margin-top: 14px; max-width: 56ch;">
+      {% if auth_mode == "signup" %}
+      Launch auth now uses standard email accounts. Create an account with a password to save and manage your private search.
+      {% else %}
+      Use the email and password you already created for your private saved-search account.
+      {% endif %}
+    </p>
+    <form method="post" style="margin-top: 24px;">
+      <label for="email">Email</label>
+      <input id="email" type="email" name="email" autocomplete="email" required placeholder="you@example.com">
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" autocomplete="current-password" required placeholder="At least 8 characters">
+      {% if auth_mode == "signup" %}
+      <label for="confirm_password">Confirm Password</label>
+      <input id="confirm_password" type="password" name="confirm_password" autocomplete="new-password" placeholder="Needed when creating a new account">
+      {% endif %}
+      <div class="button-row">
+        <button class="button" type="submit">{{ "Create Account" if auth_mode == "signup" else "Log In" }}</button>
+        {% if auth_mode == "signup" %}
+        <a class="button secondary" href="{{ url_for('web.login') }}">Already have an account?</a>
+        {% else %}
+        <a class="button secondary" href="{{ url_for('web.sign_in') }}">Create Account</a>
+        {% endif %}
+      </div>
+    </form>
+    {% if auth_mode == "signup" %}
+    <p class="muted" style="margin-top: 16px;">
+      Password reset is not live yet, so use a password you can keep track of for now.
+    </p>
+    {% endif %}
+  </section>
+{% endblock %}

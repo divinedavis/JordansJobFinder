@@ -1,0 +1,32 @@
+# Secrets
+.env
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+
+# Runtime / generated
+scraper.log
+app-sync.log
+jobs_store.json
+seen_jobs.json
+shared_jobs.json
+
+# Backups
+*.bak*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Search | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel" style="max-width: 860px;">
+    <span class="eyebrow">One Saved Search Per User</span>
+    <h1>{{ "Update" if saved_search else "Create" }} your saved search.</h1>
+    <p style="margin-top: 14px; max-width: 60ch;">
+      This is the core v1 search form: narrowed title catalog, experience buckets based on years explicitly mentioned, and exactly three cities.
+    </p>
+
+    <form method="post" style="margin-top: 24px;">
+      <label for="title_slug">Job Title</label>
+      <select id="title_slug" name="title_slug" required>
+        <option value="">Select a title</option>
+        {% for option in title_options %}
+          <option value="{{ option.slug }}" {% if saved_search and saved_search.title_slug == option.slug %}selected{% endif %}>
+            {{ option.label }}
+          </option>
+        {% endfor %}
+      </select>
+      {% if is_superuser %}
+      <p class="muted" style="margin-top: -6px; margin-bottom: 12px;">
+        Your super-user account automatically sees both technical product manager and technical program manager roles that require 8+ years of experience.
+      </p>
+      {% endif %}
+
+      <label for="experience_bucket">Experience Filter</label>
+      <select id="experience_bucket" name="experience_bucket" required>
+        <option value="">Select an experience bucket</option>
+        {% for option in experience_options %}
+          <option value="{{ option.slug }}" {% if saved_search and saved_search.experience_bucket == option.slug %}selected{% endif %}>
+            {{ option.label }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <div class="grid three">
+        <div>
+          <label for="city_1">City 1</label>
+          <select id="city_1" name="city_1" required>
+            {% for option in city_options %}
+              <option value="{{ option.slug }}" {% if (saved_search and saved_search.city_1 == option.label) or (not saved_search and free_cities[0] == option.label) %}selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="city_2">City 2</label>
+          <select id="city_2" name="city_2" required>
+            {% for option in city_options %}
+              <option value="{{ option.slug }}" {% if (saved_search and saved_search.city_2 == option.label) or (not saved_search and free_cities[1] == option.label) %}selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="city_3">City 3</label>
+          <select id="city_3" name="city_3" required>
+            {% for option in city_options %}
+              <option value="{{ option.slug }}" {% if (saved_search and saved_search.city_3 == option.label) or (not saved_search and free_cities[2] == option.label) %}selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <p class="muted">
+        {% if is_superuser %}
+          Your super-user account can choose any supported cities without billing limits.
+        {% elif can_use_custom_cities %}
+          Custom city replacement is active on this account.
+        {% else %}
+          Custom city replacement requires the $2.99 monthly city plan. Without that plan, keep the default cities unchanged.
+        {% endif %}
+      </p>
+
+      <div class="button-row">
+        <button class="button" type="submit">Save Search</button>
+        <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Dashboard</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}
