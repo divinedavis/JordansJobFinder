@@ -97,7 +97,7 @@ def match_job_for_user(
     if is_superuser_email(user_email):
         return (
             title_matches_superuser_scope(title)
-            and experience_at_least(8, parsed)
+            and experience_at_least(5, parsed)
             and salary_meets_minimum(salary_min, salary_max, 180000)
         )
 
