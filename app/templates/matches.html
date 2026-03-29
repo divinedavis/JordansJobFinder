@@ -57,7 +57,7 @@
                     </div>
                     <div class="match-role">{{ match.title }}</div>
                     <div class="match-meta">
-                      <span>{{ match.salary_label }}</span>
+                      {% if match.salary_label %}<span>{{ match.salary_label }}</span>{% endif %}
                       <span>{{ match.location }}</span>
                     </div>
                     <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View Role</a>
