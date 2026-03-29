@@ -66,14 +66,11 @@ def normalize_numeric_language(text: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
-def parse_salary(text: str):
-    normalized = normalize_numeric_language(text).replace(".00", "")
-    if not normalized:
-        return None
-
+def _extract_amounts(text: str) -> list[int]:
+    """Pull all dollar-like amounts from text, filtered to plausible salary range."""
     amounts = []
-    pattern = re.compile(r"\$?\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
-    for raw_amount, suffix in pattern.findall(normalized):
+    pattern = re.compile(r"(?:USD)?\$?\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
+    for raw_amount, suffix in pattern.findall(text):
         amount = float(raw_amount.replace(",", ""))
         suffix = suffix.lower()
         if suffix == "k":
@@ -83,7 +80,44 @@ def parse_salary(text: str):
         amount = int(amount)
         if 50_000 <= amount <= 2_000_000:
             amounts.append(amount)
+    return amounts
 
+
+def _salary_from_context(text: str):
+    """Find salary from text near compensation keywords — best for raw HTML."""
+    salary_context = re.compile(
+        r"(?:salary|compensation|pay|base|annual|range|usd)[^\n]{0,120}",
+        re.I,
+    )
+    for match in salary_context.finditer(text):
+        snippet = match.group(0)
+        amounts = _extract_amounts(snippet)
+        if len(amounts) >= 2:
+            return min(amounts), max(amounts)
+        if len(amounts) == 1:
+            return amounts[0], amounts[0]
+
+    range_pattern = re.compile(
+        r"(?:USD)?\$\s*[\d,]+(?:\.\d+)?\s*[-\u2013\u2014]\s*(?:USD)?\$\s*[\d,]+(?:\.\d+)?",
+        re.I,
+    )
+    for match in range_pattern.finditer(text):
+        amounts = _extract_amounts(match.group(0))
+        if len(amounts) >= 2:
+            return min(amounts), max(amounts)
+
+    return None
+
+
+def parse_salary(text: str):
+    normalized = normalize_numeric_language(text).replace(".00", "")
+    if not normalized:
+        return None
+
+    if len(normalized) > 5000:
+        return _salary_from_context(normalized)
+
+    amounts = _extract_amounts(normalized)
     if len(amounts) >= 2:
         return min(amounts), max(amounts)
     if len(amounts) == 1:
