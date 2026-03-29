@@ -1,6 +1,8 @@
 from typing import Optional
 
 from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS
+
+EXCLUDE_TITLES = ["governance"]
 from .parsing import ParsedExperience, parse_experience_years
 
 
@@ -9,14 +11,22 @@ def normalize_text(value: str) -> str:
     return re.sub(r"\s+", " ", (value or "").strip().lower())
 
 
+def _title_excluded(normalized: str) -> bool:
+    return any(term in normalized for term in EXCLUDE_TITLES)
+
+
 def title_matches(title: str, selected_slug: str) -> bool:
     normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
     keywords = TITLE_KEYWORDS.get(selected_slug, [])
     return any(keyword in normalized for keyword in keywords)
 
 
 def title_matches_superuser_scope(title: str) -> bool:
     normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
     return "product manage" in normalized or "program manage" in normalized
 
 def experience_bucket_matches(bucket: str, parsed: ParsedExperience) -> bool:

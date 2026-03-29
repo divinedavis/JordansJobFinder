@@ -40,7 +40,7 @@ TARGET_ROLES      = ["product manager", "program manager",
 VP_TERMS          = [r"\bvice president\b", r"\b vp\b", r"\bvp,", r"\(vp\)"]
 SENIOR_TERMS      = [r"\bsenior\b", r"\bsr\b", r"\blead\b",
                      r"\bstaff\b", r"\bprincipal\b"]
-EXCLUDE_SENIORITY = [r"senior vice", r"assistant vice", r"\bavp\b", r"\bsvp\b",
+EXCLUDE_SENIORITY = [r"senior vice", r"assistant vice", r"\bavp\b", r"\bsvp\b", r"\bgovernance\b",
                      r"\bdirector\b", r"\bmanaging director\b"]
 
 NYC_LOCS     = ["new york", "nyc", "manhattan", "brooklyn", "jersey city"]
