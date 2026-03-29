@@ -600,6 +600,9 @@ def extract_experience_bounds(text):
 def normalize_shared_job(job, description=""):
     salary_min, salary_max = parse_salary_bounds(job.get("salary") or description)
     salary_bounds = (salary_min, salary_max) if salary_min is not None else None
+    if salary_bounds and salary_bounds[1] < MIN_SALARY:
+        salary_bounds = None
+        salary_min, salary_max = None, None
     salary_label = job.get("salary", "")
     if salary_bounds and (not salary_label or salary_label == "See posting"):
         salary_label = format_salary_label(salary_bounds)
