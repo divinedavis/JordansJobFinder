@@ -75,7 +75,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "display_city": CITY_LABELS.get(job.city, job.location or ""),
                 "location": job.location or CITY_LABELS.get(job.city, ""),
                 "posted_label": _posted_display(job.posted_label, job.found_at),
-                "salary_label": job.salary_label or "See posting",
+                "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
                 "matched_at": job_match.matched_at,
             }
         )
@@ -86,9 +86,22 @@ def preview_matches(saved_search) -> list[dict]:
     if not saved_search:
         return []
 
+    cutoff = datetime.now(timezone.utc) - timedelta(days=2)
     cities = set(choose_cities(saved_search.city_1, saved_search.city_2, saved_search.city_3))
     matches = []
     for job in normalized_shared_jobs():
+        posted_at = job.get("posted_at")
+        found_at = job.get("found_at")
+        effective = posted_at or found_at
+        if isinstance(effective, str):
+            try:
+                effective = datetime.fromisoformat(effective.replace("Z", "+00:00"))
+            except ValueError:
+                effective = None
+        if effective and effective.tzinfo is None:
+            effective = effective.replace(tzinfo=timezone.utc)
+        if effective and effective < cutoff:
+            continue
         city_label = _display_city(job)
         if city_label and city_label not in cities and job.get("location") not in cities:
             continue
