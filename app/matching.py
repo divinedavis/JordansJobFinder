@@ -17,7 +17,7 @@ def title_matches(title: str, selected_slug: str) -> bool:
 
 def title_matches_superuser_scope(title: str) -> bool:
     normalized = normalize_text(title)
-    return "product manager" in normalized or "program manager" in normalized
+    return "product manage" in normalized or "program manage" in normalized
 
 def experience_bucket_matches(bucket: str, parsed: ParsedExperience) -> bool:
     if parsed.min_years is None and parsed.max_years is None:
