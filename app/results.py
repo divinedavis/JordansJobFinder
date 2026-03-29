@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -51,10 +51,12 @@ def load_db_matches(saved_search) -> list[dict]:
         return []
 
     db = get_db()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=2)
     rows = db.execute(
         select(JobMatch, Job)
         .join(Job, Job.id == JobMatch.job_id)
         .where(JobMatch.saved_search_id == saved_search.id)
+        .where(Job.found_at >= cutoff)
         .order_by(Job.found_at.desc())
     ).all()
 
