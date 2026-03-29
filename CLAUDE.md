@@ -59,7 +59,7 @@ divinejdavis@gmail.com is the superuser (defined in catalog.py). Gets:
 ## Dashboard Behavior
 
 - Shows jobs from job_matches table (DB matches), falling back to preview_matches from shared_jobs.json
-- **2-day recency filter**: uses posted_at when available, falls back to found_at
+- **2-day recency filter**: uses posted_at when available, falls back to found_at. Uses calendar-day midnight cutoff (naive datetimes for SQLite compatibility)
 - Salary only displayed when a real value exists (no placeholder text)
 - Jobs grouped by city
 
@@ -81,9 +81,34 @@ divinejdavis@gmail.com is the superuser (defined in catalog.py). Gets:
 ## Important Workflow Rules
 
 - **Always commit + push to GitHub (origin master) after every code change**
+- **Always test every endpoint after every code change before pushing** (see testing section below)
 - The scraper takes ~40 min to run — the sync cron must be scheduled well after it
 - After fixing data issues, re-run the sync (see commands below)
 - Restart the app after code changes: systemctl restart jordansjobfinder
+
+## REQUIRED: Test Every Endpoint After Every Change
+
+After restarting the app, run this curl check against every endpoint before committing. All should return 200 or 302 (redirect to sign-in for auth-required pages). Any 500 means the change broke something — fix it before pushing.
+
+Endpoints to test (run after systemctl restart jordansjobfinder):
+
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/          (expect 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/dashboard  (expect 302 or 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/login      (expect 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/sign-in    (expect 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/settings   (expect 302 or 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/billing    (expect 302 or 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/search     (expect 302 or 200)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/matches    (expect 302)
+
+Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-pager -n 30
+
+## Known Gotchas
+
+- **SQLite stores naive datetimes** — never compare timezone-aware datetimes directly against DB columns. Strip tzinfo or use naive cutoffs.
+- **shared_jobs.json dates ARE timezone-aware** (ISO format with +00:00) — strip tzinfo before comparing with naive cutoffs.
+- **Workday detail pages contain garbage numbers** — the salary parser caps at $2M and the scraper discards salaries below $180K.
+- **The scraper overwrites shared_jobs.json each run** — the sync cron must run AFTER the scraper finishes (currently 1 hour gap).
 
 ## Common Commands
 
@@ -92,6 +117,7 @@ divinejdavis@gmail.com is the superuser (defined in catalog.py). Gets:
 - Check app status: systemctl status jordansjobfinder
 - View scraper log: tail -50 /var/www/jordansjobfinder/scraper.log
 - View sync log: tail -10 /var/www/jordansjobfinder/app-sync.log
+- View error log: journalctl -u jordansjobfinder --no-pager -n 30
 - Run manual sync: cd /var/www/jordansjobfinder && set -a && . ./.env && set +a && .venv/bin/python manage.py run-daily-sync
 - Init/reset DB: cd /var/www/jordansjobfinder && set -a && . ./.env && set +a && .venv/bin/python manage.py init-db
 - Commit and push: cd /var/www/jordansjobfinder && git add <files> && git commit -m "message" && git push origin master

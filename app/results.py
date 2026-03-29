@@ -98,8 +98,8 @@ def preview_matches(saved_search) -> list[dict]:
                 effective = datetime.fromisoformat(effective.replace("Z", "+00:00"))
             except ValueError:
                 effective = None
-        if effective and effective.tzinfo is None:
-            effective = effective.replace(tzinfo=timezone.utc)
+        if effective and effective.tzinfo is not None:
+            effective = effective.replace(tzinfo=None)
         if effective and effective < cutoff:
             continue
         city_label = _display_city(job)
