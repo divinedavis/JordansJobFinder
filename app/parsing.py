@@ -81,7 +81,7 @@ def parse_salary(text: str):
         elif suffix == "m":
             amount *= 1_000_000
         amount = int(amount)
-        if amount >= 50_000:
+        if 50_000 <= amount <= 2_000_000:
             amounts.append(amount)
 
     if len(amounts) >= 2:
