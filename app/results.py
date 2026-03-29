@@ -51,7 +51,7 @@ def load_db_matches(saved_search) -> list[dict]:
         return []
 
     db = get_db()
-    cutoff = datetime.now(timezone.utc) - timedelta(days=2)
+    cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None) - timedelta(days=2)
     effective_date = case(
         (Job.posted_at.isnot(None), Job.posted_at),
         else_=Job.found_at,
@@ -86,7 +86,7 @@ def preview_matches(saved_search) -> list[dict]:
     if not saved_search:
         return []
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=2)
+    cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None) - timedelta(days=2)
     cities = set(choose_cities(saved_search.city_1, saved_search.city_2, saved_search.city_3))
     matches = []
     for job in normalized_shared_jobs():
