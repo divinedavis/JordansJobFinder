@@ -3,47 +3,197 @@
 {% block title %}Jordan's Job Finder{% endblock %}
 
 {% block content %}
-  {% set illustrations = [
-    {"svg": "https://cdn.undraw.co/illustrations/tasks_l9ct.svg", "page": "https://undraw.co/illustration/tasks_l9ct"},
-    {"svg": "https://cdn.undraw.co/illustrations/business-analytics_y8m6.svg", "page": "https://undraw.co/illustration/business-analytics_y8m6"},
-    {"svg": "https://cdn.undraw.co/illustrations/analytics_6mru.svg", "page": "https://undraw.co/illustration/analytics_6mru"},
-    {"svg": "https://cdn.undraw.co/illustrations/in-the-office_ma2b.svg", "page": "https://undraw.co/illustration/in-the-office_ma2b"},
-    {"svg": "https://cdn.undraw.co/illustrations/working-remotely_ivtz.svg", "page": "https://undraw.co/illustration/working-remotely_ivtz"},
-    {"svg": "https://cdn.undraw.co/illustrations/co-working_becw.svg", "page": "https://undraw.co/illustration/co-working_becw"},
-    {"svg": "https://cdn.undraw.co/illustrations/business-chat_xea1.svg", "page": "https://undraw.co/illustration/business-chat_xea1"},
-    {"svg": "https://cdn.undraw.co/illustrations/contemplating_v4x1.svg", "page": "https://undraw.co/illustration/contemplating_v4x1"}
-  ] %}
-  <section class="panel">
-    <div class="hero-layout">
-      <div class="hero-copy">
-        <span class="eyebrow">Private Saved Search Platform</span>
-        <h1>Daily Technical Product/Program Manager Job Searches</h1>
-        <p>
-          The public board is evolving into a private, database-backed search product. Each user gets one saved search, one daily run, and private results built from the same curated company coverage as the current site.
-        </p>
-        <div class="button-row">
-          {% if not user %}<a class="button" href="{{ url_for('web.sign_in') }}">Create Email Account</a>{% endif %}
-          <a class="button secondary" href="{{ url_for('web.dashboard') if user else url_for('web.sign_in') }}">View Dashboard</a>
-        </div>
+  <style>
+    /* ── Shader hero ── */
+    .shader-hero {
+      position: relative;
+      width: calc(100% + 36px);
+      margin: -26px -18px 0;
+      min-height: 520px;
+      overflow: hidden;
+      border-radius: 28px;
+      background: var(--ink);
+    }
+    .shader-hero canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      touch-action: none;
+      background: #0e1420;
+    }
+    .shader-hero .hero-overlay {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 520px;
+      padding: 48px 24px;
+      text-align: center;
+      color: #fff;
+    }
+
+    /* ── Animations ── */
+    @keyframes fade-in-down {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .anim-down  { animation: fade-in-down .8s ease-out forwards; }
+    .anim-up    { animation: fade-in-up   .8s ease-out forwards; opacity: 0; }
+    .delay-200  { animation-delay: .2s; }
+    .delay-400  { animation-delay: .4s; }
+    .delay-600  { animation-delay: .6s; }
+    .delay-800  { animation-delay: .8s; }
+
+    /* ── Hero text ── */
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: rgba(25, 71, 229, 0.15);
+      border: 1px solid rgba(25, 71, 229, 0.35);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.85);
+      backdrop-filter: blur(8px);
+      margin-bottom: 28px;
+    }
+    .hero-headline {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: clamp(2.4rem, 5vw, 4.5rem);
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #a7bfff, #5a8aff, #1947e5);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+    }
+    .hero-headline-accent {
+      background: linear-gradient(135deg, #5a8aff, #1947e5, #b85c38);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-subtitle {
+      max-width: 52ch;
+      margin: 20px auto 0;
+      font-size: clamp(1rem, 1.8vw, 1.25rem);
+      line-height: 1.7;
+      color: rgba(255, 255, 255, .78);
+      font-weight: 300;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 32px;
+    }
+    .hero-btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 28px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(135deg, #1947e5, #5a8aff);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform .3s, box-shadow .3s;
+    }
+    .hero-btn-primary:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 32px rgba(25, 71, 229, .35);
+    }
+    .hero-btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 28px;
+      border-radius: 999px;
+      border: 1px solid rgba(25, 71, 229, .4);
+      background: rgba(25, 71, 229, .12);
+      color: rgba(255, 255, 255, .9);
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: transform .3s, background .3s, border-color .3s;
+    }
+    .hero-btn-secondary:hover {
+      transform: scale(1.05);
+      background: rgba(25, 71, 229, .22);
+      border-color: rgba(25, 71, 229, .6);
+    }
+
+    @media (max-width: 780px) {
+      .shader-hero {
+        width: calc(100% + 36px);
+        margin: -20px -18px 0;
+        min-height: 480px;
+        border-radius: 22px;
+      }
+      .shader-hero .hero-overlay {
+        min-height: 480px;
+        padding: 36px 18px;
+      }
+      .hero-buttons {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+
+  <section class="shader-hero">
+    <canvas id="shader-canvas"></canvas>
+    <div class="hero-overlay">
+      <!-- Trust badge -->
+      <div class="hero-eyebrow anim-down">
+        ✦ Private Saved Search Platform
       </div>
-      <div class="hero-art-wrap">
-        <div class="hero-art-card">
-          <img
-            id="hero-illustration"
-            src="{{ illustrations[0].svg }}"
-            alt="Professional workspace illustration by unDraw"
-            data-illustrations='{{ illustrations | tojson }}'
-            class="hero-art-image"
-          >
-          <p class="muted hero-art-credit">
-            Illustration by <a id="hero-illustration-link" href="{{ illustrations[0].page }}" target="_blank" rel="noreferrer">unDraw</a>
-          </p>
-        </div>
+
+      <!-- Headlines -->
+      <div style="space-y:8px">
+        <h1 class="hero-headline anim-up delay-200">
+          Daily Technical Job
+        </h1>
+        <h1 class="hero-headline hero-headline-accent anim-up delay-400">
+          Searches, Automated
+        </h1>
+      </div>
+
+      <!-- Subtitle -->
+      <p class="hero-subtitle anim-up delay-600">
+        One saved search. One daily run. Private results built from curated company coverage — Product &amp; Program Manager roles delivered to your inbox.
+      </p>
+
+      <!-- Buttons -->
+      <div class="hero-buttons anim-up delay-800">
+        {% if not user %}
+        <a class="hero-btn-primary" href="{{ url_for('web.sign_in') }}">Create Free Account</a>
+        {% endif %}
+        <a class="hero-btn-secondary" href="{{ url_for('web.dashboard') if user else url_for('web.sign_in') }}">View Dashboard</a>
       </div>
     </div>
   </section>
 
-  <section class="grid three">
+  <section class="grid three" style="margin-top: 20px;">
     <article class="card">
       <span class="stat-label">Pricing</span>
       <div class="list" style="margin-top: 0;">
@@ -72,39 +222,163 @@
       <p style="margin-top: 12px;">Buckets use years explicitly mentioned in the posting: 0-2, 3-6, 7-9, and 10+.</p>
     </article>
   </section>
+
   <script>
-    (() => {
-      const image = document.getElementById("hero-illustration");
-      const link = document.getElementById("hero-illustration-link");
-      if (!image || !link) return;
+  (() => {
+    const canvas = document.getElementById('shader-canvas');
+    if (!canvas) return;
 
-      const assets = JSON.parse(image.dataset.illustrations || "[]");
-      if (!assets.length) return;
+    const gl = canvas.getContext('webgl2');
+    if (!gl) return;
 
-      const formatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: "America/New_York",
-        year: "numeric",
-        month: "numeric",
-        day: "numeric",
-        hour: "numeric",
-        hour12: false,
-      });
-      const parts = Object.fromEntries(
-        formatter.formatToParts(new Date()).map((part) => [part.type, part.value])
-      );
-      const cycleDate = new Date(Date.UTC(
-        Number(parts.year),
-        Number(parts.month) - 1,
-        Number(parts.day)
-      ));
-      if (Number(parts.hour) < 6) {
-        cycleDate.setUTCDate(cycleDate.getUTCDate() - 1);
+    // ── Shader source (adapted colors: blues/cream instead of orange) ──
+    const vertexSrc = `#version 300 es
+precision highp float;
+in vec4 position;
+void main(){gl_Position=position;}`;
+
+    const fragmentSrc = `#version 300 es
+precision highp float;
+out vec4 O;
+uniform vec2 resolution;
+uniform float time;
+uniform vec2 touch;
+uniform int pointerCount;
+#define FC gl_FragCoord.xy
+#define T time
+#define R resolution
+#define MN min(R.x,R.y)
+
+float rnd(vec2 p) {
+  p=fract(p*vec2(12.9898,78.233));
+  p+=dot(p,p+34.56);
+  return fract(p.x*p.y);
+}
+
+float noise(in vec2 p) {
+  vec2 i=floor(p), f=fract(p), u=f*f*(3.-2.*f);
+  float
+  a=rnd(i),
+  b=rnd(i+vec2(1,0)),
+  c=rnd(i+vec2(0,1)),
+  d=rnd(i+1.);
+  return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);
+}
+
+float fbm(vec2 p) {
+  float t=.0, a=1.; mat2 m=mat2(1.,-.5,.2,1.2);
+  for (int i=0; i<5; i++) {
+    t+=a*noise(p);
+    p*=2.*m;
+    a*=.5;
+  }
+  return t;
+}
+
+float clouds(vec2 p) {
+  float d=1., t=.0;
+  for (float i=.0; i<3.; i++) {
+    float a=d*fbm(i*10.+p.x*.2+.2*(1.+i)*p.y+d+i*i+p);
+    t=mix(t,d,a);
+    d=a;
+    p*=2./(i+1.);
+  }
+  return t;
+}
+
+void main(void) {
+  vec2 uv=(FC-.5*R)/MN, st=uv*vec2(2,1);
+  vec3 col=vec3(0);
+  float bg=clouds(vec2(st.x+T*.5,-st.y));
+  uv*=1.-.3*(sin(T*.2)*.5+.5);
+  for (float i=1.; i<12.; i++) {
+    uv+=.1*cos(i*vec2(.1+.01*i, .8)+i*i+T*.5+.1*uv.x);
+    vec2 p=uv;
+    float d=length(p);
+    // Blue/indigo palette instead of white
+    col+=.00125/d*(cos(sin(i)*vec3(2.2,2.8,3.8))+1.);
+    float b=noise(i+p+bg*1.731);
+    col+=.002*b/length(max(p,vec2(b*p.x*.02,p.y)));
+    // Tint towards deep blue/slate
+    col=mix(col,vec3(bg*.06,bg*.08,bg*.22),d);
+  }
+  O=vec4(col,1);
+}`;
+
+    // ── Renderer ──
+    let program, vs, fs, buffer;
+    const vertices = [-1, 1, -1, -1, 1, 1, 1, -1];
+    let mouseCoords = [0, 0], nbrPointers = 0;
+    let animId;
+
+    function compile(shader, source) {
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader error:', gl.getShaderInfoLog(shader));
+      }
+    }
+
+    function setup() {
+      vs = gl.createShader(gl.VERTEX_SHADER);
+      fs = gl.createShader(gl.FRAGMENT_SHADER);
+      compile(vs, vertexSrc);
+      compile(fs, fragmentSrc);
+      program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
       }
 
-      const cycleIndex = Math.floor(cycleDate.getTime() / 86400000) % assets.length;
-      const chosen = assets[(cycleIndex + assets.length) % assets.length];
-      image.src = chosen.svg;
-      link.href = chosen.page;
-    })();
+      buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+      const pos = gl.getAttribLocation(program, 'position');
+      gl.enableVertexAttribArray(pos);
+      gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+      program._resolution = gl.getUniformLocation(program, 'resolution');
+      program._time       = gl.getUniformLocation(program, 'time');
+      program._touch      = gl.getUniformLocation(program, 'touch');
+      program._pointerCount = gl.getUniformLocation(program, 'pointerCount');
+    }
+
+    function resize() {
+      const dpr = Math.max(1, .5 * devicePixelRatio);
+      canvas.width  = canvas.clientWidth  * dpr;
+      canvas.height = canvas.clientHeight * dpr;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+
+    function render(now) {
+      if (!program || gl.getProgramParameter(program, gl.DELETE_STATUS)) return;
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.uniform2f(program._resolution, canvas.width, canvas.height);
+      gl.uniform1f(program._time, now * 1e-3);
+      gl.uniform2f(program._touch, ...mouseCoords);
+      gl.uniform1i(program._pointerCount, nbrPointers);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      animId = requestAnimationFrame(render);
+    }
+
+    // Pointer interaction
+    canvas.addEventListener('pointermove', (e) => {
+      const dpr = Math.max(1, .5 * devicePixelRatio);
+      mouseCoords = [e.clientX * dpr, canvas.height - e.clientY * dpr];
+    });
+    canvas.addEventListener('pointerdown', () => { nbrPointers++; });
+    canvas.addEventListener('pointerup',   () => { nbrPointers = Math.max(0, nbrPointers - 1); });
+    canvas.addEventListener('pointerleave', () => { nbrPointers = 0; });
+
+    window.addEventListener('resize', resize);
+    resize();
+    setup();
+    render(0);
+  })();
   </script>
 {% endblock %}
