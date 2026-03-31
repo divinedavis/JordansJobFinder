@@ -120,17 +120,15 @@ def sign_in():
             flash("Passwords do not match.", "error")
             return redirect(url_for("web.sign_in"))
 
-        if user and user.password_hash:
+        if user:
             flash("An account with that email already exists. Log in instead.", "error")
             return redirect(url_for("web.login"))
 
-        if not user:
-            user = User(email=email)
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            ensure_subscription(user, db)
-
+        user = User(email=email)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        ensure_subscription(user, db)
         user.set_password(password)
         db.commit()
         session.clear()

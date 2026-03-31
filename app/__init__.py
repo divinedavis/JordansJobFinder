@@ -47,7 +47,7 @@ def create_app() -> Flask:
         # Fix #5: Content-Security-Policy
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; "
+            "script-src 'self' https://challenges.cloudflare.com; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: https://cdn.undraw.co; "
             "connect-src 'self' https://challenges.cloudflare.com; "

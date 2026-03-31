@@ -1,3 +1,5 @@
+import os
+
 TITLE_OPTIONS = [
     {"slug": "technical-product-manager", "label": "Technical Product Manager"},
     {"slug": "technical-program-manager", "label": "Technical Program Manager"},
@@ -31,7 +33,7 @@ CITY_OPTIONS = [
     {"slug": "washington-dc", "label": "Washington, DC"},
 ]
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
-SUPERUSER_EMAIL = "divinejdavis@gmail.com"
+SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
 
 
 def title_choices():

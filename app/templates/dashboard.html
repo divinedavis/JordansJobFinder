@@ -45,7 +45,7 @@
                       {% if match.salary_label %}<span>{{ match.salary_label }}</span>{% endif %}
                       <span>{{ match.location }}</span>
                     </div>
-                    <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View Role</a>
+                    <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View Role</a>
                   </article>
                 {% endfor %}
               </div>
@@ -63,7 +63,7 @@
                 <div style="margin-top: 4px;">{{ match.title }}</div>
                 <div class="muted" style="margin-top: 6px;">{{ match.display_city }} · {{ match.posted_label }}</div>
               </div>
-              <a class="button secondary" href="{{ match.url }}" target="_blank" rel="noreferrer">View</a>
+              <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View</a>
             </div>
           {% endfor %}
         </div>

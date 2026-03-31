@@ -43,7 +43,7 @@ class User(TimestampMixin, Base):
     )
 
     def set_password(self, password: str) -> None:
-        self.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+        self.password_hash = generate_password_hash(password)
 
     def check_password(self, password: str) -> bool:
         if not self.password_hash:

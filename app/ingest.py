@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,6 +7,17 @@ from typing import Optional
 from .matching import normalize_text
 from .parsing import format_salary_label, parse_experience_years, parse_salary
 
+
+
+
+def _safe_url(url):
+    try:
+        p = urlparse(url)
+        if p.scheme in ("http", "https"):
+            return url
+    except Exception:
+        pass
+    return ""
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LEGACY_STORE = REPO_ROOT / "jobs_store.json"
@@ -61,7 +73,7 @@ def normalize_legacy_job(job: dict) -> dict:
         "company": job.get("company", ""),
         "title": title,
         "normalized_title": normalize_text(title),
-        "url": job.get("url", ""),
+        "url": _safe_url(job.get("url", "")),
         "city": job.get("city", ""),
         "location": job.get("location", ""),
         "description": description,
