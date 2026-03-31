@@ -4,15 +4,49 @@
 
 {% block content %}
   <style>
+    /* ── Make the hero break out and fill the entire viewport ── */
+    body.shader-page {
+      padding: 0;
+      background: #0e1420;
+      overflow: hidden;
+    }
+    body.shader-page .page {
+      max-width: none;
+      position: relative;
+      z-index: 2;
+    }
+    body.shader-page .topbar {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      right: 24px;
+      z-index: 20;
+      background: rgba(14, 20, 32, 0.45);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    body.shader-page .topbar .brand {
+      color: #fff;
+    }
+    body.shader-page .topbar .nav a,
+    body.shader-page .topbar .nav button {
+      color: rgba(255, 255, 255, 0.7);
+    }
+    body.shader-page .shell {
+      position: relative;
+      z-index: 1;
+    }
+
     /* ── Shader hero ── */
     .shader-hero {
-      position: relative;
-      width: calc(100% + 36px);
-      margin: -26px -18px 0;
-      min-height: 520px;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden;
-      border-radius: 28px;
-      background: var(--ink);
+      background: #0e1420;
     }
     .shader-hero canvas {
       position: absolute;
@@ -30,7 +64,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 520px;
+      width: 100%;
+      height: 100vh;
       padding: 48px 24px;
       text-align: center;
       color: #fff;
@@ -143,14 +178,12 @@
     }
 
     @media (max-width: 780px) {
-      .shader-hero {
-        width: calc(100% + 36px);
-        margin: -20px -18px 0;
-        min-height: 480px;
-        border-radius: 22px;
+      body.shader-page .topbar {
+        top: 16px;
+        left: 16px;
+        right: 16px;
       }
       .shader-hero .hero-overlay {
-        min-height: 480px;
         padding: 36px 18px;
       }
       .hero-buttons {
@@ -169,7 +202,7 @@
       </div>
 
       <!-- Headlines -->
-      <div style="space-y:8px">
+      <div>
         <h1 class="hero-headline anim-up delay-200">
           Daily Technical Job
         </h1>
@@ -193,8 +226,10 @@
     </div>
   </section>
 
-
   <script>
+  // Add body class so base.html styles adapt for full-screen shader
+  document.body.classList.add('shader-page');
+
   (() => {
     const canvas = document.getElementById('shader-canvas');
     if (!canvas) return;
@@ -202,7 +237,6 @@
     const gl = canvas.getContext('webgl2');
     if (!gl) return;
 
-    // ── Shader source (adapted colors: blues/cream instead of orange) ──
     const vertexSrc = `#version 300 es
 precision highp float;
 in vec4 position;
@@ -266,21 +300,17 @@ void main(void) {
     uv+=.1*cos(i*vec2(.1+.01*i, .8)+i*i+T*.5+.1*uv.x);
     vec2 p=uv;
     float d=length(p);
-    // Blue/indigo palette instead of white
     col+=.00125/d*(cos(sin(i)*vec3(2.2,2.8,3.8))+1.);
     float b=noise(i+p+bg*1.731);
     col+=.002*b/length(max(p,vec2(b*p.x*.02,p.y)));
-    // Tint towards deep blue/slate
     col=mix(col,vec3(bg*.06,bg*.08,bg*.22),d);
   }
   O=vec4(col,1);
 }`;
 
-    // ── Renderer ──
     let program, vs, fs, buffer;
     const vertices = [-1, 1, -1, -1, 1, 1, 1, -1];
     let mouseCoords = [0, 0], nbrPointers = 0;
-    let animId;
 
     function compile(shader, source) {
       gl.shaderSource(shader, source);
@@ -318,8 +348,8 @@ void main(void) {
 
     function resize() {
       const dpr = Math.max(1, .5 * devicePixelRatio);
-      canvas.width  = canvas.clientWidth  * dpr;
-      canvas.height = canvas.clientHeight * dpr;
+      canvas.width  = window.innerWidth  * dpr;
+      canvas.height = window.innerHeight * dpr;
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
 
@@ -334,10 +364,9 @@ void main(void) {
       gl.uniform2f(program._touch, ...mouseCoords);
       gl.uniform1i(program._pointerCount, nbrPointers);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      animId = requestAnimationFrame(render);
+      requestAnimationFrame(render);
     }
 
-    // Pointer interaction
     canvas.addEventListener('pointermove', (e) => {
       const dpr = Math.max(1, .5 * devicePixelRatio);
       mouseCoords = [e.clientX * dpr, canvas.height - e.clientY * dpr];
