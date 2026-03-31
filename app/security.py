@@ -1,10 +1,13 @@
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 import requests
 from flask import current_app
+
+logger = logging.getLogger(__name__)
 
 
 def generate_magic_token() -> Tuple[str, str, datetime]:
@@ -21,9 +24,13 @@ def hash_magic_token(raw_token: str) -> str:
 
 
 def verify_turnstile(token: str, remote_ip: Optional[str] = None) -> Tuple[bool, Optional[str]]:
-    secret = current_app.config["TURNSTILE_SECRET_KEY"]
+    secret = current_app.config.get("TURNSTILE_SECRET_KEY", "")
     if not secret:
-        return True, None
+        logger.warning(
+            "TURNSTILE_SECRET_KEY is not configured — bot protection is disabled. "
+            "Set the key in .env to enforce Turnstile verification."
+        )
+        return False, "Bot protection is not configured."
 
     try:
         response = requests.post(

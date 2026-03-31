@@ -52,12 +52,15 @@
     {% if not is_superuser %}
     <div class="button-row">
       <form method="post" action="{{ url_for('web.billing_checkout', kind='city-plan') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button" type="submit">Start $2.99 City Plan</button>
       </form>
       <form method="post" action="{{ url_for('web.billing_checkout', kind='unlock-changes') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button secondary" type="submit">Unlock Unlimited Changes</button>
       </form>
       <form method="post" action="{{ url_for('web.cancel_city_plan') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button secondary" type="submit">Cancel City Plan</button>
       </form>
     </div>

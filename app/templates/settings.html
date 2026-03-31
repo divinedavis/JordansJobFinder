@@ -85,6 +85,7 @@
         </div>
       </div>
       <form method="post" action="{{ url_for('web.delete_account') }}" style="margin-top: 18px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button danger" type="submit">Delete Account</button>
       </form>
     </article>

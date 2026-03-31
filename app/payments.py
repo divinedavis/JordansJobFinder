@@ -95,6 +95,11 @@ def fetch_checkout_session(session_id: str):
 
 def sync_checkout_result(session_id: str) -> Optional[str]:
     session = fetch_checkout_session(session_id)
+
+    # Idempotency: only process completed sessions
+    if session.get("payment_status") != "paid":
+        return None
+
     metadata = session.get("metadata", {})
     user_id = metadata.get("user_id")
     kind = metadata.get("kind")
@@ -107,6 +112,13 @@ def sync_checkout_result(session_id: str) -> Optional[str]:
         return None
 
     subscription = user.subscription
+
+    # Idempotency: skip if already fulfilled for this kind
+    if kind == "city-plan" and subscription.city_override_active:
+        return "City replacement plan is already active."
+    if kind == "unlock-changes" and subscription.unlimited_changes_unlocked:
+        return "Unlimited search changes are already unlocked."
+
     if kind == "city-plan":
         subscription.city_override_active = True
         subscription.status = "active"

@@ -437,6 +437,7 @@
           <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
           <a href="{{ url_for('web.settings') }}">Settings</a>
           <form method="post" action="{{ url_for('web.sign_out') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit">Sign out</button>
           </form>
         {% else %}

@@ -1,16 +1,40 @@
 from flask import Flask
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 
 from .config import Config
 from .db import close_db_session, init_db
 from .routes import web
 from .sync import rebuild_matches, run_daily_sync, upsert_shared_jobs
 
+csrf = CSRFProtect()
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
+
 
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    csrf.init_app(app)
+    limiter.init_app(app)
+
     app.register_blueprint(web)
+
+    csrf.exempt("web.stripe_webhook")
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+        return response
 
     @app.teardown_appcontext
     def shutdown_session(_exception=None):

@@ -10,6 +10,7 @@ from flask import (
     session,
     url_for,
 )
+from flask_wtf.csrf import CSRFError, CSRFProtect
 
 from .catalog import DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
@@ -34,6 +35,13 @@ from .searches import (
 
 
 web = Blueprint("web", __name__)
+
+
+# ── CSRF error handler ──
+@web.app_errorhandler(CSRFError)
+def handle_csrf_error(e):
+    flash("Your session expired. Please try again.", "error")
+    return redirect(request.referrer or url_for("web.home"))
 
 
 def current_user():
@@ -76,6 +84,10 @@ def home():
 
 @web.route("/sign-in", methods=["GET", "POST"])
 def sign_in():
+    from . import limiter
+
+    limiter.limit("8/minute")(lambda: None)()
+
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -88,6 +100,9 @@ def sign_in():
             return redirect(url_for("web.sign_in"))
         if len(password) < 8:
             flash("Password must be at least 8 characters.", "error")
+            return redirect(url_for("web.sign_in"))
+        if len(password) > 128:
+            flash("Password must be 128 characters or fewer.", "error")
             return redirect(url_for("web.sign_in"))
 
         db = get_db()
@@ -109,6 +124,7 @@ def sign_in():
 
         user.set_password(password)
         db.commit()
+        session.clear()
         session["user_id"] = user.id
         flash("Account created.", "success")
         return redirect(url_for("web.dashboard"))
@@ -122,6 +138,10 @@ def sign_in():
 
 @web.route("/login", methods=["GET", "POST"])
 def login():
+    from . import limiter
+
+    limiter.limit("8/minute")(lambda: None)()
+
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -138,6 +158,7 @@ def login():
             flash("Invalid email or password.", "error")
             return redirect(url_for("web.login"))
 
+        session.clear()
         session["user_id"] = user.id
         flash("Signed in.", "success")
         return redirect(url_for("web.dashboard"))
