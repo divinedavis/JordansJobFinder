@@ -10,7 +10,7 @@ from flask import (
     session,
     url_for,
 )
-from flask_wtf.csrf import CSRFError, CSRFProtect
+from flask_wtf.csrf import CSRFError
 
 from .catalog import DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
@@ -32,9 +32,13 @@ from .searches import (
     revert_to_free_cities,
     validate_saved_search,
 )
+from .security import verify_turnstile
 
 
 web = Blueprint("web", __name__)
+
+
+
 
 
 # ── CSRF error handler ──
@@ -84,11 +88,16 @@ def home():
 
 @web.route("/sign-in", methods=["GET", "POST"])
 def sign_in():
-    from . import limiter
-
-    limiter.limit("8/minute")(lambda: None)()
-
     if request.method == "POST":
+        # Fix #8: Verify Turnstile if configured
+        turnstile_token = request.form.get("cf-turnstile-response", "")
+        turnstile_ok, turnstile_err = verify_turnstile(
+            turnstile_token, request.remote_addr
+        )
+        if not turnstile_ok and current_app.config.get("TURNSTILE_SECRET_KEY"):
+            flash(turnstile_err or "Bot verification failed.", "error")
+            return redirect(url_for("web.sign_in"))
+
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         confirm_password = request.form.get("confirm_password", "")
@@ -126,6 +135,7 @@ def sign_in():
         db.commit()
         session.clear()
         session["user_id"] = user.id
+        session.permanent = True  # Fix #6
         flash("Account created.", "success")
         return redirect(url_for("web.dashboard"))
 
@@ -133,16 +143,22 @@ def sign_in():
         "sign_in.html",
         user=current_user(),
         auth_mode="signup",
+        turnstile_site_key=current_app.config.get("TURNSTILE_SITE_KEY", ""),
     )
 
 
 @web.route("/login", methods=["GET", "POST"])
 def login():
-    from . import limiter
-
-    limiter.limit("8/minute")(lambda: None)()
-
     if request.method == "POST":
+        # Fix #8: Verify Turnstile if configured
+        turnstile_token = request.form.get("cf-turnstile-response", "")
+        turnstile_ok, turnstile_err = verify_turnstile(
+            turnstile_token, request.remote_addr
+        )
+        if not turnstile_ok and current_app.config.get("TURNSTILE_SECRET_KEY"):
+            flash(turnstile_err or "Bot verification failed.", "error")
+            return redirect(url_for("web.login"))
+
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         if not email:
@@ -160,6 +176,7 @@ def login():
 
         session.clear()
         session["user_id"] = user.id
+        session.permanent = True  # Fix #6
         flash("Signed in.", "success")
         return redirect(url_for("web.dashboard"))
 
@@ -167,6 +184,7 @@ def login():
         "sign_in.html",
         user=current_user(),
         auth_mode="login",
+        turnstile_site_key=current_app.config.get("TURNSTILE_SITE_KEY", ""),
     )
 
 
@@ -227,7 +245,8 @@ def billing():
     session_id = request.args.get("session_id")
     if checkout_status == "success" and session_id:
         try:
-            message = sync_checkout_result(session_id)
+            # Fix #1: pass current user ID to prevent IDOR
+            message = sync_checkout_result(session_id, user.id)
             if message:
                 flash(message, "success")
         except BillingConfigurationError as exc:

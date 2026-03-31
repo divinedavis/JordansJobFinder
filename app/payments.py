@@ -93,7 +93,7 @@ def fetch_checkout_session(session_id: str):
     return stripe.checkout.Session.retrieve(session_id)
 
 
-def sync_checkout_result(session_id: str) -> Optional[str]:
+def sync_checkout_result(session_id: str, current_user_id: int = None) -> Optional[str]:
     session = fetch_checkout_session(session_id)
 
     # Idempotency: only process completed sessions
@@ -104,6 +104,10 @@ def sync_checkout_result(session_id: str) -> Optional[str]:
     user_id = metadata.get("user_id")
     kind = metadata.get("kind")
     if not user_id or not kind:
+        return None
+
+    # Fix #1: Verify the checkout session belongs to the requesting user
+    if current_user_id is not None and int(user_id) != current_user_id:
         return None
 
     db = get_db()

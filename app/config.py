@@ -23,6 +23,7 @@ class Config:
     STRIPE_CITY_PLAN_PRICE_ID = os.getenv("STRIPE_CITY_PLAN_PRICE_ID", "")
     STRIPE_UNLOCK_PRICE_ID = os.getenv("STRIPE_UNLOCK_PRICE_ID", "")
     TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "")
+    TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "")
     MAGIC_LINK_TTL_MINUTES = 20
     FREE_CITIES = ("New York, NY", "Atlanta, GA", "Miami, FL")
     FREE_SEARCH_CHANGE_LIMIT = 2

@@ -23,6 +23,10 @@
       <label for="confirm_password">Confirm Password</label>
       <input id="confirm_password" type="password" name="confirm_password" autocomplete="new-password" placeholder="Needed when creating a new account">
       {% endif %}
+      {% if turnstile_site_key %}
+      <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" style="margin-bottom: 16px;"></div>
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+      {% endif %}
       <div class="button-row">
         <button class="button" type="submit">{{ "Create Account" if auth_mode == "signup" else "Log In" }}</button>
         {% if auth_mode == "signup" %}

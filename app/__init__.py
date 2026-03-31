@@ -2,6 +2,7 @@ from flask import Flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .db import close_db_session, init_db
@@ -16,12 +17,21 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Fix #2: ProxyFix so remote_addr reflects the real client IP behind nginx
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     csrf.init_app(app)
     limiter.init_app(app)
 
     app.register_blueprint(web)
 
     csrf.exempt("web.stripe_webhook")
+
+    # Fix #4: Rate limit auth endpoints
+    for endpoint in ("sign_in", "login"):
+        view_func = app.view_functions.get(f"web.{endpoint}")
+        if view_func:
+            app.view_functions[f"web.{endpoint}"] = limiter.limit("8/minute")(view_func)
 
     @app.after_request
     def set_security_headers(response):
@@ -33,6 +43,18 @@ def create_app() -> Flask:
         )
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=()"
+        )
+        # Fix #5: Content-Security-Policy
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https://cdn.undraw.co; "
+            "connect-src 'self' https://challenges.cloudflare.com; "
+            "frame-src https://challenges.cloudflare.com https://js.stripe.com; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self' https://checkout.stripe.com"
         )
         return response
 
