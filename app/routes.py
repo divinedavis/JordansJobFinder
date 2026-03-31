@@ -1,3 +1,5 @@
+import logging
+
 from flask import (
     Blueprint,
     abort,
@@ -34,11 +36,9 @@ from .searches import (
 )
 from .security import verify_turnstile
 
+logger = logging.getLogger(__name__)
 
 web = Blueprint("web", __name__)
-
-
-
 
 
 # ── CSRF error handler ──
@@ -53,7 +53,12 @@ def current_user():
     if not user_id:
         return None
     db = get_db()
-    return db.get(User, user_id)
+    user = db.get(User, user_id)
+    # Fix #2: Check is_active on every request
+    if user and not user.is_active:
+        session.clear()
+        return None
+    return user
 
 
 def require_user():
@@ -89,7 +94,6 @@ def home():
 @web.route("/sign-in", methods=["GET", "POST"])
 def sign_in():
     if request.method == "POST":
-        # Fix #8: Verify Turnstile if configured
         turnstile_token = request.form.get("cf-turnstile-response", "")
         turnstile_ok, turnstile_err = verify_turnstile(
             turnstile_token, request.remote_addr
@@ -120,8 +124,9 @@ def sign_in():
             flash("Passwords do not match.", "error")
             return redirect(url_for("web.sign_in"))
 
+        # Fix #9: Generic message to prevent email enumeration
         if user:
-            flash("An account with that email already exists. Log in instead.", "error")
+            flash("Unable to create account. Try logging in instead.", "error")
             return redirect(url_for("web.login"))
 
         user = User(email=email)
@@ -133,7 +138,8 @@ def sign_in():
         db.commit()
         session.clear()
         session["user_id"] = user.id
-        session.permanent = True  # Fix #6
+        session.permanent = True
+        logger.info("Account created user_id=%d ip=%s", user.id, request.remote_addr)
         flash("Account created.", "success")
         return redirect(url_for("web.dashboard"))
 
@@ -148,7 +154,6 @@ def sign_in():
 @web.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        # Fix #8: Verify Turnstile if configured
         turnstile_token = request.form.get("cf-turnstile-response", "")
         turnstile_ok, turnstile_err = verify_turnstile(
             turnstile_token, request.remote_addr
@@ -169,12 +174,20 @@ def login():
         db = get_db()
         user = db.query(User).filter(User.email == email).one_or_none()
         if not user or not user.check_password(password):
+            logger.warning("Failed login attempt email=%s ip=%s", email, request.remote_addr)
+            flash("Invalid email or password.", "error")
+            return redirect(url_for("web.login"))
+
+        # Fix #2: Check is_active on login
+        if not user.is_active:
+            logger.warning("Login attempt on deactivated account user_id=%d ip=%s", user.id, request.remote_addr)
             flash("Invalid email or password.", "error")
             return redirect(url_for("web.login"))
 
         session.clear()
         session["user_id"] = user.id
-        session.permanent = True  # Fix #6
+        session.permanent = True
+        logger.info("Successful login user_id=%d ip=%s", user.id, request.remote_addr)
         flash("Signed in.", "success")
         return redirect(url_for("web.dashboard"))
 
@@ -243,12 +256,12 @@ def billing():
     session_id = request.args.get("session_id")
     if checkout_status == "success" and session_id:
         try:
-            # Fix #1: pass current user ID to prevent IDOR
             message = sync_checkout_result(session_id, user.id)
             if message:
                 flash(message, "success")
         except BillingConfigurationError as exc:
-            flash(str(exc), "error")
+            logger.error("Billing error on checkout sync: %s", exc)
+            flash("Billing is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for("web.billing"))
 
     if checkout_status == "cancel":
@@ -282,7 +295,8 @@ def billing_checkout(kind: str):
     try:
         checkout_url = create_checkout_session(user, subscription, kind)
     except BillingConfigurationError as exc:
-        flash(str(exc), "error")
+        logger.error("Billing error on checkout creation: %s", exc)
+        flash("Billing is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for("web.billing"))
 
     return redirect(checkout_url)
@@ -303,7 +317,8 @@ def cancel_city_plan():
     try:
         cancel_subscription(subscription.stripe_subscription_id)
     except BillingConfigurationError as exc:
-        flash(str(exc), "error")
+        logger.error("Billing error on cancel: %s", exc)
+        flash("Billing is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for("web.billing"))
     subscription.city_override_active = False
     subscription.status = "free"
@@ -391,6 +406,7 @@ def delete_account():
 
     db = get_db()
     user = db.get(User, user.id)
+    logger.info("Account deleted user_id=%d ip=%s", user.id, request.remote_addr)
     if user.subscription:
         try:
             cancel_subscription(user.subscription.stripe_subscription_id)

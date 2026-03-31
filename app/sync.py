@@ -6,7 +6,7 @@ from sqlalchemy import select
 from .db import get_db
 from .ingest import normalized_shared_jobs
 from .matching import match_job_for_user
-from .models import DailyRun, Job, JobMatch, SavedSearch, User
+from .models import DailyRun, Job, JobMatch, MagicLinkToken, SavedSearch, User
 
 
 def upsert_shared_jobs() -> int:
@@ -89,6 +89,13 @@ def run_daily_sync(run_key: Optional[str] = None) -> dict:
     try:
         synced_jobs = upsert_shared_jobs()
         matched_jobs = rebuild_matches()
+        # Cleanup expired/used magic link tokens
+        db.query(MagicLinkToken).filter(
+            (MagicLinkToken.expires_at < datetime.now(timezone.utc))
+            | (MagicLinkToken.used_at.isnot(None))
+        ).delete()
+        db.commit()
+
         run.status = "completed"
         run.notes = f"Synced {synced_jobs} shared jobs and created {matched_jobs} user matches."
         run.completed_at = datetime.now(timezone.utc)
