@@ -37,7 +37,7 @@ def rebuild_matches() -> int:
     created = 0
 
     for search in saved_searches:
-        allowed_cities = {search.city_1, search.city_2, search.city_3}
+        allowed_cities = {c for c in [search.city_1, search.city_2, search.city_3, search.city_4, search.city_5, search.city_6] if c}
         for job in jobs:
             city_display = {
                 "nyc": "New York, NY",

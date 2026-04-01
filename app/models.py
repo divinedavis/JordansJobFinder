@@ -87,6 +87,9 @@ class SavedSearch(TimestampMixin, Base):
     city_1: Mapped[str] = mapped_column(String(128))
     city_2: Mapped[str] = mapped_column(String(128))
     city_3: Mapped[str] = mapped_column(String(128))
+    city_4: Mapped[str] = mapped_column(String(128), default="")
+    city_5: Mapped[str] = mapped_column(String(128), default="")
+    city_6: Mapped[str] = mapped_column(String(128), default="")
     is_paid_city_override: Mapped[bool] = mapped_column(Boolean, default=False)
     change_count: Mapped[int] = mapped_column(Integer, default=0)
 

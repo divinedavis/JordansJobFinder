@@ -2,7 +2,7 @@
 """
 Jordan's Job Finder — Expanded Multi-Company Scraper
 -----------------------------------------------------
-Cities   : NYC (VP only) | Atlanta (VP or Senior) | Miami (VP or Senior)
+Cities   : NYC (VP only) | Atlanta | Miami | Dallas | Houston | DC (VP or Senior)
 Finance  : Top 500 finance + hedge funds with NYC / Atlanta / Miami presence
 Tech     : Top 100 tech companies with NYC / Atlanta / Miami offices
 Output   : /var/www/jordansjobfinder/jobs.html
@@ -51,25 +51,46 @@ MIAMI_LOCS   = ["miami", "miami, fl", "miami fl", "miami, florida",
                 "south florida", "brickell", "coral gables", "doral",
                 "fort lauderdale", "ft lauderdale", "aventura", "boca raton"]
 
+DALLAS_LOCS  = ["dallas", "fort worth", "dfw", "plano", "irving",
+                "arlington", "frisco", "richardson", "addison",
+                "tx,", ", tx", "texas"]
+HOUSTON_LOCS = ["houston", "the woodlands", "sugar land", "katy",
+                "spring", "pasadena", "cypress", "pearland",
+                "humble", "baytown"]
+DC_LOCS      = ["washington", "d.c.", "dc", "arlington, va",
+                "mclean", "tysons", "reston", "bethesda",
+                "rockville", "silver spring", "fairfax",
+                "alexandria", "northern virginia", "nova"]
+
 CITY_LABELS = {
     "nyc": "New York, NY",
     "atlanta": "Atlanta, GA",
     "miami": "Miami, FL",
+    "dallas": "Dallas, TX",
+    "houston": "Houston, TX",
+    "dc": "Washington, DC",
 }
 
 CITY_SEARCH = {
     "nyc": "New York",
     "atlanta": "Atlanta",
     "miami": "Miami",
+    "dallas": "Dallas",
+    "houston": "Houston",
+    "dc": "Washington",
 }
 
 AMAZON_LOCATIONS = {
     "nyc": "New York,New York,United States",
     "atlanta": "Atlanta,Georgia,United States",
     "miami": "Miami,Florida,United States",
+    "dallas": "Dallas,Texas,United States",
+    "houston": "Houston,Texas,United States",
+    "dc": "Washington,District of Columbia,United States",
 }
 
 MIN_SALARY   = 180_000
+SALARY_OPTIONAL_CITIES = {"dallas", "houston", "dc"}
 VALID_POST_DAYS = 2
 TECH_THRESHOLD  = 3
 TECH_SIGNALS = [
@@ -245,6 +266,71 @@ WORKDAY_COMPANIES = [
     ("AT&T MIA",         "att",           1,   "ATTGeneral",              "miami"),
     ("Cisco MIA",        "cisco",         5,   "Cisco_Careers",           "miami"),
     ("Walt Disney MIA",  "disney",        5,   "disneycareer",            "miami"),
+
+    # ── Dallas / Fort Worth ───────────────────────────────────────────────────
+    ("AT&T DAL",         "att",            1,   "ATTGeneral",              "dallas"),
+    ("Capital One DAL",  "capitalone",     1,   "Capital_One",             "dallas"),
+    ("Texas Instruments","texasinstruments",5,  "TI_Careers",              "dallas"),
+    ("Lockheed Martin DAL","lockheedmartin",5, "LMCO_Careers",            "dallas"),
+    ("Deloitte DAL",     "deloitte",       5,   "DeloitteCareers",         "dallas"),
+    ("CBRE DAL",         "cbre",           5,   "cbre_careers",            "dallas"),
+    ("McKesson DAL",     "mckesson",       5,   "McKesson",                "dallas"),
+    ("Kimberly-Clark",   "kimberlyclark",  5,   "GLOBAL",                  "dallas"),
+    ("Jacobs DAL",       "jacobs",         5,   "Jacobs_Careers",          "dallas"),
+    ("Tenet Healthcare", "tenethealth",    5,   "Careers",                 "dallas"),
+    ("Southwest Airlines","southwestair",  5,   "SWA_Careers",             "dallas"),
+    ("Toyota NA DAL",    "toyota",         5,   "ToyotaMotorsNA",          "dallas"),
+    ("JPMorgan DAL",     "jpmc",           5,   "JPMC_Careers",            "dallas"),
+    ("Goldman Sachs DAL","goldmansachs",   5,   "GS_Careers",             "dallas"),
+    ("Cisco DAL",        "cisco",          5,   "Cisco_Careers",           "dallas"),
+    ("Verizon DAL",      "verizon",        12,  "verizon-careers",         "dallas"),
+    ("PepsiCo DAL",      "pepsico",        5,   "pepsicojobs",             "dallas"),
+    ("Raytheon DAL",     "rtx",            5,   "RTX_Careers",             "dallas"),
+    ("NTT Data DAL",     "nttdata",        5,   "NTTData_Careers",         "dallas"),
+    ("Accenture DAL",    "accenture",      5,   "Accenture_Careers",       "dallas"),
+    # ── Houston ───────────────────────────────────────────────────────────────
+    ("Shell",            "shell",          5,   "Shell_Careers",            "houston"),
+    ("HP Inc HOU",       "hpi",            5,   "HP_Careers",              "houston"),
+    ("HP Enterprise",    "hpe",            5,   "HPE_Careers",             "houston"),
+    ("ConocoPhillips",   "conocophillips", 5,   "ConocoPhillips_Careers",  "houston"),
+    ("Phillips 66",      "phillips66",     5,   "Phillips66Careers",       "houston"),
+    ("Halliburton",      "halliburton",    5,   "Halliburton_Careers",     "houston"),
+    ("Baker Hughes",     "bakerhughes",    5,   "BH_Careers",             "houston"),
+    ("Schlumberger",     "slb",            5,   "SLB_Careers",             "houston"),
+    ("Sysco",            "sysco",          5,   "Sysco_Careers",           "houston"),
+    ("Waste Management", "wm",             5,   "WM_Careers",             "houston"),
+    ("Deloitte HOU",     "deloitte",       5,   "DeloitteCareers",         "houston"),
+    ("Accenture HOU",    "accenture",      5,   "Accenture_Careers",       "houston"),
+    ("JPMorgan HOU",     "jpmc",           5,   "JPMC_Careers",            "houston"),
+    ("Capital One HOU",  "capitalone",     1,   "Capital_One",             "houston"),
+    ("Oracle HOU",       "oracle",         5,   "Oracle_Careers",          "houston"),
+    ("Chevron",          "chevron",        5,   "Chevron_Careers",         "houston"),
+    ("ExxonMobil",       "exxonmobil",     5,   "ExxonMobil_Careers",     "houston"),
+    ("NRG Energy",       "nrg",            5,   "NRG_Careers",             "houston"),
+    ("Targa Resources",  "targaresources", 5,   "TargaResources",          "houston"),
+    ("EOG Resources",    "eogresources",   5,   "EOG_Careers",             "houston"),
+    # ── Washington DC / Northern Virginia ─────────────────────────────────────
+    ("Capital One DC",   "capitalone",     1,   "Capital_One",             "dc"),
+    ("Booz Allen",       "boozallen",      5,   "Booz_Allen_Careers",      "dc"),
+    ("Deloitte DC",      "deloitte",       5,   "DeloitteCareers",         "dc"),
+    ("Accenture DC",     "accenture",      5,   "Accenture_Careers",       "dc"),
+    ("Lockheed Martin DC","lockheedmartin",5,  "LMCO_Careers",            "dc"),
+    ("Northrop Grumman", "northropgrumman",5,   "NG_Careers",             "dc"),
+    ("Raytheon DC",      "rtx",            5,   "RTX_Careers",             "dc"),
+    ("General Dynamics", "gd",             5,   "GD_Careers",              "dc"),
+    ("SAIC",             "saic",           5,   "SAIC_Careers",            "dc"),
+    ("Leidos",           "leidos",         5,   "Leidos_Careers",          "dc"),
+    ("BAE Systems DC",   "baesystems",     5,   "BAE_Careers",             "dc"),
+    ("Fannie Mae",       "fanniemae",      5,   "FannieMae_Careers",       "dc"),
+    ("Freddie Mac",      "freddiemac",     5,   "FreddieMac_Careers",      "dc"),
+    ("Marriott",         "marriott",       5,   "Marriott_Careers",        "dc"),
+    ("Hilton DC",        "hilton",         5,   "Hilton_Careers",          "dc"),
+    ("Verizon DC",       "verizon",        12,  "verizon-careers",         "dc"),
+    ("AWS DC",           "amazon",         5,   "Amazon_Careers",          "dc"),
+    ("Microsoft DC",     "microsoft",      5,   "Microsoft_Careers",       "dc"),
+    ("Oracle DC",        "oracle",         5,   "Oracle_Careers",          "dc"),
+    ("JPMorgan DC",      "jpmc",           5,   "JPMC_Careers",            "dc"),
+    ("Wells Fargo DC",   "wf",             1,   "WellsFargoJobs",          "dc"),
 ]
 
 # (name, greenhouse_token, city)
@@ -291,6 +377,24 @@ GREENHOUSE_COMPANIES = [
     ("NY Times GH",   "thenewyorktimes", "nyc"),
     # ── Fortune 1000 · Miami ──────────────────────────────────────────────────
     ("Chewy",         "chewycom",        "miami"),
+
+    # ── Dallas ────────────────────────────────────────────────────────────────
+    ("Stripe DAL",       "stripe",         "dallas"),
+    ("MongoDB DAL",      "mongodb",        "dallas"),
+    ("Datadog DAL",      "datadog",        "dallas"),
+    ("DoorDash DAL",     "doordashusa",    "dallas"),
+    # ── Houston ───────────────────────────────────────────────────────────────
+    ("Stripe HOU",       "stripe",         "houston"),
+    ("MongoDB HOU",      "mongodb",        "houston"),
+    ("Datadog HOU",      "datadog",        "houston"),
+    # ── Washington DC ─────────────────────────────────────────────────────────
+    ("Stripe DC",        "stripe",         "dc"),
+    ("MongoDB DC",       "mongodb",        "dc"),
+    ("Datadog DC",       "datadog",        "dc"),
+    ("Cloudflare DC",    "cloudflare",     "dc"),
+    ("Coinbase DC",      "coinbase",       "dc"),
+    ("HubSpot DC",       "hubspotjobs",    "dc"),
+    ("Okta DC",          "okta",           "dc"),
 ]
 
 # (name, lever_token, city)
@@ -298,6 +402,11 @@ LEVER_COMPANIES = [
     ("Palantir",       "palantir",       "nyc"),
     ("Palantir MIA",   "palantir",       "miami"),
     ("Veeva Systems",  "veeva",          "nyc"),
+
+    ("Palantir DAL",     "palantir",       "dallas"),
+    ("Palantir HOU",     "palantir",       "houston"),
+    ("Palantir DC",      "palantir",       "dc"),
+    ("Veeva Systems DC", "veeva",          "dc"),
 ]
 
 # Eightfold: (name, domain, base_url, city)
@@ -368,7 +477,7 @@ def is_senior(title):
 
 
 def level_ok(title, city):
-    """VP required for NYC; VP or Senior for Atlanta and Miami."""
+    """VP required for NYC; VP or Senior for all other cities."""
     return is_vp(title) if city == "nyc" else (is_vp(title) or is_senior(title))
 
 
@@ -392,6 +501,21 @@ def is_miami(text):
     return any(loc in t for loc in MIAMI_LOCS)
 
 
+def is_dallas(text):
+    t = text.lower()
+    return any(loc in t for loc in DALLAS_LOCS)
+
+
+def is_houston(text):
+    t = text.lower()
+    return any(loc in t for loc in HOUSTON_LOCS)
+
+
+def is_dc(text):
+    t = text.lower()
+    return any(loc in t for loc in DC_LOCS)
+
+
 def location_ok(text, city):
     if city == "nyc":
         return is_nyc(text)
@@ -399,6 +523,12 @@ def location_ok(text, city):
         return is_atlanta(text)
     if city == "miami":
         return is_miami(text)
+    if city == "dallas":
+        return is_dallas(text)
+    if city == "houston":
+        return is_houston(text)
+    if city == "dc":
+        return is_dc(text)
     return False
 
 
@@ -1237,6 +1367,9 @@ def main():
     all_candidates += scrape_amazon("nyc")
     all_candidates += scrape_amazon("atlanta")
     all_candidates += scrape_amazon("miami")
+    all_candidates += scrape_amazon("dallas")
+    all_candidates += scrape_amazon("houston")
+    all_candidates += scrape_amazon("dc")
 
     # ── Phase 2: Playwright scrapers ──────────────────────────────────────────
     with sync_playwright() as p:
@@ -1249,9 +1382,15 @@ def main():
         all_candidates += scrape_google(pw_page, "nyc")
         all_candidates += scrape_google(pw_page, "atlanta")
         all_candidates += scrape_google(pw_page, "miami")
+        all_candidates += scrape_google(pw_page, "dallas")
+        all_candidates += scrape_google(pw_page, "houston")
+        all_candidates += scrape_google(pw_page, "dc")
         all_candidates += scrape_meta(pw_page, "nyc")
         all_candidates += scrape_meta(pw_page, "atlanta")
         all_candidates += scrape_meta(pw_page, "miami")
+        all_candidates += scrape_meta(pw_page, "dallas")
+        all_candidates += scrape_meta(pw_page, "houston")
+        all_candidates += scrape_meta(pw_page, "dc")
 
         # ── Phase 3: Enrich candidates with detail page ───────────────────────
         log(f"Enriching {len(all_candidates)} candidates with detail pages...")
@@ -1289,8 +1428,11 @@ def main():
                     job["posted"] = posted
 
                 if job["salary"] and not salary_ok(job["salary"]):
-                    log(f"    ✗ Salary too low: {job['salary']}")
-                    continue
+                    if job.get("city") not in SALARY_OPTIONAL_CITIES:
+                        log(f"    ✗ Salary too low: {job['salary']}")
+                        continue
+                    else:
+                        log(f"    ⚠ Low salary ({job['salary']}) but city {job['city']} is salary-optional — keeping")
                 if not job["salary"]:
                     job["salary"] = "See posting"
 

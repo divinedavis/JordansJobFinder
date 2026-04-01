@@ -31,6 +31,8 @@ CITY_OPTIONS = [
     {"slug": "los-angeles-ca", "label": "Los Angeles, CA"},
     {"slug": "chicago-il", "label": "Chicago, IL"},
     {"slug": "washington-dc", "label": "Washington, DC"},
+    {"slug": "dallas-tx", "label": "Dallas, TX"},
+    {"slug": "houston-tx", "label": "Houston, TX"},
 ]
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
