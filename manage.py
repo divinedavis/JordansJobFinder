@@ -2,7 +2,6 @@ import argparse
 
 from app import create_app
 from app.db import init_db
-from app.devtools import seed_demo_user
 from app.sync import rebuild_matches, run_daily_sync, upsert_shared_jobs
 
 
@@ -21,7 +20,6 @@ def main():
             "sync-shared-jobs",
             "rebuild-matches",
             "run-daily-sync",
-            "seed-demo",
         ],
         help="Command to execute",
     )
@@ -55,12 +53,6 @@ def main():
             f"Completed daily sync. Shared jobs: {result['synced_jobs']}; "
             f"job matches: {result['matched_jobs']}."
         )
-        return
-
-    if args.command == "seed-demo":
-        with app.app_context():
-            result = seed_demo_user()
-        print(f"Seeded demo user: {result['email']}")
         return
 
     app.run(host=args.host, port=args.port, debug=args.debug)
