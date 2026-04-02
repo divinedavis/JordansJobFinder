@@ -69,7 +69,7 @@ def normalize_numeric_language(text: str) -> str:
 def _extract_amounts(text: str) -> list[int]:
     """Pull all dollar-like amounts from text, filtered to plausible salary range."""
     amounts = []
-    pattern = re.compile(r"(?:USD)?\$?\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
+    pattern = re.compile(r"(?:USD)?\$\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
     for raw_amount, suffix in pattern.findall(text):
         amount = float(raw_amount.replace(",", ""))
         suffix = suffix.lower()
