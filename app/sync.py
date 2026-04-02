@@ -43,6 +43,9 @@ def rebuild_matches() -> int:
                 "nyc": "New York, NY",
                 "atlanta": "Atlanta, GA",
                 "miami": "Miami, FL",
+                "dallas": "Dallas, TX",
+                "houston": "Houston, TX",
+                "dc": "Washington, DC",
             }.get(job.city, job.location or "")
             if city_display not in allowed_cities and (job.location or "") not in allowed_cities:
                 continue
