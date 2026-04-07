@@ -5,7 +5,7 @@
 A Flask web app + daily scraper that finds technical **Product Manager** and **Program Manager** jobs for Jordan across NYC, Atlanta, and Miami. It scrapes 100+ company career pages daily and surfaces matches based on role, seniority, location, salary, and tech focus.
 
 **Live at:** https://jordansjobfinder.com
-**Server:** 167.71.170.219 (DigitalOcean)
+**Server:** 159.203.110.79 (DigitalOcean)
 **Path:** /var/www/jordansjobfinder
 **Repo:** https://github.com/divinedavis/JordansJobFinder.git (branch: master)
 
@@ -21,8 +21,8 @@ A Flask web app + daily scraper that finds technical **Product Manager** and **P
 
 ## Cron Schedule (America/New_York)
 
-- **6:00 AM ET** — scraper.py runs (~40 min), scrapes all ATS platforms, writes shared_jobs.json
-- **7:00 AM ET** — manage.py run-daily-sync imports shared_jobs.json into DB, rebuilds user matches
+- **5:00 AM ET** — scraper.py runs (~40 min), scrapes all ATS platforms, writes shared_jobs.json
+- **6:00 AM ET** — manage.py run-daily-sync imports shared_jobs.json into DB, rebuilds user matches
 
 ## Scraper Pipeline (scraper.py)
 
@@ -112,7 +112,7 @@ Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-
 
 ## Common Commands
 
-- SSH in: ssh root@167.71.170.219
+- SSH in: ssh root@159.203.110.79
 - Restart app: systemctl restart jordansjobfinder
 - Check app status: systemctl status jordansjobfinder
 - View scraper log: tail -50 /var/www/jordansjobfinder/scraper.log
