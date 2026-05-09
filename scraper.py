@@ -1323,6 +1323,137 @@ def scrape_amazon(city="nyc"):
     return candidates
 
 
+# ── Built In NYC — HTML listing scrape ────────────────────────────────────────
+
+BUILTIN_NYC_BASE = "https://www.builtinnyc.com/jobs"
+BUILTIN_RECENCY_HOURS = 24
+BUILTIN_MAX_PAGES = 8
+BUILTIN_PARAMS = {
+    "search": "product",
+    "daysSinceUpdated": "1",
+    "city": "New York City",
+    "state": "New York",
+    "country": "USA",
+    "allLocations": "true",
+}
+
+
+def parse_builtin_posted(card_text):
+    """Return a tz-aware datetime from BuiltIn's relative posted label, or None."""
+    if not card_text:
+        return None
+    t = card_text.lower()
+    if "just now" in t or "moments ago" in t:
+        return datetime.now(timezone.utc)
+    m = re.search(r"(\d+)\s+(minute|hour|day)s?\s+ago", t)
+    if not m:
+        return None
+    n = int(m.group(1))
+    unit = m.group(2)
+    if unit == "minute":
+        return datetime.now(timezone.utc) - timedelta(minutes=n)
+    if unit == "hour":
+        return datetime.now(timezone.utc) - timedelta(hours=n)
+    return datetime.now(timezone.utc) - timedelta(days=n)
+
+
+def scrape_builtinnyc():
+    """Scrape Built In NYC product/program manager roles posted in the last 24h.
+
+    Source-specific recency override (24h, not VALID_POST_DAYS). Other filters
+    (role, NYC VP-level, salary ≥ MIN_SALARY) reuse shared helpers. Tech-focus
+    check is satisfied with the listing tile's text + Top Skills tags so Phase 3
+    can skip the Playwright detail fetch for this source.
+    """
+    log("  [BuiltInNYC] HTTP scrape (24h window)...")
+    candidates = []
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=BUILTIN_RECENCY_HOURS)
+    seen_card_ids = set()
+
+    for page_num in range(1, BUILTIN_MAX_PAGES + 1):
+        params = dict(BUILTIN_PARAMS)
+        params["page"] = str(page_num)
+        try:
+            resp = requests.get(
+                BUILTIN_NYC_BASE,
+                params=params,
+                headers={"User-Agent": HEADERS["User-Agent"]},
+                timeout=20,
+            )
+        except Exception as e:
+            log(f"    [BuiltInNYC] page {page_num} request error: {e}")
+            break
+        if resp.status_code != 200:
+            log(f"    [BuiltInNYC] page {page_num} HTTP {resp.status_code}")
+            break
+
+        soup = BeautifulSoup(resp.text, "html.parser")
+        cards = soup.find_all("div", attrs={"data-id": "job-card"})
+        if not cards:
+            break
+
+        new_on_page = 0
+        for card in cards:
+            card_id = card.get("id", "")
+            if card_id and card_id in seen_card_ids:
+                continue
+            seen_card_ids.add(card_id)
+            new_on_page += 1
+
+            title_el = card.find("a", attrs={"data-id": "job-card-title"})
+            if not title_el:
+                continue
+            title = title_el.get_text(" ", strip=True)
+            href = title_el.get("href", "")
+            if not href:
+                continue
+            url = href if href.startswith("http") else f"https://www.builtinnyc.com{href}"
+
+            company_el = card.find("a", attrs={"data-id": "company-title"})
+            company = company_el.get_text(strip=True) if company_el else "Unknown"
+
+            card_text = card.get_text(" | ", strip=True)
+
+            posted_dt = parse_builtin_posted(card_text)
+            if not posted_dt or posted_dt < cutoff:
+                continue
+
+            if not is_target_role(title):
+                continue
+            if not level_ok(title, "nyc"):
+                continue
+            if not is_nyc(card_text):
+                continue
+
+            sal_match = re.search(
+                r"(\$?\d[\d,.]*\s*[KkMm]?\s*[-–]\s*\$?\d[\d,.]*\s*[KkMm]?\s*Annually)",
+                card_text,
+            )
+            salary = sal_match.group(1).strip() if sal_match else ""
+            if salary:
+                lo, hi = parse_salary_bounds(salary)
+                if hi and hi < MIN_SALARY:
+                    continue
+
+            posted_label = posted_dt.strftime("%Y-%m-%d")
+
+            job = make_job(
+                title=title, url=url, company=company, city="nyc",
+                salary=salary, posted=posted_label,
+                location="New York, NY, USA", source="builtinnyc",
+            )
+            # Stash listing text so Phase 3 tech filter can pass without a detail fetch.
+            job["description"] = card_text
+            candidates.append(job)
+
+        if new_on_page == 0:
+            break
+        time.sleep(1)
+
+    log(f"  [BuiltInNYC] {len(candidates)} candidate(s)")
+    return candidates
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  MAIN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1371,6 +1502,8 @@ def main():
     all_candidates += scrape_amazon("houston")
     all_candidates += scrape_amazon("dc")
 
+    all_candidates += scrape_builtinnyc()
+
     # ── Phase 2: Playwright scrapers ──────────────────────────────────────────
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -1406,8 +1539,23 @@ def main():
 
             is_workday = "myworkdayjobs.com" in url
             is_google = "careers.google.com" in url
+            is_builtin = job.get("source") == "builtinnyc"
 
-            if is_workday or is_google:
+            if is_builtin:
+                # Listing tile already has salary/posted/description — skip detail fetch.
+                description = job.get("description", "")
+                if job["salary"] and not salary_ok(job["salary"]):
+                    log(f"    ✗ Salary too low: {job['salary']}")
+                    continue
+                if not job["salary"]:
+                    job["salary"] = "See posting"
+                title_lower = job["title"].lower()
+                tech_hits = sum(1 for kw in TECH_SIGNALS
+                                if kw in description.lower() or kw in title_lower)
+                if tech_hits < 2:
+                    log(f"    ✗ Not tech-focused (builtin tile, {tech_hits} signals)")
+                    continue
+            elif is_workday or is_google:
                 if is_workday:
                     salary, description, posted = fetch_workday_detail(url)
                 else:
