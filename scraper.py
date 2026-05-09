@@ -1431,8 +1431,16 @@ def scrape_builtinnyc():
             )
             salary = sal_match.group(1).strip() if sal_match else ""
             if salary:
-                lo, hi = parse_salary_bounds(salary)
-                if hi and hi < MIN_SALARY:
+                # parse_salary requires a $ prefix; Built In renders "83K-160K Annually".
+                normalized = re.sub(
+                    r"(?<![\$\d])(\d[\d,.]*\s*[KkMm]?)",
+                    r"$\1",
+                    salary,
+                )
+                lo, hi = parse_salary_bounds(normalized)
+                if hi is None:
+                    continue
+                if hi < MIN_SALARY:
                     continue
 
             posted_label = posted_dt.strftime("%Y-%m-%d")
