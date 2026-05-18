@@ -30,10 +30,10 @@ Scrapes 5 ATS platforms: Workday (~246 entries), Greenhouse (~86), Lever (~7), E
 
 Filter chain for each job:
 1. **Role** — title contains "product manager" or "program manager"
-2. **Seniority** — NYC requires VP-level; Atlanta/Miami accept VP or Senior
-3. **Location** — must be in NYC, Atlanta, or Miami
+2. **Seniority** — every city accepts VP or Senior/Lead/Staff/Principal titles (plain Director/Manager titles still excluded)
+3. **Location** — must be in one of the 6 metros (NYC, Atlanta, Miami, Dallas, Houston, DC)
 4. **Recency** — posted within last 2 days
-5. **Salary** — $180K+ floor (capped at $2M to filter garbage numbers from page HTML)
+5. **Salary** — $180K+ floor (capped at $2M to filter garbage numbers from page HTML); enforced for NYC only — all other cities are salary-optional (SALARY_OPTIONAL_CITIES)
 6. **Tech focus** — 3+ tech keywords in description (agile, cloud, API, etc.)
 
 Outputs: jobs.html (static public board), jobs_store.json, shared_jobs.json, seen_jobs.json

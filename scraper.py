@@ -90,7 +90,9 @@ AMAZON_LOCATIONS = {
 }
 
 MIN_SALARY   = 180_000
-SALARY_OPTIONAL_CITIES = {"dallas", "houston", "dc"}
+# Salary minimum is enforced for NYC only — every other city is salary-optional
+# (many postings outside NYC list no salary, and most non-NYC states don't mandate it).
+SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc"}
 VALID_POST_DAYS = 2
 TECH_THRESHOLD  = 3
 TECH_SIGNALS = [
@@ -566,8 +568,8 @@ def is_senior(title):
 
 
 def level_ok(title, city):
-    """VP required for NYC; VP or Senior for all other cities."""
-    return is_vp(title) if city == "nyc" else (is_vp(title) or is_senior(title))
+    """VP or Senior accepted in every city (city kept for signature compatibility)."""
+    return is_vp(title) or is_senior(title)
 
 
 def is_target_role(title):
