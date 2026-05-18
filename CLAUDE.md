@@ -2,7 +2,7 @@
 
 ## What This App Does
 
-A Flask web app + daily scraper that finds technical **Product Manager** and **Program Manager** jobs for Jordan across NYC, Atlanta, and Miami. It scrapes 100+ company career pages daily and surfaces matches based on role, seniority, location, salary, and tech focus.
+A Flask web app + daily scraper that finds technical **Product Manager** and **Program Manager** jobs for Jordan across 6 metros (NYC, Atlanta, Miami, Dallas, Houston, DC). It scrapes 340+ company career pages daily and surfaces matches based on role, seniority, location, salary, and tech focus.
 
 **Live at:** https://jordansjobfinder.com
 **Server:** 159.203.110.79 (DigitalOcean)
@@ -26,7 +26,7 @@ A Flask web app + daily scraper that finds technical **Product Manager** and **P
 
 ## Scraper Pipeline (scraper.py)
 
-Scrapes 5 ATS platforms: Workday (~90 companies), Greenhouse (~30), Lever, Eightfold, custom Playwright (JPMorgan, Goldman, MetLife, Google, Meta, Amazon).
+Scrapes 5 ATS platforms: Workday (~246 entries), Greenhouse (~86), Lever (~7), Eightfold (~2), custom Playwright (JPMorgan, Goldman, MetLife, Google, Meta, Amazon). Entry counts are company×city tuples — many companies appear in multiple cities.
 
 Filter chain for each job:
 1. **Role** — title contains "product manager" or "program manager"
