@@ -5,8 +5,26 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _require_secret_key() -> str:
+    """Return SECRET_KEY from the environment.
+
+    Fail hard if it is unset so production never falls back to a publicly
+    known key (which would allow forging signed session cookies). Set
+    ALLOW_DEV_SECRET=1 for local development to permit the dev fallback.
+    """
+    key = os.getenv("SECRET_KEY")
+    if key:
+        return key
+    if os.getenv("ALLOW_DEV_SECRET") == "1":
+        return "dev-secret-key"
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. Set it in production, "
+        "or set ALLOW_DEV_SECRET=1 for local development."
+    )
+
+
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
+    SECRET_KEY = _require_secret_key()
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
         f"sqlite:///{BASE_DIR / 'jordansjobfinder.db'}",
