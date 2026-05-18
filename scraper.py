@@ -458,7 +458,6 @@ GREENHOUSE_COMPANIES = [
     ("Figma",            "figma",          "nyc"),
     ("Discord",          "discord",        "nyc"),
     ("Affirm",           "affirm",         "nyc"),
-    ("Asana",            "asana",          "nyc"),
     ("Reddit",           "reddit",         "nyc"),
     ("Justworks",        "justworks",      "nyc"),
     ("Jump Trading",     "jumptrading",    "nyc"),
