@@ -78,19 +78,42 @@ divinejdavis@gmail.com is the superuser (defined in catalog.py). Gets:
 - VALID_POST_DAYS = 2 in scraper
 - MIN_SALARY = 180_000 in scraper
 
-## Important Workflow Rules
+## REQUIRED Workflow for Every Code Change
 
-- **Always commit + push to GitHub (origin master) after every code change**
-- **Always test every endpoint after every code change before pushing** (see testing section below)
-- The scraper takes ~40 min to run — the sync cron must be scheduled well after it
-- After fixing data issues, re-run the sync (see commands below)
-- Restart the app after code changes: systemctl restart jordansjobfinder
+Every change to this app follows this loop. **Tests gate the push** — a red suite means the change does not get pushed until it is fixed.
 
-## REQUIRED: Test Every Endpoint After Every Change
+1. Edit the code on the server (or scp from local).
+2. Restart the service: `systemctl restart jordansjobfinder`
+3. Run the curl smoke check (below) — confirms the service comes back up cleanly.
+4. **Run the test suite**: `cd /var/www/jordansjobfinder && ./scripts/run_tests.sh`
+5. If any test fails → fix the underlying issue and re-run from step 2. Do not push red.
+6. Commit + push to `origin master`.
 
-After restarting the app, run this curl check against every endpoint before committing. All should return 200 or 302 (redirect to sign-in for auth-required pages). Any 500 means the change broke something — fix it before pushing.
+Other rules:
 
-Endpoints to test (run after systemctl restart jordansjobfinder):
+- The scraper takes ~40 min to run — the sync cron must stay well after it.
+- After fixing data issues, re-run the sync (see commands below).
+
+## Test Suite
+
+The pytest suite lives in `tests/` and covers route reachability, auth flows,
+the dashboard's regression guards (e.g. Settings link must stay gone), matching
+logic for superuser + regular users, and saved-search validation.
+
+- Runner: `./scripts/run_tests.sh` (installs pytest into `.venv` if missing)
+- Dev deps: `requirements-dev.txt` (`-r requirements.txt` + `pytest`)
+- Config: `pytest.ini`
+- Fixtures: `tests/conftest.py` — spins up a Flask app with a throwaway SQLite
+  DB, disables CSRF + rate limiting, and resets all tables between tests.
+
+Add a test whenever you add a route, change matching behavior, or remove a UI
+element you don't want creeping back. The dashboard regression guard
+(`tests/test_dashboard.py::test_dashboard_does_not_link_to_settings`) is the
+template for "don't let this come back" tests.
+
+## Curl Smoke Check (run after restart, before the test suite)
+
+All should return 200 or 302. Any 500 means the change broke something — fix it before running the suite.
 
 - curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/          (expect 200)
 - curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/dashboard  (expect 302 or 200)
