@@ -82,7 +82,8 @@ def create_app() -> Flask:
         result = run_daily_sync()
         print(
             f"Completed daily sync. Shared jobs: {result['synced_jobs']}; "
-            f"job matches: {result['matched_jobs']}."
+            f"job matches: {result['matched_jobs']}; "
+            f"tailored resumes: {result.get('tailored_resumes', 0)}."
         )
 
     return app

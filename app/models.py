@@ -41,6 +41,12 @@ class User(TimestampMixin, Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    base_resume: Mapped[Optional["BaseResume"]] = relationship(
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
@@ -154,3 +160,28 @@ class DailyRun(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class BaseResume(TimestampMixin, Base):
+    __tablename__ = "base_resumes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[str] = mapped_column(String(512))
+    content_type: Mapped[str] = mapped_column(String(64))
+    extracted_text: Mapped[str] = mapped_column(Text)
+
+    user: Mapped["User"] = relationship(back_populates="base_resume")
+
+
+class TailoredResume(Base):
+    __tablename__ = "tailored_resumes"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_tailored_user_job"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    content_text: Mapped[str] = mapped_column(Text)
+    pdf_path: Mapped[str] = mapped_column(String(512))
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)

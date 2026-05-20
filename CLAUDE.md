@@ -38,23 +38,40 @@ Filter chain for each job:
 
 Outputs: jobs.html (static public board), jobs_store.json, shared_jobs.json, seen_jobs.json
 
-## Database Models (6 tables)
+## Database Models
 
 - **User** — email, password hash
 - **MagicLinkToken** — scaffolded, not active
 - **Subscription** — Stripe customer/subscription IDs, city override, unlimited changes
-- **SavedSearch** — title slug, experience bucket, 3 cities (one per user)
+- **SavedSearch** — title slug, experience bucket, up to 6 cities (one per user). New signups auto-seeded with all 6 metros.
 - **Job** — normalized job data from scraper
 - **JobMatch** — links SavedSearch to Job
 - **DailyRun** — sync run tracking
+- **BaseResume** — user's uploaded resume (one per user). Stores filename, on-disk path, content type, and extracted text.
+- **TailoredResume** — per (user, job) tailored PDF. Generated during the daily sync; one PDF per match.
 
-## Superuser
+## Open Access (any signed-in user)
 
-divinejdavis@gmail.com is the superuser (defined in catalog.py). Gets:
-- Both PM and PgM roles matched
-- 8+ years experience filter
+`is_superuser_email` returns True for any non-empty email, so every signed-up user gets:
+
+- Both PM + PgM roles matched
+- 5+ years experience filter (was 8+ for the original superuser)
 - $180K+ salary filter
 - Bypasses all billing/city limits
+
+The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs scope — it's only useful for UI copy or future per-superuser carve-outs.
+
+## Resume + Tailoring
+
+- Users upload a base resume at `/resume` (PDF or DOCX, 5 MB max). Text is extracted via `pypdf` / `python-docx` and stored alongside the file path.
+- Daily sync calls `app.sync.generate_tailored_resumes()` after `rebuild_matches()`. For each new (user, job) match where the user has a base resume, it:
+  1. Sends base text + job posting to the Anthropic Claude API (model: `ANTHROPIC_MODEL`, default `claude-haiku-4-5-20251001`).
+  2. Renders the tailored text to PDF via `reportlab`.
+  3. Stores the PDF under `RESUME_TAILORED_DIR/user-<id>/job-<id>.pdf` and records the path in `TailoredResume`.
+- Without `ANTHROPIC_API_KEY` set the call falls back to the base text (so the pipeline still produces a downloadable PDF).
+- Uploading a new base resume clears all existing TailoredResume rows so they regenerate against the new base.
+- Dashboard renders a "Tailored Resume" button on every match card that has a TailoredResume row.
+- Required env: `ANTHROPIC_API_KEY=sk-ant-...` in `.env`. Optional: `ANTHROPIC_MODEL`, `RESUME_UPLOAD_DIR`, `RESUME_TAILORED_DIR`, `RESUME_MAX_UPLOAD_BYTES`.
 
 ## Dashboard Behavior
 
@@ -123,6 +140,7 @@ All should return 200 or 302. Any 500 means the change broke something — fix i
 - curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/billing    (expect 302 or 200)
 - curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/search     (expect 302 or 200)
 - curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/matches    (expect 302)
+- curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/resume     (expect 302)
 
 Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-pager -n 30
 

@@ -42,3 +42,9 @@ def test_matches_redirects_to_dashboard(client):
 def test_search_redirects_when_unauthenticated(client):
     response = client.get("/search")
     assert response.status_code in (200, 302)
+
+
+def test_resume_redirects_when_unauthenticated(client):
+    response = client.get("/resume")
+    assert response.status_code == 302
+    assert "/sign-in" in response.headers["Location"]

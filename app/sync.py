@@ -1,12 +1,25 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+from flask import has_app_context
 from sqlalchemy import select
 
 from .db import get_db
 from .ingest import normalized_shared_jobs
 from .matching import match_job_for_user
-from .models import DailyRun, Job, JobMatch, MagicLinkToken, SavedSearch, User
+from .models import (
+    BaseResume,
+    DailyRun,
+    Job,
+    JobMatch,
+    MagicLinkToken,
+    SavedSearch,
+    TailoredResume,
+    User,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def upsert_shared_jobs() -> int:
@@ -72,6 +85,61 @@ def rebuild_matches() -> int:
     return created
 
 
+def generate_tailored_resumes() -> int:
+    """For every JobMatch whose user has a base resume, create a TailoredResume.
+
+    Skips pairs that already have one. Failures are logged but don't abort the
+    sync — one bad job shouldn't kill the rest of the run.
+    """
+    if not has_app_context():
+        logger.warning("generate_tailored_resumes called without Flask app context; skipping")
+        return 0
+
+    from .resumes import generate_tailored_resume
+
+    db = get_db()
+    base_resumes = {
+        br.user_id: br for br in db.execute(select(BaseResume)).scalars().all()
+    }
+    if not base_resumes:
+        return 0
+    users_by_id = {u.id: u for u in db.execute(select(User)).scalars().all()}
+    jobs_by_id = {j.id: j for j in db.execute(select(Job)).scalars().all()}
+    existing_pairs = {
+        (t.user_id, t.job_id)
+        for t in db.execute(select(TailoredResume)).scalars().all()
+    }
+
+    matches = db.execute(select(JobMatch)).scalars().all()
+    created = 0
+    for match in matches:
+        if (match.user_id, match.job_id) in existing_pairs:
+            continue
+        base = base_resumes.get(match.user_id)
+        user = users_by_id.get(match.user_id)
+        job = jobs_by_id.get(match.job_id)
+        if not (base and user and job):
+            continue
+        try:
+            pdf_path = generate_tailored_resume(user=user, job=job, base_resume=base)
+        except Exception as exc:
+            logger.exception("Tailored resume failed user=%s job=%s: %s", user.id, job.id, exc)
+            continue
+        if not pdf_path:
+            continue
+        db.add(
+            TailoredResume(
+                user_id=user.id,
+                job_id=job.id,
+                content_text="",  # full text already lives on disk in the PDF
+                pdf_path=pdf_path,
+            )
+        )
+        created += 1
+    db.commit()
+    return created
+
+
 def run_daily_sync(run_key: Optional[str] = None) -> dict:
     db = get_db()
     timestamp = datetime.now(timezone.utc)
@@ -92,6 +160,7 @@ def run_daily_sync(run_key: Optional[str] = None) -> dict:
     try:
         synced_jobs = upsert_shared_jobs()
         matched_jobs = rebuild_matches()
+        tailored = generate_tailored_resumes()
         # Cleanup expired/used magic link tokens
         db.query(MagicLinkToken).filter(
             (MagicLinkToken.expires_at < datetime.now(timezone.utc))
@@ -100,10 +169,17 @@ def run_daily_sync(run_key: Optional[str] = None) -> dict:
         db.commit()
 
         run.status = "completed"
-        run.notes = f"Synced {synced_jobs} shared jobs and created {matched_jobs} user matches."
+        run.notes = (
+            f"Synced {synced_jobs} shared jobs, created {matched_jobs} user matches, "
+            f"generated {tailored} tailored resumes."
+        )
         run.completed_at = datetime.now(timezone.utc)
         db.commit()
-        return {"synced_jobs": synced_jobs, "matched_jobs": matched_jobs}
+        return {
+            "synced_jobs": synced_jobs,
+            "matched_jobs": matched_jobs,
+            "tailored_resumes": tailored,
+        }
     except Exception as exc:
         run.status = "failed"
         run.notes = str(exc)

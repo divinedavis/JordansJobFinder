@@ -30,3 +30,7 @@ build/
 
 # OS
 .DS_Store
+
+# Uploaded + generated resumes
+resumes/
+base_resume.docx

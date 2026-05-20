@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Resume | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Resume</span>
+    <h1>Your base resume.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      Upload a PDF or DOCX. We'll tailor it to each job in your daily matches and
+      let you download the per-job version from the dashboard.
+    </p>
+  </section>
+
+  <section class="panel">
+    {% if base_resume %}
+      <h2>Current resume</h2>
+      <div class="list">
+        <div class="list-item">
+          <span>Filename</span>
+          <strong>{{ base_resume.filename }}</strong>
+        </div>
+        <div class="list-item">
+          <span>Uploaded</span>
+          <strong>{{ base_resume.updated_at.strftime('%b %d, %Y %H:%M UTC') }}</strong>
+        </div>
+        <div class="list-item">
+          <span>Characters extracted</span>
+          <strong>{{ base_resume.extracted_text|length }}</strong>
+        </div>
+      </div>
+      <div class="button-row" style="margin-top: 16px;">
+        <a class="button secondary" href="{{ url_for('web.resume_download_base') }}">Download base resume</a>
+      </div>
+    {% else %}
+      <h2>No resume on file yet</h2>
+      <p>Upload one below to start getting tailored versions.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Upload {% if base_resume %}a new resume{% endif %}</h2>
+    <form method="post" action="{{ url_for('web.resume_upload') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="resume">PDF or DOCX (5 MB max)</label>
+      <input id="resume" name="resume" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+      <div class="button-row" style="margin-top: 12px;">
+        <button class="button" type="submit">Upload resume</button>
+      </div>
+    </form>
+    {% if base_resume %}
+      <p class="muted" style="margin-top: 14px;">
+        Uploading a new file replaces your current resume and clears any previously
+        generated tailored versions. New tailored versions will be created on the
+        next daily sync.
+      </p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -29,6 +29,13 @@ class Config:
     FREE_SEARCH_CHANGE_LIMIT = 2
     PAID_CITY_LIMIT = 3
 
+    # Resume tailoring
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+    RESUME_UPLOAD_DIR = os.getenv("RESUME_UPLOAD_DIR", str(BASE_DIR / "resumes" / "base"))
+    RESUME_TAILORED_DIR = os.getenv("RESUME_TAILORED_DIR", str(BASE_DIR / "resumes" / "tailored"))
+    RESUME_MAX_UPLOAD_BYTES = int(os.getenv("RESUME_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))  # 5 MB
+
     # Secure session cookies
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True

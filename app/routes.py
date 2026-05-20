@@ -1,4 +1,6 @@
 import logging
+import os
+import re
 
 from flask import (
     Blueprint,
@@ -14,10 +16,18 @@ from flask import (
 )
 from flask_wtf.csrf import CSRFError
 
+from flask import send_file
+
 from .catalog import DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
 from .matching import choose_cities, city_from_slug, is_superuser_email
-from .models import SavedSearch, Subscription, User
+from .models import BaseResume, Job, SavedSearch, Subscription, TailoredResume, User
+from .resumes import (
+    ResumeError,
+    detect_kind,
+    extract_text,
+    save_base_resume,
+)
 from .payments import (
     BillingConfigurationError,
     cancel_subscription,
@@ -444,6 +454,104 @@ def sign_out():
     session.clear()
     flash("Signed out.", "success")
     return redirect(url_for("web.home"))
+
+
+@web.get("/resume")
+def resume_page():
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    user = db.get(User, user.id)
+    return render_template("resume.html", user=user, base_resume=user.base_resume)
+
+
+@web.post("/resume/upload")
+def resume_upload():
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+
+    upload = request.files.get("resume")
+    if not upload or not upload.filename:
+        flash("Choose a PDF or DOCX file to upload.", "error")
+        return redirect(url_for("web.resume_page"))
+
+    raw = upload.read(current_app.config["RESUME_MAX_UPLOAD_BYTES"] + 1)
+    if len(raw) > current_app.config["RESUME_MAX_UPLOAD_BYTES"]:
+        flash("Resume is too large (5 MB max).", "error")
+        return redirect(url_for("web.resume_page"))
+
+    try:
+        kind = detect_kind(upload.filename, upload.content_type or "")
+        text = extract_text(raw, kind)
+    except ResumeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("web.resume_page"))
+
+    file_path = save_base_resume(user.id, upload.filename, raw, kind)
+    db = get_db()
+    user = db.get(User, user.id)
+    if user.base_resume:
+        # Replace existing record + delete previous file from disk.
+        try:
+            if user.base_resume.file_path and os.path.exists(user.base_resume.file_path):
+                os.remove(user.base_resume.file_path)
+        except OSError:
+            logger.warning("Failed to delete previous base resume on disk")
+        user.base_resume.filename = upload.filename
+        user.base_resume.file_path = file_path
+        user.base_resume.content_type = upload.content_type or ""
+        user.base_resume.extracted_text = text
+    else:
+        db.add(BaseResume(
+            user_id=user.id,
+            filename=upload.filename,
+            file_path=file_path,
+            content_type=upload.content_type or "",
+            extracted_text=text,
+        ))
+    # Invalidate any tailored resumes — they were built off the old base.
+    db.query(TailoredResume).filter(TailoredResume.user_id == user.id).delete()
+    db.commit()
+    flash("Resume uploaded. Tailored versions will be generated on the next daily sync.", "success")
+    return redirect(url_for("web.resume_page"))
+
+
+@web.get("/resume/base")
+def resume_download_base():
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    user = db.get(User, user.id)
+    if not user.base_resume or not os.path.exists(user.base_resume.file_path):
+        abort(404)
+    return send_file(
+        user.base_resume.file_path,
+        as_attachment=True,
+        download_name=user.base_resume.filename or "resume",
+    )
+
+
+@web.get("/resume/tailored/<int:job_id>")
+def resume_download_tailored(job_id: int):
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    tailored = db.query(TailoredResume).filter(
+        TailoredResume.user_id == user.id,
+        TailoredResume.job_id == job_id,
+    ).one_or_none()
+    if not tailored or not os.path.exists(tailored.pdf_path):
+        abort(404)
+    job = db.get(Job, job_id)
+    download_name = "tailored-resume.pdf"
+    if job:
+        company = re.sub(r"[^A-Za-z0-9._-]", "-", job.company or "company")
+        download_name = f"{company}-tailored-resume.pdf"
+    return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
 
 
 @web.post("/stripe/webhook")
