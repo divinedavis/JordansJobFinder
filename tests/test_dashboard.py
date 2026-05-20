@@ -20,3 +20,12 @@ def test_home_does_not_link_to_settings(client):
     response = client.get("/")
     body = response.get_data(as_text=True)
     assert ">Settings</a>" not in body
+
+
+def test_new_signup_does_not_see_no_saved_search_panel(signed_in_client):
+    """Open access: signup auto-seeds a SavedSearch, so the empty-state panel
+    must never appear for a fresh user."""
+    response = signed_in_client.get("/dashboard")
+    body = response.get_data(as_text=True)
+    assert "Setting up your matches" not in body
+    assert "No saved search yet" not in body

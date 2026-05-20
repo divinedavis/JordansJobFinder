@@ -91,7 +91,9 @@ def city_from_slug(city_slug: str) -> str:
 
 
 def is_superuser_email(email: Optional[str]) -> bool:
-    return (email or "").strip().lower() == SUPERUSER_EMAIL
+    # Open access: every signed-in user gets the wide superuser scope
+    # (PM + PgM, 5+ years, $180K+) and bypasses the billing gates.
+    return bool((email or "").strip())
 
 
 def match_job_for_user(

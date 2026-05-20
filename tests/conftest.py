@@ -30,7 +30,7 @@ def app():
     from app import catalog as _catalog
     _catalog.SUPERUSER_EMAIL = os.environ["SUPERUSER_EMAIL"].strip().lower()
 
-    from app import create_app
+    from app import create_app, limiter
     flask_app = create_app()
     flask_app.config.update(
         TESTING=True,
@@ -38,6 +38,9 @@ def app():
         RATELIMIT_ENABLED=False,
         SESSION_COOKIE_SECURE=False,
     )
+    # The config flag alone doesn't disable an already-initialized limiter;
+    # flip the instance attribute so the per-view limits are skipped.
+    limiter.enabled = False
     return flask_app
 
 

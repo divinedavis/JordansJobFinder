@@ -13,11 +13,14 @@ from app.matching import (
 from app.parsing import ParsedExperience, parse_experience_years
 
 
-def test_is_superuser_email_matches_configured_email():
+def test_is_superuser_email_open_access():
+    # Open access: any signed-in user is treated as superuser. Empty / None
+    # is still falsy so the gates correctly reject unauthenticated callers.
     assert is_superuser_email(os.environ["SUPERUSER_EMAIL"]) is True
-    assert is_superuser_email("someone-else@example.com") is False
+    assert is_superuser_email("someone-else@example.com") is True
     assert is_superuser_email(None) is False
     assert is_superuser_email("") is False
+    assert is_superuser_email("   ") is False
 
 
 def test_title_matches_basic_keywords():
@@ -92,23 +95,27 @@ def test_match_job_for_user_superuser_branch():
     ) is False
 
 
-def test_match_job_for_user_regular_user_uses_saved_search():
-    description = "Requires 4 years of experience in product."
+def test_open_access_any_signed_in_user_sees_superuser_scope():
+    # Regression for "open it up so anyone who signs up sees what I see":
+    # a non-superuser email still gets the wide PM/PgM 5+yr $180K+ branch.
+    description = "Looking for 8+ years of product management experience."
     assert match_job_for_user(
-        title_slug="technical-product-manager",
-        experience_bucket="3-6",
-        title="Product Manager",
+        title_slug="technical-program-manager",  # ignored on superuser branch
+        experience_bucket="0-2",                 # ignored on superuser branch
+        title="Senior Product Manager",
         description=description,
-        user_email="regular@example.com",
+        salary_min=200_000,
+        salary_max=250_000,
+        user_email="newuser@example.com",
     ) is True
 
-    # Title mismatch.
+    # No user email → falls back to the saved-search filter (regular branch).
     assert match_job_for_user(
         title_slug="technical-product-manager",
         experience_bucket="3-6",
         title="Software Engineer",
-        description=description,
-        user_email="regular@example.com",
+        description="Requires 4 years of experience.",
+        user_email=None,
     ) is False
 
 

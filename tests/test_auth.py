@@ -61,6 +61,36 @@ def test_login_with_wrong_password_fails(client):
     assert "/login" in response.headers["Location"]
 
 
+def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
+    """Open access: new signups land with all 6 metros pre-populated."""
+    from app.models import SavedSearch, User
+
+    response = client.post(
+        "/sign-in",
+        data={
+            "email": "newcomer@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+        },
+    )
+    assert response.status_code == 302
+
+    user = db_session.query(User).filter(User.email == "newcomer@example.com").one()
+    saved = db_session.query(SavedSearch).filter(SavedSearch.user_id == user.id).one()
+    cities = {
+        saved.city_1, saved.city_2, saved.city_3,
+        saved.city_4, saved.city_5, saved.city_6,
+    }
+    assert cities == {
+        "New York, NY",
+        "Atlanta, GA",
+        "Miami, FL",
+        "Dallas, TX",
+        "Houston, TX",
+        "Washington, DC",
+    }
+
+
 def test_sign_out_clears_session(signed_in_client):
     response = signed_in_client.post("/sign-out")
     assert response.status_code == 302

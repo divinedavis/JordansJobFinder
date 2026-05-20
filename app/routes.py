@@ -135,6 +135,21 @@ def sign_in():
         db.refresh(user)
         ensure_subscription(user, db)
         user.set_password(password)
+        # Open access: seed every new user with all 6 metros so they land on a
+        # populated board immediately. title_slug + experience_bucket are
+        # required by the schema but ignored by the superuser matching branch.
+        db.add(SavedSearch(
+            user_id=user.id,
+            title_slug="technical-product-manager",
+            experience_bucket="7-9",
+            city_1="New York, NY",
+            city_2="Atlanta, GA",
+            city_3="Miami, FL",
+            city_4="Dallas, TX",
+            city_5="Houston, TX",
+            city_6="Washington, DC",
+            is_paid_city_override=False,
+        ))
         db.commit()
         session.clear()
         session["user_id"] = user.id

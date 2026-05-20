@@ -67,6 +67,12 @@ def test_requires_paid_city_override_superuser_bypass():
     assert requires_paid_city_override(custom, user_email=os.environ["SUPERUSER_EMAIL"]) is False
 
 
+def test_requires_paid_city_override_open_access_for_any_signed_in_user():
+    # Open access: any signed-in user bypasses the city paywall.
+    custom = ["New York, NY", "Atlanta, GA", "Dallas, TX"]
+    assert requires_paid_city_override(custom, user_email="newuser@example.com") is False
+
+
 def test_can_change_search_respects_limit_and_unlock(app):
     with app.app_context():
         # Under the free limit.
@@ -80,4 +86,10 @@ def test_can_change_search_respects_limit_and_unlock(app):
             change_count=99,
             unlimited_changes_unlocked=False,
             user_email=os.environ["SUPERUSER_EMAIL"],
+        ) is True
+        # Open access: any signed-in user is also allowed to change freely.
+        assert can_change_search(
+            change_count=99,
+            unlimited_changes_unlocked=False,
+            user_email="newuser@example.com",
         ) is True
