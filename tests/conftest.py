@@ -9,8 +9,11 @@ import tempfile
 from pathlib import Path
 
 _TEST_DB_DIR = Path(tempfile.mkdtemp(prefix="jjf-test-db-"))
+_TEST_RESUME_DIR = Path(tempfile.mkdtemp(prefix="jjf-test-resumes-"))
 os.environ["SECRET_KEY"] = "test-secret"
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_DIR / 'test.db'}"
+os.environ["RESUME_UPLOAD_DIR"] = str(_TEST_RESUME_DIR / "base")
+os.environ["RESUME_TAILORED_DIR"] = str(_TEST_RESUME_DIR / "tailored")
 os.environ.setdefault("SUPERUSER_EMAIL", "superuser@example.com")
 for _key in (
     "TURNSTILE_SECRET_KEY",

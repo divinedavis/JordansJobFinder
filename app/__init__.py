@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from flask import Flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -22,6 +24,15 @@ def create_app() -> Flask:
 
     csrf.init_app(app)
     limiter.init_app(app)
+
+    # Ensure resume storage dirs exist and are owned by the running process.
+    # Avoids PermissionError when the dirs were created by a different user
+    # (e.g. as root during manual init-db).
+    for cfg_key in ("RESUME_UPLOAD_DIR", "RESUME_TAILORED_DIR"):
+        try:
+            Path(app.config[cfg_key]).mkdir(parents=True, exist_ok=True)
+        except OSError:
+            app.logger.warning("Could not create resume dir %s", app.config[cfg_key])
 
     app.register_blueprint(web)
 
