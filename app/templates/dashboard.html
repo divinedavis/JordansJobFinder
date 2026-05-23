@@ -44,7 +44,7 @@
                     </div>
                     <div class="button-row" style="gap: 8px; flex-wrap: wrap;">
                       <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View Role</a>
-                      {% if user.base_resume %}
+                      {% if match.has_tailored_resume %}
                         <a class="button" href="{{ url_for('web.resume_download_tailored', job_id=match.id) }}">Tailored Resume</a>
                       {% endif %}
                     </div>

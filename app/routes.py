@@ -26,7 +26,6 @@ from .resumes import (
     ResumeError,
     detect_kind,
     extract_text,
-    generate_tailored_resume,
     save_base_resume,
 )
 from .payments import (
@@ -548,66 +547,13 @@ def resume_download_base():
     )
 
 
-def _render_tailored_in_background(user_id: int, job_id: int) -> None:
-    """Kick off a fresh-session render in a daemon thread so the HTTP
-    request can return immediately. The Anthropic call takes 5-15s and we
-    don't want to block the browser."""
-    import threading
-
-    app = current_app._get_current_object()
-
-    def _run():
-        from .db import SessionLocal
-
-        with app.app_context():
-            db = SessionLocal()
-            try:
-                user = db.get(User, user_id)
-                job = db.get(Job, job_id)
-                if not user or not job or not user.base_resume:
-                    return
-                try:
-                    pdf_path = generate_tailored_resume(
-                        user=user,
-                        job=job,
-                        base_resume=user.base_resume,
-                        allow_fallback=True,
-                    )
-                except Exception:
-                    logger.exception(
-                        "Background tailored render failed user=%s job=%s",
-                        user_id,
-                        job_id,
-                    )
-                    return
-                if not pdf_path:
-                    return
-                existing = db.query(TailoredResume).filter(
-                    TailoredResume.user_id == user_id,
-                    TailoredResume.job_id == job_id,
-                ).one_or_none()
-                if existing:
-                    existing.pdf_path = pdf_path
-                    existing.content_text = ""
-                else:
-                    db.add(
-                        TailoredResume(
-                            user_id=user_id,
-                            job_id=job_id,
-                            content_text="",
-                            pdf_path=pdf_path,
-                        )
-                    )
-                db.commit()
-            finally:
-                db.close()
-                SessionLocal.remove()
-
-    threading.Thread(target=_run, daemon=True).start()
-
-
 @web.get("/resume/tailored/<int:job_id>")
 def resume_download_tailored(job_id: int):
+    """Serve the pre-generated tailored PDF.
+
+    Tailored resumes are created by the daily sync (see app/sync.py) — this
+    route never renders on demand, so the click always downloads instantly.
+    """
     user = require_user()
     if not user:
         return redirect(url_for("web.sign_in"))
@@ -615,40 +561,15 @@ def resume_download_tailored(job_id: int):
     job = db.get(Job, job_id)
     if not job:
         abort(404)
-    if not user.base_resume:
-        flash("Upload a base resume before requesting a tailored version.", "error")
-        return redirect(url_for("web.resume_page"))
-
     tailored = db.query(TailoredResume).filter(
         TailoredResume.user_id == user.id,
         TailoredResume.job_id == job_id,
     ).one_or_none()
-
-    fresh = (
-        tailored
-        and tailored.pdf_path
-        and os.path.exists(tailored.pdf_path)
-        and (
-            not user.base_resume.updated_at
-            or os.path.getmtime(tailored.pdf_path)
-            >= user.base_resume.updated_at.timestamp()
-        )
-    )
-
-    if fresh:
-        company = re.sub(r"[^A-Za-z0-9._-]", "-", job.company or "company")
-        download_name = f"{company}-tailored-resume.pdf"
-        return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
-
-    # No cached PDF yet — kick off generation in the background and tell
-    # the user it'll be ready in a few seconds.
-    _render_tailored_in_background(user.id, job_id)
-    flash(
-        "Your tailored resume is being prepared (takes about 15 seconds). "
-        "Refresh the page in a moment and click again.",
-        "info",
-    )
-    return redirect(url_for("web.dashboard"))
+    if not tailored or not tailored.pdf_path or not os.path.exists(tailored.pdf_path):
+        abort(404)
+    company = re.sub(r"[^A-Za-z0-9._-]", "-", job.company or "company")
+    download_name = f"{company}-tailored-resume.pdf"
+    return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
 
 
 @web.post("/stripe/webhook")
