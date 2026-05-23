@@ -26,6 +26,7 @@ from .resumes import (
     ResumeError,
     detect_kind,
     extract_text,
+    generate_tailored_resume,
     save_base_resume,
 )
 from .payments import (
@@ -553,17 +554,70 @@ def resume_download_tailored(job_id: int):
     if not user:
         return redirect(url_for("web.sign_in"))
     db = get_db()
+    job = db.get(Job, job_id)
+    if not job:
+        abort(404)
+    if not user.base_resume:
+        flash("Upload a base resume before requesting a tailored version.", "error")
+        return redirect(url_for("web.resume_page"))
+
     tailored = db.query(TailoredResume).filter(
         TailoredResume.user_id == user.id,
         TailoredResume.job_id == job_id,
     ).one_or_none()
-    if not tailored or not os.path.exists(tailored.pdf_path):
-        abort(404)
-    job = db.get(Job, job_id)
-    download_name = "tailored-resume.pdf"
-    if job:
-        company = re.sub(r"[^A-Za-z0-9._-]", "-", job.company or "company")
-        download_name = f"{company}-tailored-resume.pdf"
+
+    # Regenerate when there's no row, the file is missing, or the cached PDF
+    # predates the latest base-resume upload.
+    needs_render = (
+        not tailored
+        or not tailored.pdf_path
+        or not os.path.exists(tailored.pdf_path)
+        or (
+            user.base_resume.updated_at
+            and os.path.getmtime(tailored.pdf_path)
+            < user.base_resume.updated_at.timestamp()
+        )
+    )
+    if needs_render:
+        try:
+            pdf_path = generate_tailored_resume(
+                user=user,
+                job=job,
+                base_resume=user.base_resume,
+                allow_fallback=True,
+            )
+        except Exception:
+            logger.exception(
+                "On-demand tailored render failed user=%s job=%s", user.id, job_id
+            )
+            pdf_path = None
+        if not pdf_path:
+            flash(
+                "We couldn't generate the tailored resume right now. "
+                "Please try again in a minute.",
+                "error",
+            )
+            return redirect(url_for("web.matches"))
+        if tailored:
+            tailored.pdf_path = pdf_path
+            tailored.content_text = ""
+        else:
+            db.add(
+                TailoredResume(
+                    user_id=user.id,
+                    job_id=job_id,
+                    content_text="",
+                    pdf_path=pdf_path,
+                )
+            )
+        db.commit()
+        tailored = db.query(TailoredResume).filter(
+            TailoredResume.user_id == user.id,
+            TailoredResume.job_id == job_id,
+        ).one()
+
+    company = re.sub(r"[^A-Za-z0-9._-]", "-", job.company or "company")
+    download_name = f"{company}-tailored-resume.pdf"
     return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
 
 

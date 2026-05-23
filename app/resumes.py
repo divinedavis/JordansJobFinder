@@ -118,9 +118,9 @@ def detect_kind(filename: str, content_type: str) -> str:
 
 def extract_text(raw_bytes: bytes, kind: str) -> str:
     if kind == "pdf":
-        return _extract_pdf_text(raw_bytes)
+        return _normalize_ligatures(_extract_pdf_text(raw_bytes))
     if kind == "docx":
-        return _extract_docx_text(raw_bytes)
+        return _normalize_ligatures(_extract_docx_text(raw_bytes))
     raise ResumeError(f"Unsupported resume kind: {kind}")
 
 
@@ -153,6 +153,57 @@ def _extract_docx_text(raw_bytes: bytes) -> str:
     text = "\n".join(parts).strip()
     if not text:
         raise ResumeError("Could not extract text from the DOCX file.")
+    return text
+
+
+# pypdf decodes some PDFs that use a custom font with multi-letter ligature
+# glyphs into ASCII substitutes (e.g. "ti" comes back as "<"). Repair the
+# common cases so the AI prompt and any fallback render get clean text.
+_LIGATURE_WORD_FIXES = {
+    # ff/fi/fl/ffi all collapse to "■" (U+25A0) — disambiguate by surrounding letters
+    "■nancial": "financial", "■nance": "finance",
+    "e■ciency": "efficiency", "e■cient": "efficient",
+    "su■cient": "sufficient", "pro■cient": "proficient",
+    "Re■nement": "Refinement", "re■nement": "refinement",
+    "de■ne": "define", "de■ned": "defined", "de■nition": "definition",
+    "in■uence": "influence", "in■uencing": "influencing",
+    "Con■uence": "Confluence", "con■uence": "confluence",
+    "work■ow": "workflow", "work■ows": "workflows",
+    "O■ce": "Office", "o■ce": "office",
+    "Cla■in": "Claflin",
+    "ful■ll": "fulfill", "ful■llment": "fulfillment",
+    "ful■lled": "fulfilled", "ful■lling": "fulfilling",
+    "■elds": "fields", "■eld": "field",
+    "■gure": "figure", "■gures": "figures",
+    "■nd": "find", "■nds": "finds",
+    "■rst": "first", "■nal": "final", "■nally": "finally",
+    "■x": "fix", "■xed": "fixed", "■xes": "fixes",
+    "■lter": "filter", "■ltering": "filtering",
+    "■lled": "filled", "■ll": "fill",
+    "■nished": "finished",
+    "■scal": "fiscal",
+    # tf -> "P" substitution
+    "porPolio": "portfolio", "porPolios": "portfolios",
+    "plaPorm": "platform", "plaPorms": "platforms",
+    # ft -> "s" substitution (Microsoft, soft, etc.)
+    "Microsos": "Microsoft", "microsos": "microsoft",
+    # tt -> "=" (in URLs)
+    "h=ps://": "https://", "h=p://": "http://",
+}
+
+
+def _normalize_ligatures(text: str) -> str:
+    if not text:
+        return text
+    for bad, good in _LIGATURE_WORD_FIXES.items():
+        if bad in text:
+            text = text.replace(bad, good)
+    # "ti" -> "<" appears between letters across the entire document. Real "<"
+    # symbols don't show up in normal resume prose, so a bounded replacement is
+    # safe enough.
+    text = re.sub(r"(?<=[A-Za-z])<(?=[A-Za-z])", "ti", text)
+    # Trailing "<" after a letter (e.g. "Analy<cs") — covers ti at end of token.
+    text = re.sub(r"(?<=[A-Za-z])<(?=[\s.,;:!?\-/])", "ti", text)
     return text
 
 
@@ -396,19 +447,247 @@ def tailored_pdf_path(user_id: int, job_id: int) -> str:
     return os.path.join(base_dir, f"user-{user_id}", f"job-{job_id}.pdf")
 
 
-def generate_tailored_resume(user, job, base_resume) -> Optional[str]:
-    """End-to-end: call AI, render PDF, return path. Returns None if no
-    base resume, no API key, or the AI response isn't valid JSON."""
+def generate_tailored_resume(
+    user, job, base_resume, allow_fallback: bool = False
+) -> Optional[str]:
+    """End-to-end: call AI, render PDF, return path.
+
+    With ``allow_fallback=True``, if the AI call fails (no key, bad JSON, network
+    error), parse the base resume heuristically so the rendered PDF still has
+    the styled layout. The daily sync passes the default ``False`` so we never
+    pollute the DB with non-AI-tailored content; the on-demand route passes
+    ``True`` so users always get a styled PDF back.
+    """
     if not base_resume or not base_resume.extracted_text:
         return None
+    base_text = _normalize_ligatures(base_resume.extracted_text)
     structured = tailor_resume_structured(
-        base_text=base_resume.extracted_text,
+        base_text=base_text,
         job_title=job.title,
         company=job.company,
         job_description=job.description or "",
     )
     if not structured:
-        return None
+        if not allow_fallback:
+            return None
+        structured = heuristic_structured_parse(base_text, user_email=user.email)
+        if not structured:
+            return None
     out_path = tailored_pdf_path(user.id, job.id)
     render_resume_pdf(structured, out_path, title=f"{job.company} — Tailored Resume")
     return out_path
+
+
+# ── Heuristic fallback parser ────────────────────────────────────────────────
+
+_SECTION_HEADERS = {
+    "summary": re.compile(r"^\s*(professional\s+summary|summary|profile|objective)\s*:?\s*$", re.I),
+    "experience": re.compile(r"^\s*(professional\s+experience|work\s+experience|experience|employment)\s*:?\s*$", re.I),
+    "education": re.compile(r"^\s*(education(?:\s*&\s*certifications?)?|certifications?)\s*:?\s*$", re.I),
+    "skills": re.compile(r"^\s*(skills|technical\s+skills|software\s*&?\s*tools|tools)\s*:?\s*$", re.I),
+    "competencies": re.compile(r"^\s*(core\s+competencies|competencies)\s*:?\s*$", re.I),
+}
+_DATE_RANGE = re.compile(
+    r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|\d{1,2}/\d{4})\s*"
+    r"[-–—to]+\s*"
+    r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|Present|Current|\d{1,2}/\d{4})",
+    re.I,
+)
+
+
+def _split_sections(text: str) -> dict:
+    """Split text into named sections using inline header detection. Many PDFs
+    flatten headings onto the same line as the body, so we use a regex search
+    instead of strict line matching."""
+    if not text:
+        return {}
+    flat = re.sub(r"\s+", " ", text).strip()
+    header_patterns = [
+        ("summary", r"(?:Professional\s+Summary|Summary|Profile|Objective)\s*:"),
+        ("experience", r"(?:Professional\s+Experience|Work\s+Experience|Experience|Employment\s+History)\s*:"),
+        ("competencies", r"(?:Core\s+Competencies|Competencies|Key\s+Skills)\s*:"),
+        ("education", r"(?:Education\s*&\s*Certifications?|Education\s+and\s+Certifications?|Education|Certifications?)\s*:"),
+        ("skills", r"(?:Technical\s+Skills|Software\s*&?\s*Tools|Tools\s*&?\s*Technologies|Skills)\s*:"),
+    ]
+    matches = []
+    for key, pat in header_patterns:
+        m = re.search(pat, flat, re.I)
+        if m:
+            matches.append((m.start(), m.end(), key))
+    matches.sort()
+    sections: dict = {}
+    if not matches:
+        sections["summary"] = flat
+        return sections
+    if matches[0][0] > 0:
+        sections["_preamble"] = flat[: matches[0][0]].strip()
+    for i, (start, end, key) in enumerate(matches):
+        body_end = matches[i + 1][0] if i + 1 < len(matches) else len(flat)
+        sections[key] = flat[end:body_end].strip()
+    return sections
+
+
+def _parse_experience(blob: str) -> list:
+    """Best-effort: split an experience blob into entries by date ranges."""
+    if not blob:
+        return []
+    entries = []
+    matches = list(_DATE_RANGE.finditer(blob))
+    if not matches:
+        return [{"company": "", "title": "", "dates": "", "bullets": [blob.strip()]}]
+    # Each date range marks one job; the company/title precedes it, bullets follow.
+    cursor = 0
+    for i, m in enumerate(matches):
+        # Find boundary between this entry and the previous one — pick the
+        # earliest of "the bullet marker before this date" or just the cursor.
+        seg_start = cursor
+        seg_end = matches[i + 1].start() if i + 1 < len(matches) else len(blob)
+        segment = blob[seg_start:seg_end]
+        date_match = _DATE_RANGE.search(segment)
+        if not date_match:
+            continue
+        before_dates = segment[: date_match.start()].strip(" .,;:")
+        after_dates = segment[date_match.end():].strip(" .,;:")
+        # Heuristic: the company comes first, optionally followed by " | " or " - " then title.
+        company, title = _split_company_title(before_dates)
+        bullets = _extract_bullets(after_dates)
+        entries.append({
+            "company": company,
+            "title": title,
+            "dates": date_match.group(0),
+            "bullets": bullets,
+        })
+        cursor = seg_end
+    return entries
+
+
+def _split_company_title(text: str) -> tuple[str, str]:
+    if not text:
+        return "", ""
+    # Last 1-3 words that look like a Title Case role; everything before = company.
+    parts = re.split(r"\s+[|•·–—-]\s+", text)
+    if len(parts) >= 2:
+        return parts[0].strip(), parts[1].strip()
+    # Try to find a Title-Cased role suffix (e.g., "JPMorgan Chase Vice President").
+    words = text.split()
+    if len(words) > 3:
+        # Look for a switch from one Title-Cased run to another, splitting there.
+        for i in range(len(words) - 1, 1, -1):
+            if words[i][:1].isupper() and words[i - 1][:1].isupper():
+                continue
+            return " ".join(words[: i + 1]).strip(), " ".join(words[i + 1:]).strip()
+    return text.strip(), ""
+
+
+def _extract_bullets(text: str) -> list:
+    if not text:
+        return []
+    # Bullets may use •, *, or "- " markers; otherwise split on sentence boundaries.
+    if "•" in text:
+        items = [b.strip(" .;,") for b in text.split("•") if b.strip()]
+    else:
+        items = [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", text) if s.strip()]
+    # Filter out fragments that look like next-section headers.
+    cleaned = []
+    for it in items:
+        if re.match(r"^(Core Competencies|Education|Technical Skills|Software|Tools)", it, re.I):
+            break
+        if len(it) < 6:
+            continue
+        cleaned.append(it.rstrip(".") + ".")
+    return cleaned[:8]  # cap so the rendered PDF stays readable
+
+
+def _parse_competencies(blob: str) -> list:
+    """Split 'Label: items, more items • Other Label: items' into rows."""
+    if not blob:
+        return []
+    chunks = [c.strip() for c in blob.split("•") if c.strip()]
+    rows = []
+    for chunk in chunks:
+        if ":" in chunk:
+            label, items = chunk.split(":", 1)
+            rows.append({"label": label.strip(), "items": items.strip().rstrip(".")})
+        else:
+            rows.append({"label": "", "items": chunk.rstrip(".")})
+    return rows[:6]
+
+
+def _parse_education(blob: str) -> list:
+    if not blob:
+        return []
+    # Split on "|" or hard sentence breaks.
+    items = [p.strip() for p in re.split(r"[|•·]", blob) if p.strip()]
+    rows = []
+    for it in items:
+        if "," in it and any(k in it.lower() for k in ("bachelor", "master", "associate", "phd", "doctorate", "mba")):
+            parts = [p.strip() for p in it.split(",")]
+            rows.append({"degree": parts[0], "school": ", ".join(parts[1:])})
+        else:
+            rows.append({"degree": it, "school": ""})
+    return rows[:4]
+
+
+def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, str]:
+    """Pull name, contact line 1, contact line 2 out of the resume preamble."""
+    if not preamble:
+        return "", "", user_email or ""
+    flat = re.sub(r"\s+", " ", preamble).strip()
+    email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", flat)
+    phone_match = re.search(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", flat)
+    linkedin_match = re.search(r"linkedin\.com/in/[\w-]+", flat, re.I)
+    site_match = re.search(r"\b([\w-]+\.(?:com|io|dev|me|net))\b", flat, re.I)
+    # Name: first 2-3 capitalized words before the first contact token.
+    earliest = min([m.start() for m in [email_match, phone_match, linkedin_match] if m] or [len(flat)])
+    name_blob = flat[:earliest].strip(" |•·–—-,")
+    name = " ".join(name_blob.split()[:4]).upper() if name_blob else ""
+    contact_bits = []
+    if phone_match:
+        contact_bits.append(phone_match.group(0))
+    if email_match:
+        contact_bits.append(email_match.group(0))
+    elif user_email:
+        contact_bits.append(user_email)
+    contact_1 = " | ".join(contact_bits)
+    contact_2_bits = []
+    if linkedin_match:
+        contact_2_bits.append(linkedin_match.group(0))
+    if site_match and site_match.group(0) not in (linkedin_match.group(0) if linkedin_match else ""):
+        contact_2_bits.append(site_match.group(0))
+    contact_2 = " | ".join(contact_2_bits)
+    return name, contact_1, contact_2
+
+
+def heuristic_structured_parse(text: str, user_email: str = "") -> dict:
+    """Parse raw base-resume text into the same dict shape the AI produces."""
+    if not text:
+        return {}
+    sections = _split_sections(text)
+    name, contact_1, contact_2 = _extract_contact_lines(
+        sections.get("_preamble", text[:500]), user_email
+    )
+    summary = sections.get("summary", "").strip()
+    if not summary and "_preamble" in sections:
+        # Use the preamble paragraph (after the name) as a summary fallback.
+        pre = sections["_preamble"]
+        idx = max(
+            (pre.find(tok) for tok in (user_email, "@") if tok and pre.find(tok) != -1),
+            default=-1,
+        )
+        if idx != -1:
+            after = pre[idx:].split(" ", 1)
+            summary = after[1].strip() if len(after) > 1 else ""
+    experience = _parse_experience(sections.get("experience", ""))
+    competencies = _parse_competencies(sections.get("competencies", ""))
+    education = _parse_education(sections.get("education", ""))
+    tools = sections.get("skills", "").rstrip(".").strip()
+    return {
+        "name": name,
+        "contact_line_1": contact_1,
+        "contact_line_2": contact_2,
+        "summary": summary,
+        "experience": experience,
+        "competencies": competencies,
+        "education": education,
+        "tools": tools,
+    }
