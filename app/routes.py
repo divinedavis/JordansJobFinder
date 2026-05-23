@@ -55,7 +55,12 @@ web = Blueprint("web", __name__)
 @web.app_errorhandler(CSRFError)
 def handle_csrf_error(e):
     flash("Your session expired. Please try again.", "error")
-    return redirect(request.referrer or url_for("web.home"))
+    # Only honor Referer when it points back to our own origin — otherwise
+    # an attacker could craft a cross-site request whose failure redirects
+    # the victim to an attacker-controlled URL.
+    referrer = request.referrer or ""
+    safe = referrer.startswith(request.host_url) if referrer else False
+    return redirect(referrer if safe else url_for("web.home"))
 
 
 def current_user():
@@ -134,10 +139,12 @@ def sign_in():
             flash("Passwords do not match.", "error")
             return redirect(url_for("web.sign_in"))
 
-        # Fix #9: Generic message to prevent email enumeration
+        # Fix #9: Generic message to prevent email enumeration. Same redirect
+        # target + same flash regardless of whether the email already exists,
+        # so a scripted attacker can't distinguish via the response.
         if user:
-            flash("Unable to create account. Try logging in instead.", "error")
-            return redirect(url_for("web.login"))
+            flash("Unable to create account. If this is your email, try signing in.", "error")
+            return redirect(url_for("web.sign_in"))
 
         user = User(email=email)
         db.add(user)
@@ -487,6 +494,12 @@ def resume_upload():
         text = extract_text(raw, kind)
     except ResumeError as exc:
         flash(str(exc), "error")
+        return redirect(url_for("web.resume_page"))
+    except Exception as exc:
+        # pypdf / python-docx raise their own exception types on malformed input.
+        # Surface a friendly message instead of leaking a 500 + stack trace.
+        logger.warning("Resume parse failed user_id=%s: %s", user.id, exc)
+        flash("That file looks corrupt. Please re-export and try again.", "error")
         return redirect(url_for("web.resume_page"))
 
     file_path = save_base_resume(user.id, upload.filename, raw, kind)
