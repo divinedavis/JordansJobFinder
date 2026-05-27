@@ -15,6 +15,7 @@ app-sync.log
 jobs_store.json
 seen_jobs.json
 shared_jobs.json
+shared_jobs_finance.json
 
 # Backups
 *.bak*

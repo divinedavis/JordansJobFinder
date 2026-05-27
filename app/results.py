@@ -13,6 +13,14 @@ CITY_LABELS = {
     "nyc": "New York, NY",
     "atlanta": "Atlanta, GA",
     "miami": "Miami, FL",
+    "dallas": "Dallas, TX",
+    "houston": "Houston, TX",
+    "dc": "Washington, DC",
+    "york-pa": "York, PA",
+    "lancaster-pa": "Lancaster, PA",
+    "philadelphia-pa": "Philadelphia, PA",
+    "harrisburg-pa": "Harrisburg, PA",
+    "baltimore-md": "Baltimore, MD",
 }
 
 

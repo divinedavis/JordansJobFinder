@@ -22,6 +22,7 @@ def _safe_url(url):
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LEGACY_STORE = REPO_ROOT / "jobs_store.json"
 SHARED_JOBS_FILE = REPO_ROOT / "shared_jobs.json"
+SHARED_JOBS_FINANCE_FILE = REPO_ROOT / "shared_jobs_finance.json"
 
 
 def parse_posted_datetime(raw_value: Optional[str]):
@@ -49,6 +50,12 @@ def load_shared_jobs() -> list[dict]:
     if not SHARED_JOBS_FILE.exists():
         return []
     return json.loads(SHARED_JOBS_FILE.read_text())
+
+
+def load_finance_jobs() -> list[dict]:
+    if not SHARED_JOBS_FINANCE_FILE.exists():
+        return []
+    return json.loads(SHARED_JOBS_FINANCE_FILE.read_text())
 
 
 def normalize_legacy_job(job: dict) -> dict:
@@ -93,19 +100,23 @@ def normalized_legacy_jobs() -> list[dict]:
     return [normalize_legacy_job(job) for job in load_legacy_jobs()]
 
 
+def _normalize_one(job: dict, default_vertical: str) -> dict:
+    parsed = dict(job)
+    for key in ("posted_at", "found_at"):
+        value = parsed.get(key)
+        if isinstance(value, str) and value:
+            try:
+                parsed[key] = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                parsed[key] = None
+    parsed.setdefault("vertical", default_vertical)
+    return parsed
+
+
 def normalized_shared_jobs() -> list[dict]:
-    shared_jobs = load_shared_jobs()
-    if shared_jobs:
-        normalized = []
-        for job in shared_jobs:
-            parsed = dict(job)
-            for key in ("posted_at", "found_at"):
-                value = parsed.get(key)
-                if isinstance(value, str) and value:
-                    try:
-                        parsed[key] = datetime.fromisoformat(value.replace("Z", "+00:00"))
-                    except ValueError:
-                        parsed[key] = None
-            normalized.append(parsed)
-        return normalized
+    pm_jobs = [_normalize_one(j, "pm") for j in load_shared_jobs()]
+    finance_jobs = [_normalize_one(j, "finance") for j in load_finance_jobs()]
+    combined = pm_jobs + finance_jobs
+    if combined:
+        return combined
     return normalized_legacy_jobs()

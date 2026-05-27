@@ -33,6 +33,17 @@ CITY_OPTIONS = [
     {"slug": "washington-dc", "label": "Washington, DC"},
     {"slug": "dallas-tx", "label": "Dallas, TX"},
     {"slug": "houston-tx", "label": "Houston, TX"},
+    {"slug": "york-pa", "label": "York, PA"},
+    {"slug": "lancaster-pa", "label": "Lancaster, PA"},
+    {"slug": "philadelphia-pa", "label": "Philadelphia, PA"},
+    {"slug": "harrisburg-pa", "label": "Harrisburg, PA"},
+    {"slug": "baltimore-md", "label": "Baltimore, MD"},
+]
+FINANCE_DEFAULT_CITIES = [
+    "New York, NY", "Atlanta, GA", "Miami, FL",
+    "Dallas, TX", "Houston, TX", "Washington, DC",
+    "York, PA", "Lancaster, PA", "Philadelphia, PA",
+    "Harrisburg, PA", "Baltimore, MD",
 ]
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
