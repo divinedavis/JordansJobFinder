@@ -1775,21 +1775,21 @@ def write_html(jobs):
             "label": "New York City",
             "kicker": "VP only",
             "accent": "var(--accent-nyc)",
-            "description": "Technical product and program leadership with a premium compensation floor.",
+            "description": "Product and program leadership with a premium compensation floor.",
             "empty": "No New York matches landed in the last two days.",
         },
         "atl": {
             "label": "Atlanta",
             "kicker": "VP or Senior",
             "accent": "var(--accent-atl)",
-            "description": "Senior and executive technical PM and PgM roles across enterprise, fintech, and infrastructure.",
+            "description": "Senior and executive PM and PgM roles across enterprise, fintech, and infrastructure.",
             "empty": "No Atlanta matches landed in the last two days.",
         },
         "mia": {
             "label": "Miami",
             "kicker": "VP or Senior",
             "accent": "var(--accent-mia)",
-            "description": "South Florida technical PM and PgM coverage with the same screening logic as Atlanta.",
+            "description": "South Florida PM and PgM coverage with the same screening logic as Atlanta.",
             "empty": "No Miami matches landed in the last two days.",
         },
     }
@@ -2153,15 +2153,15 @@ def write_html(jobs):
   <div class="page">
     <section class="hero">
       <div class="hero-copy">
-        <span class="eyebrow">Curated Technical Leadership Search</span>
+        <span class="eyebrow">Curated Leadership Search</span>
         <h1>Jordan's Job Finder</h1>
         <p class="hero-lead">
-          A focused board for technical product and program management roles across New York City, Atlanta, and Miami. The scraper reviews selected company career pages and surfaces only the matches that clear the current role, location, recency, and compensation filters.
+          A focused board for product and program management roles across New York City, Atlanta, and Miami. The scraper reviews selected company career pages and surfaces only the matches that clear the current role, location, recency, and compensation filters.
         </p>
         <div class="hero-meta">
           <span class="hero-pill">Last run: {run_date}</span>
           <span class="hero-pill">Live public website</span>
-          <span class="hero-pill">Technical PM / PgM only</span>
+          <span class="hero-pill">PM / PgM only</span>
         </div>
       </div>
       <div class="hero-visual">

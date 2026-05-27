@@ -1,8 +1,8 @@
 import os
 
 TITLE_OPTIONS = [
-    {"slug": "technical-product-manager", "label": "Technical Product Manager"},
-    {"slug": "technical-program-manager", "label": "Technical Program Manager"},
+    {"slug": "technical-product-manager", "label": "Product Manager"},
+    {"slug": "technical-program-manager", "label": "Program Manager"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
