@@ -8,10 +8,13 @@ import json
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
+
+# Only keep jobs posted within this window.
+RECENCY_DAYS = 2
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SHARED_JOBS_FILE = SCRIPT_DIR / "shared_jobs_finance.json"
@@ -21,19 +24,54 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; JordansJobFinder/finance)",
 }
 
-# Workday: (name, tenant, wd_ver, site, city)
+# Workday: (name, tenant, wd_ver, site).
+# Every entry below was verified to return HTTP 200 for these search terms on
+# 2026-05-27. Tenants that 422'd were dropped (BNY Mellon, Deutsche Bank,
+# Barclays, HSBC, UBS, Citadel, D.E. Shaw, Jane Street, Jefferies, etc.) —
+# their public APIs don't accept this query shape, so leaving them in only
+# pollutes the log with noise. Future expansion should probe with the
+# diagnostic in CLAUDE.md before adding to this list.
 FINANCE_WORKDAY_COMPANIES = [
-    ("Vanguard",      "vanguard",   5, "vanguard_external", "philadelphia-pa"),
-    ("T. Rowe Price", "troweprice", 5, "TRowePrice",        "baltimore-md"),
-    ("Comcast",       "comcast",    5, "Comcast_Careers",   "philadelphia-pa"),
+    # PA/MD anchored
+    ("Vanguard",        "vanguard",     5, "vanguard_external"),
+    ("T. Rowe Price",   "troweprice",   5, "TRowePrice"),
+    ("Comcast",         "comcast",      5, "Comcast_Careers"),
+    # Big NYC finance + insurance + fintech (verified Workday tenants)
+    ("Morgan Stanley",  "ms",           5, "External"),
+    ("BlackRock",       "blackrock",    1, "BlackRock_Professional"),
+    ("Bank of America", "ghr",          1, "Lateral-US"),
+    ("Wells Fargo",     "wf",           1, "WellsFargoJobs"),
+    ("Fidelity",        "fmr",          1, "FidelityCareers"),
+    ("TIAA",            "tiaa",         1, "Search"),
+    ("State Street",    "statestreet",  1, "Global"),
+    ("Prudential",      "pru",          5, "Careers"),
+    ("Mastercard",      "mastercard",   1, "CorporateCareers"),
+    ("S&P Global",      "spgi",         5, "SPGI_Careers"),
+    ("Nasdaq",          "nasdaq",       1, "US_External_Career_Site"),
+    ("Apollo",          "athene",       5, "Apollo_Careers"),
+    ("Blackstone",      "blackstone",   1, "Blackstone_Careers"),
+    ("AIG",             "aig",          1, "aig"),
+    ("The Hartford",    "thehartford",  5, "Careers_External"),
+    ("Nationwide",      "nationwide",   1, "Nationwide_Career"),
+    ("Travelers",       "travelers",    5, "External"),
 ]
 
-# Greenhouse: (name, token, default_city)
+# Greenhouse: (name, token). Token "coinbase" 404'd — Coinbase moved boards.
 FINANCE_GREENHOUSE_COMPANIES = [
-    ("Bridgewater", "bridgewater89", "nyc"),
-    ("Point72",     "point72",       "nyc"),
-    ("AQR Capital", "aqr",           "nyc"),
-    ("Robinhood",   "robinhood",     "nyc"),
+    ("Bridgewater",     "bridgewater89"),
+    ("Point72",         "point72"),
+    ("AQR Capital",     "aqr"),
+    ("Robinhood",       "robinhood"),
+    ("Affirm",          "affirm"),
+    ("SoFi",            "sofi"),
+    ("Stripe",          "stripe"),
+    ("Chime",           "chime"),
+    ("Brex",            "brex"),
+    ("Marqeta",         "marqeta"),
+    ("Block",           "block"),
+    ("Gemini",          "gemini"),
+    ("Virtu Financial", "virtu"),
+    ("Jump Trading",    "jumptrading"),
 ]
 
 # Locations that count for each city code (substring match against the ATS location string)
@@ -92,6 +130,38 @@ def title_is_finance_entry(title: str) -> bool:
     return False
 
 
+def parse_relative_posted(text: str) -> "datetime | None":
+    """Parse Workday's relative postedOn ('Posted Today', 'Posted Yesterday',
+    'Posted 3 Days Ago', 'Posted 30+ Days Ago', etc.) into a UTC datetime.
+    Returns None when the string can't be parsed."""
+    if not text:
+        return None
+    t = text.lower().strip()
+    now = datetime.now(timezone.utc)
+    if "today" in t or "just posted" in t:
+        return now
+    if "yesterday" in t:
+        return now - timedelta(days=1)
+    m = re.search(r"(\d+)\+?\s*day", t)
+    if m:
+        return now - timedelta(days=int(m.group(1)))
+    # Some ATSs return ISO datetimes; tolerate.
+    try:
+        dt = datetime.fromisoformat(t.replace("z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def within_recency(posted_dt: "datetime | None") -> bool:
+    """True iff posted_dt is within RECENCY_DAYS of now. None means unknown
+    — we drop those rather than guessing, since the user explicitly wants
+    only fresh finance jobs."""
+    if posted_dt is None:
+        return False
+    return (datetime.now(timezone.utc) - posted_dt).days <= RECENCY_DAYS
+
+
 def infer_city(location: str) -> str:
     """Map an ATS location string to a supported city code.
 
@@ -105,7 +175,7 @@ def infer_city(location: str) -> str:
     return ""
 
 
-def make_job(*, company, title, url, city, location, source, posted_at):
+def make_job(*, company, title, url, city, location, source, posted_dt, posted_label):
     return {
         "source": source,
         "company": company,
@@ -118,8 +188,8 @@ def make_job(*, company, title, url, city, location, source, posted_at):
         "salary_label": "",
         "salary_min": None,
         "salary_max": None,
-        "posted_label": posted_at[:10] if posted_at else "",
-        "posted_at": posted_at,
+        "posted_label": posted_label or "",
+        "posted_at": posted_dt.isoformat() if posted_dt else None,
         "experience_min": None,
         "experience_max": None,
         "is_technical": False,
@@ -128,7 +198,7 @@ def make_job(*, company, title, url, city, location, source, posted_at):
     }
 
 
-def scrape_workday(name, tenant, wd_ver, site, default_city):
+def scrape_workday(name, tenant, wd_ver, site):
     api = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
     found = []
     for term in FINANCE_SEARCH_TERMS:
@@ -159,12 +229,16 @@ def scrape_workday(name, tenant, wd_ver, site, default_city):
                 city = infer_city(location)
                 if not city:
                     continue
+                posted_label = job.get("postedOn", "") or ""
+                posted_dt = parse_relative_posted(posted_label)
+                if not within_recency(posted_dt):
+                    continue
                 ext_path = job.get("externalPath", "")
                 url = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/en-US/{site}{ext_path}"
                 found.append(make_job(
                     company=name, title=title, url=url, city=city,
                     location=location, source="workday-finance",
-                    posted_at=job.get("postedOn", "") or "",
+                    posted_dt=posted_dt, posted_label=posted_label,
                 ))
             offset += 20
             if offset >= total or not postings:
@@ -173,7 +247,7 @@ def scrape_workday(name, tenant, wd_ver, site, default_city):
     return found
 
 
-def scrape_greenhouse(name, token, default_city):
+def scrape_greenhouse(name, token):
     api = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
     try:
         resp = requests.get(api, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=15)
@@ -193,23 +267,33 @@ def scrape_greenhouse(name, token, default_city):
         city = infer_city(location)
         if not city:
             continue
+        updated_raw = (job.get("updated_at") or "")[:19]
+        posted_dt = None
+        if updated_raw:
+            try:
+                posted_dt = datetime.fromisoformat(updated_raw).replace(tzinfo=timezone.utc)
+            except ValueError:
+                posted_dt = None
+        if not within_recency(posted_dt):
+            continue
         found.append(make_job(
             company=name, title=title, url=job.get("absolute_url", ""),
             city=city, location=location, source="greenhouse-finance",
-            posted_at=(job.get("updated_at") or "")[:19],
+            posted_dt=posted_dt,
+            posted_label=updated_raw[:10] if updated_raw else "",
         ))
     return found
 
 
 def main() -> int:
     all_jobs = []
-    for name, tenant, ver, site, city in FINANCE_WORKDAY_COMPANIES:
+    for name, tenant, ver, site in FINANCE_WORKDAY_COMPANIES:
         print(f"[Workday] {name}…")
-        all_jobs.extend(scrape_workday(name, tenant, ver, site, city))
+        all_jobs.extend(scrape_workday(name, tenant, ver, site))
         time.sleep(0.4)
-    for name, token, city in FINANCE_GREENHOUSE_COMPANIES:
+    for name, token in FINANCE_GREENHOUSE_COMPANIES:
         print(f"[Greenhouse] {name}…")
-        all_jobs.extend(scrape_greenhouse(name, token, city))
+        all_jobs.extend(scrape_greenhouse(name, token))
         time.sleep(0.3)
 
     # Dedupe by URL
