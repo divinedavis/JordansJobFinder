@@ -76,9 +76,10 @@ def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
     assert response.status_code == 302
 
     user = db_session.query(User).filter(User.email == "newcomer@example.com").one()
-    saved = db_session.query(SavedSearch).filter(SavedSearch.user_id == user.id).one()
-    assert saved.vertical == "pm"
-    assert set(saved.cities) == {
+    pm_saved = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
+    ).one()
+    assert set(pm_saved.cities) == {
         "New York, NY",
         "Atlanta, GA",
         "Miami, FL",
@@ -86,6 +87,11 @@ def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
         "Houston, TX",
         "Washington, DC",
     }
+    finance_saved = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "finance"
+    ).one()
+    assert "Philadelphia, PA" in finance_saved.cities
+    assert "Baltimore, MD" in finance_saved.cities
 
 
 def test_sign_out_clears_session(signed_in_client):

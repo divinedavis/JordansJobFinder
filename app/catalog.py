@@ -1,16 +1,47 @@
 import os
 
 TITLE_OPTIONS = [
-    {"slug": "technical-product-manager", "label": "Product Manager"},
-    {"slug": "technical-program-manager", "label": "Program Manager"},
+    {"slug": "technical-product-manager", "label": "Product Manager", "vertical": "pm"},
+    {"slug": "technical-program-manager", "label": "Program Manager", "vertical": "pm"},
+    {"slug": "entry-finance-any", "label": "Any entry-level finance role", "vertical": "finance"},
+    {"slug": "entry-finance-investment-banking", "label": "Investment Banking / S&T / Equity Research", "vertical": "finance"},
+    {"slug": "entry-finance-fpa", "label": "Corporate Finance / FP&A Analyst", "vertical": "finance"},
+    {"slug": "entry-finance-audit", "label": "Accounting / Audit Staff", "vertical": "finance"},
+    {"slug": "entry-finance-commercial-banking", "label": "Commercial Banking Analyst", "vertical": "finance"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
+TITLE_VERTICALS = {item["slug"]: item["vertical"] for item in TITLE_OPTIONS}
 
 TITLE_KEYWORDS = {
     "technical-product-manager": ["product manager", "product management"],
     "technical-program-manager": ["program manager", "program management"],
+    "entry-finance-investment-banking": [
+        "investment banking", "ib analyst", "equity research",
+        "sales & trading", "sales and trading", "s&t analyst",
+        "research analyst",
+    ],
+    "entry-finance-fpa": [
+        "financial analyst", "finance analyst", "fp&a", "fpa analyst",
+        "treasury analyst", "corporate finance", "fund analyst",
+        "fund accountant", "investment analyst", "investment associate",
+    ],
+    "entry-finance-audit": [
+        "audit", "tax associate", "tax staff", "staff accountant",
+        "audit associate", "audit staff", "external audit",
+    ],
+    "entry-finance-commercial-banking": [
+        "credit analyst", "commercial banking", "underwriting",
+        "underwriter", "loan officer", "portfolio analyst",
+    ],
 }
+# "any" finance slug = union of all finance keywords
+TITLE_KEYWORDS["entry-finance-any"] = sorted({
+    kw
+    for slug, kws in TITLE_KEYWORDS.items()
+    if slug.startswith("entry-finance-")
+    for kw in kws
+})
 
 EXPERIENCE_BUCKETS = [
     {"slug": "0-2", "label": "0-2 years"},

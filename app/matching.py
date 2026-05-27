@@ -1,8 +1,14 @@
 from typing import Optional
 
-from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS
+from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS, TITLE_VERTICALS
 
 EXCLUDE_TITLES = ["governance"]
+# Title keywords that disqualify a finance role as entry-level
+FINANCE_SENIOR_NEGATIVE = (
+    "senior", "principal", "lead", "staff vp", "vp ", " vp",
+    "director", "head of", "chief", "managing director",
+    "vice president",
+)
 from .parsing import ParsedExperience, parse_experience_years
 
 
@@ -28,6 +34,21 @@ def title_matches_superuser_scope(title: str) -> bool:
     if _title_excluded(normalized):
         return False
     return "product manage" in normalized or "program manage" in normalized
+
+
+def title_is_entry_level_finance(title: str) -> bool:
+    """Heuristic: title contains analyst/associate vocabulary and is NOT
+    flagged as senior/director-level."""
+    normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
+    if any(neg in normalized for neg in FINANCE_SENIOR_NEGATIVE):
+        return False
+    finance_kws = TITLE_KEYWORDS.get("entry-finance-any", [])
+    if any(kw in normalized for kw in finance_kws):
+        return True
+    # Catch the broader analyst/associate vocabulary as a fallback
+    return "analyst" in normalized or "associate" in normalized
 
 def experience_bucket_matches(bucket: str, parsed: ParsedExperience) -> bool:
     if parsed.min_years is None and parsed.max_years is None:
@@ -105,7 +126,21 @@ def match_job_for_user(
     salary_max: Optional[int] = None,
     user_email: Optional[str] = None,
 ) -> bool:
+    vertical = TITLE_VERTICALS.get(title_slug, "pm")
     parsed = parse_experience_years(title, description)
+
+    if vertical == "finance":
+        # Finance: title heuristic + entry-level seniority; no salary floor
+        if not title_is_entry_level_finance(title):
+            return False
+        if title_slug != "entry-finance-any" and not title_matches(title, title_slug):
+            return False
+        # If experience is parseable, require it to fit the bucket (defaults to 0-2)
+        if parsed.min_years is not None or parsed.max_years is not None:
+            return experience_bucket_matches(experience_bucket or "0-2", parsed)
+        return True
+
+    # PM/PgM (existing logic)
     if is_superuser_email(user_email):
         return (
             title_matches_superuser_scope(title)

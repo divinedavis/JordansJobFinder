@@ -18,7 +18,7 @@ from flask_wtf.csrf import CSRFError
 
 from flask import send_file
 
-from .catalog import DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
+from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
 from .matching import choose_cities, city_from_slug, is_superuser_email
 from .models import BaseResume, Job, SavedSearch, Subscription, TailoredResume, User
@@ -170,6 +170,14 @@ def sign_in():
             ],
             is_paid_city_override=False,
         ))
+        db.add(SavedSearch(
+            user_id=user.id,
+            vertical="finance",
+            title_slug="entry-finance-any",
+            experience_bucket="0-2",
+            cities=list(FINANCE_DEFAULT_CITIES),
+            is_paid_city_override=False,
+        ))
         db.commit()
         session.clear()
         session["user_id"] = user.id
@@ -253,8 +261,8 @@ def dashboard():
     if active_tab not in VERTICAL_LABELS:
         active_tab = "pm"
     saved_search = user.saved_search_for(active_tab)
-    matches = load_db_matches(saved_search) if active_tab == "pm" else []
-    preview = preview_matches(saved_search) if (active_tab == "pm" and saved_search and not matches) else []
+    matches = load_db_matches(saved_search) if saved_search else []
+    preview = preview_matches(saved_search) if (saved_search and not matches) else []
     return render_template(
         "dashboard.html",
         user=user,

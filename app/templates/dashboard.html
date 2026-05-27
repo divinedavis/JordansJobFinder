@@ -24,18 +24,7 @@
     </nav>
   </section>
 
-  {% if active_tab == "finance" %}
-    <section class="panel">
-      <h2>Finance board — coming soon</h2>
-      <p style="margin-top: 12px; max-width: 62ch;">
-        Scraping is being wired up for investment banking, FP&amp;A, Big 4 audit, and commercial banking analyst roles
-        across the same metros plus the four PA cities and Baltimore.
-      </p>
-      <p class="muted" style="margin-top: 12px;">
-        Check back after the next daily run. No setup needed on your end — the Finance tab will auto-populate.
-      </p>
-    </section>
-  {% elif not saved_search %}
+  {% if not saved_search %}
     <section class="panel">
       <h2>Setting up your matches</h2>
       <p>Your job board is being prepared. The next daily sync (5&ndash;6 AM ET) will populate your matches.</p>
