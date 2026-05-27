@@ -244,7 +244,7 @@ def login():
 
 VERTICAL_LABELS = {
     "pm": "Product/Program Manager",
-    "finance": "Finance",
+    "finance": "Entry Finance",
 }
 VERTICAL_ORDER = ["pm", "finance"]
 
