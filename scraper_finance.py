@@ -132,25 +132,53 @@ def title_is_finance_entry(title: str) -> bool:
 
 def parse_relative_posted(text: str) -> "datetime | None":
     """Parse Workday's relative postedOn ('Posted Today', 'Posted Yesterday',
-    'Posted 3 Days Ago', 'Posted 30+ Days Ago', etc.) into a UTC datetime.
-    Returns None when the string can't be parsed."""
+    'Posted 3 Days Ago', 'Posted 30+ Days Ago', 'Posted 2 Hours Ago', etc.)
+    into a UTC datetime. Returns None when the string can't be parsed."""
     if not text:
         return None
     t = text.lower().strip()
     now = datetime.now(timezone.utc)
-    if "today" in t or "just posted" in t:
+    if "today" in t or "just posted" in t or "moments ago" in t:
         return now
     if "yesterday" in t:
         return now - timedelta(days=1)
-    m = re.search(r"(\d+)\+?\s*day", t)
+    m = re.search(r"(\d+)\+?\s*(minute|hour|day|week|month|year)s?", t)
     if m:
-        return now - timedelta(days=int(m.group(1)))
-    # Some ATSs return ISO datetimes; tolerate.
+        n = int(m.group(1))
+        unit = m.group(2)
+        delta = {
+            "minute": timedelta(minutes=n),
+            "hour": timedelta(hours=n),
+            "day": timedelta(days=n),
+            "week": timedelta(weeks=n),
+            "month": timedelta(days=n * 30),
+            "year": timedelta(days=n * 365),
+        }[unit]
+        return now - delta
+    # ISO fallback (some ATSs use this)
+    return parse_iso(t)
+
+
+def parse_iso(text: str) -> "datetime | None":
+    """Parse an ISO 8601 timestamp; return UTC datetime or None."""
+    if not text:
+        return None
+    raw = text.strip()
+    if not raw:
+        return None
     try:
-        dt = datetime.fromisoformat(t.replace("z", "+00:00"))
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
         return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
+
+
+def first_truthy_date(*candidates: "datetime | None") -> "datetime | None":
+    """Return the first non-None datetime from the candidates."""
+    for c in candidates:
+        if c is not None:
+            return c
+    return None
 
 
 def within_recency(posted_dt: "datetime | None") -> bool:
@@ -267,20 +295,24 @@ def scrape_greenhouse(name, token):
         city = infer_city(location)
         if not city:
             continue
-        updated_raw = (job.get("updated_at") or "")[:19]
-        posted_dt = None
-        if updated_raw:
-            try:
-                posted_dt = datetime.fromisoformat(updated_raw).replace(tzinfo=timezone.utc)
-            except ValueError:
-                posted_dt = None
+        # first_published = actual posting time. updated_at = last recruiter
+        # touch (could be a refresh of an old listing). Prefer the former so
+        # the 2-day window is honored against true posting age.
+        posted_dt = first_truthy_date(
+            parse_iso(job.get("first_published") or ""),
+            parse_iso(job.get("published_at") or ""),
+            parse_iso(job.get("created_at") or ""),
+            parse_iso(job.get("updated_at") or ""),
+        )
         if not within_recency(posted_dt):
             continue
+        label = ""
+        if posted_dt:
+            label = posted_dt.date().isoformat()
         found.append(make_job(
             company=name, title=title, url=job.get("absolute_url", ""),
             city=city, location=location, source="greenhouse-finance",
-            posted_dt=posted_dt,
-            posted_label=updated_raw[:10] if updated_raw else "",
+            posted_dt=posted_dt, posted_label=label,
         ))
     return found
 
