@@ -50,8 +50,10 @@ def rebuild_matches() -> int:
     created = 0
 
     for search in saved_searches:
-        allowed_cities = {c for c in [search.city_1, search.city_2, search.city_3, search.city_4, search.city_5, search.city_6] if c}
+        allowed_cities = {c for c in (search.cities or []) if c}
         for job in jobs:
+            if job.vertical != search.vertical:
+                continue
             city_display = {
                 "nyc": "New York, NY",
                 "atlanta": "Atlanta, GA",

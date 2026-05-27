@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -29,12 +29,21 @@ class User(TimestampMixin, Base):
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
-    saved_search: Mapped[Optional["SavedSearch"]] = relationship(
+    saved_searches: Mapped[list["SavedSearch"]] = relationship(
         back_populates="user",
-        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    def saved_search_for(self, vertical: str) -> Optional["SavedSearch"]:
+        for search in self.saved_searches:
+            if search.vertical == vertical:
+                return search
+        return None
+
+    @property
+    def saved_search(self) -> Optional["SavedSearch"]:
+        return self.saved_search_for("pm")
     subscription: Mapped[Optional["Subscription"]] = relationship(
         back_populates="user",
         uselist=False,
@@ -85,21 +94,18 @@ class Subscription(TimestampMixin, Base):
 
 class SavedSearch(TimestampMixin, Base):
     __tablename__ = "saved_searches"
+    __table_args__ = (UniqueConstraint("user_id", "vertical", name="uq_saved_search_user_vertical"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    vertical: Mapped[str] = mapped_column(String(32), default="pm", index=True)
     title_slug: Mapped[str] = mapped_column(String(64), index=True)
     experience_bucket: Mapped[str] = mapped_column(String(16))
-    city_1: Mapped[str] = mapped_column(String(128))
-    city_2: Mapped[str] = mapped_column(String(128))
-    city_3: Mapped[str] = mapped_column(String(128))
-    city_4: Mapped[str] = mapped_column(String(128), default="")
-    city_5: Mapped[str] = mapped_column(String(128), default="")
-    city_6: Mapped[str] = mapped_column(String(128), default="")
+    cities: Mapped[list[str]] = mapped_column(JSON, default=list)
     is_paid_city_override: Mapped[bool] = mapped_column(Boolean, default=False)
     change_count: Mapped[int] = mapped_column(Integer, default=0)
 
-    user: Mapped["User"] = relationship(back_populates="saved_search")
+    user: Mapped["User"] = relationship(back_populates="saved_searches")
     matches: Mapped[list["JobMatch"]] = relationship(
         back_populates="saved_search",
         cascade="all, delete-orphan",
@@ -128,6 +134,7 @@ class Job(TimestampMixin, Base):
     experience_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     experience_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_technical: Mapped[bool] = mapped_column(Boolean, default=False)
+    vertical: Mapped[str] = mapped_column(String(32), default="pm", index=True)
     found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     matches: Mapped[list["JobMatch"]] = relationship(

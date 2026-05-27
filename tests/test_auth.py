@@ -77,11 +77,8 @@ def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
 
     user = db_session.query(User).filter(User.email == "newcomer@example.com").one()
     saved = db_session.query(SavedSearch).filter(SavedSearch.user_id == user.id).one()
-    cities = {
-        saved.city_1, saved.city_2, saved.city_3,
-        saved.city_4, saved.city_5, saved.city_6,
-    }
-    assert cities == {
+    assert saved.vertical == "pm"
+    assert set(saved.cities) == {
         "New York, NY",
         "Atlanta, GA",
         "Miami, FL",

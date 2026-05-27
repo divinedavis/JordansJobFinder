@@ -94,7 +94,7 @@ def preview_matches(saved_search) -> list[dict]:
         return []
 
     cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None) - timedelta(days=2)
-    cities = set(choose_cities(saved_search.city_1, saved_search.city_2, saved_search.city_3))
+    cities = {c for c in (saved_search.cities or []) if c}
     matches = []
     for job in normalized_shared_jobs():
         posted_at = job.get("posted_at")

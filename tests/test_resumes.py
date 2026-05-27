@@ -186,10 +186,11 @@ def test_sync_skips_tailored_resumes_without_api_key(app, db_session, tmp_path):
 
     db_session.add(SavedSearch(
         user_id=user.id,
+        vertical="pm",
         title_slug="technical-product-manager",
         experience_bucket="7-9",
-        city_1="New York, NY", city_2="Atlanta, GA", city_3="Miami, FL",
-        city_4="Dallas, TX", city_5="Houston, TX", city_6="Washington, DC",
+        cities=["New York, NY", "Atlanta, GA", "Miami, FL",
+                "Dallas, TX", "Houston, TX", "Washington, DC"],
     ))
     db_session.add(BaseResume(
         user_id=user.id, filename="resume.docx",
@@ -234,10 +235,11 @@ def test_sync_generates_tailored_resume_with_mocked_anthropic(app, db_session, m
     user.set_password("password123")
     db_session.add(user); db_session.commit(); db_session.refresh(user)
     db_session.add(SavedSearch(
-        user_id=user.id, title_slug="technical-product-manager",
+        user_id=user.id, vertical="pm",
+        title_slug="technical-product-manager",
         experience_bucket="7-9",
-        city_1="New York, NY", city_2="Atlanta, GA", city_3="Miami, FL",
-        city_4="Dallas, TX", city_5="Houston, TX", city_6="Washington, DC",
+        cities=["New York, NY", "Atlanta, GA", "Miami, FL",
+                "Dallas, TX", "Houston, TX", "Washington, DC"],
     ))
     db_session.add(BaseResume(
         user_id=user.id, filename="resume.docx",

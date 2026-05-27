@@ -58,6 +58,5 @@ def can_change_search(change_count: int, unlimited_changes_unlocked: bool, user_
 
 
 def revert_to_free_cities(saved_search) -> None:
-    cities = default_cities()
-    saved_search.city_1, saved_search.city_2, saved_search.city_3 = cities
+    saved_search.cities = default_cities()
     saved_search.is_paid_city_override = False

@@ -157,14 +157,17 @@ def sign_in():
         # required by the schema but ignored by the superuser matching branch.
         db.add(SavedSearch(
             user_id=user.id,
+            vertical="pm",
             title_slug="technical-product-manager",
             experience_bucket="7-9",
-            city_1="New York, NY",
-            city_2="Atlanta, GA",
-            city_3="Miami, FL",
-            city_4="Dallas, TX",
-            city_5="Houston, TX",
-            city_6="Washington, DC",
+            cities=[
+                "New York, NY",
+                "Atlanta, GA",
+                "Miami, FL",
+                "Dallas, TX",
+                "Houston, TX",
+                "Washington, DC",
+            ],
             is_paid_city_override=False,
         ))
         db.commit()
@@ -231,6 +234,13 @@ def login():
     )
 
 
+VERTICAL_LABELS = {
+    "pm": "Product/Program Manager",
+    "finance": "Finance",
+}
+VERTICAL_ORDER = ["pm", "finance"]
+
+
 @web.get("/dashboard")
 def dashboard():
     user = require_user()
@@ -239,9 +249,12 @@ def dashboard():
 
     db = get_db()
     user = db.get(User, user.id)
-    saved_search = user.saved_search
-    matches = load_db_matches(saved_search)
-    preview = preview_matches(saved_search) if not matches else []
+    active_tab = request.args.get("tab", "pm")
+    if active_tab not in VERTICAL_LABELS:
+        active_tab = "pm"
+    saved_search = user.saved_search_for(active_tab)
+    matches = load_db_matches(saved_search) if active_tab == "pm" else []
+    preview = preview_matches(saved_search) if (active_tab == "pm" and saved_search and not matches) else []
     return render_template(
         "dashboard.html",
         user=user,
@@ -250,6 +263,9 @@ def dashboard():
         preview_matches=preview,
         grouped_matches=group_matches_by_city(matches) if matches else {},
         title_labels=TITLE_LABELS,
+        active_tab=active_tab,
+        tab_labels=VERTICAL_LABELS,
+        tab_order=VERTICAL_ORDER,
     )
 
 
@@ -400,7 +416,7 @@ def saved_search():
             search = user.saved_search
             search.change_count += 1
         else:
-            search = SavedSearch(user_id=user.id)
+            search = SavedSearch(user_id=user.id, vertical="pm")
             db.add(search)
 
         is_paid_city_override = requires_paid_city_override(selected_cities, user.email)
@@ -410,7 +426,7 @@ def saved_search():
 
         search.title_slug = title_slug
         search.experience_bucket = experience_bucket
-        search.city_1, search.city_2, search.city_3 = selected_cities
+        search.cities = list(selected_cities)
         search.is_paid_city_override = is_paid_city_override
         db.commit()
         flash("Saved search updated.", "success")

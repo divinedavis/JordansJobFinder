@@ -7,11 +7,35 @@
     <span class="eyebrow">Private Jobs</span>
     <h1>Your current job matches.</h1>
     <p style="margin-top: 14px; max-width: 62ch;">
-      Product and program manager jobs across NYC, Atlanta, Miami, Dallas, Houston, and DC.
+      {% if active_tab == "finance" %}
+        Entry-level finance roles across NYC, Atlanta, Miami, Dallas, Houston, DC, plus York PA, Lancaster PA, Philadelphia PA, Harrisburg PA, and Baltimore MD.
+      {% else %}
+        Product and program manager jobs across NYC, Atlanta, Miami, Dallas, Houston, and DC.
+      {% endif %}
     </p>
+
+    <nav class="tab-nav" style="margin-top: 24px; display: flex; gap: 8px; flex-wrap: wrap;">
+      {% for slug in tab_order %}
+        <a
+          href="{{ url_for('web.dashboard') }}?tab={{ slug }}"
+          class="tab-pill{% if slug == active_tab %} active{% endif %}"
+        >{{ tab_labels[slug] }}</a>
+      {% endfor %}
+    </nav>
   </section>
 
-  {% if not saved_search %}
+  {% if active_tab == "finance" %}
+    <section class="panel">
+      <h2>Finance board — coming soon</h2>
+      <p style="margin-top: 12px; max-width: 62ch;">
+        Scraping is being wired up for investment banking, FP&amp;A, Big 4 audit, and commercial banking analyst roles
+        across the same metros plus the four PA cities and Baltimore.
+      </p>
+      <p class="muted" style="margin-top: 12px;">
+        Check back after the next daily run. No setup needed on your end — the Finance tab will auto-populate.
+      </p>
+    </section>
+  {% elif not saved_search %}
     <section class="panel">
       <h2>Setting up your matches</h2>
       <p>Your job board is being prepared. The next daily sync (5&ndash;6 AM ET) will populate your matches.</p>
