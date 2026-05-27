@@ -327,6 +327,71 @@ def test_tailor_resume_structured_parses_json_with_markdown_fences(app, monkeypa
     assert result["experience"][0]["company"] == "JPMorgan Chase"
 
 
+def test_tailor_resume_structured_tolerates_trailing_prose(app, monkeypatch):
+    """Anthropic sometimes appends a closing sentence after the JSON.
+    raw_decode must consume only the first JSON object and ignore the rest."""
+    from app import resumes as resumes_module
+
+    class _Block:
+        type = "text"
+        text = json.dumps(SAMPLE_STRUCTURED) + "\n\nLet me know if you want any tweaks."
+
+    class _Message:
+        content = [_Block()]
+
+    class _Messages:
+        def create(self, **kw):
+            return _Message()
+
+    class _Client:
+        def __init__(self, api_key):
+            self.messages = _Messages()
+
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+
+    with app.app_context():
+        app.config["ANTHROPIC_API_KEY"] = "sk-test"
+        result = resumes_module.tailor_resume_structured(
+            base_text="base", job_title="PM", company="Acme",
+            job_description="Looking for a PM.",
+        )
+    assert result is not None
+    assert result["name"] == "DIVINE DAVIS"
+
+
+def test_tailor_resume_structured_tolerates_leading_prose(app, monkeypatch):
+    """And sometimes prepends 'Here is the resume:' before the JSON."""
+    from app import resumes as resumes_module
+
+    class _Block:
+        type = "text"
+        text = "Here is the tailored resume:\n\n" + json.dumps(SAMPLE_STRUCTURED)
+
+    class _Message:
+        content = [_Block()]
+
+    class _Messages:
+        def create(self, **kw):
+            return _Message()
+
+    class _Client:
+        def __init__(self, api_key):
+            self.messages = _Messages()
+
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+
+    with app.app_context():
+        app.config["ANTHROPIC_API_KEY"] = "sk-test"
+        result = resumes_module.tailor_resume_structured(
+            base_text="base", job_title="PM", company="Acme",
+            job_description="Looking for a PM.",
+        )
+    assert result is not None
+    assert result["name"] == "DIVINE DAVIS"
+
+
 def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
     """Malformed AI output → None (no crash, no broken PDF)."""
     from app import resumes as resumes_module

@@ -252,9 +252,21 @@ def tailor_resume_structured(
             raw = raw[:-3].strip()
     try:
         return json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.error("Anthropic returned non-JSON resume: %s", exc)
-        return None
+    except json.JSONDecodeError:
+        pass
+    # Anthropic occasionally emits prose around the JSON ("Here's the resume:"
+    # before, or a closing line after). Locate the first '{' and use raw_decode
+    # to consume only one valid JSON object, ignoring whatever trails it.
+    start = raw.find("{")
+    if start >= 0:
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(raw[start:])
+            return obj
+        except json.JSONDecodeError as exc:
+            logger.error("Anthropic returned non-JSON resume: %s", exc)
+            return None
+    logger.error("Anthropic returned non-JSON resume: no '{' found in output")
+    return None
 
 
 # ── PDF rendering ────────────────────────────────────────────────────────────
