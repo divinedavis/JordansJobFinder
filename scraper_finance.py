@@ -8,7 +8,10 @@ import json
 import re
 import sys
 import time
+import urllib.parse
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
@@ -317,6 +320,162 @@ def scrape_greenhouse(name, token):
     return found
 
 
+def scrape_citi_rss():
+    """Citi publishes its entire job board as an RSS feed (~4k entries).
+    Filter to entry-level finance + supported cities + 2-day window."""
+    name = "Citigroup"
+    url = "https://jobs.citi.com/rss/jobs"
+    try:
+        resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=30)
+        if resp.status_code != 200:
+            print(f"  [{name}] HTTP {resp.status_code}")
+            return []
+        root = ET.fromstring(resp.content)
+    except Exception as exc:
+        print(f"  [{name}] error: {exc}")
+        return []
+    found = []
+    for item in root.findall(".//item"):
+        raw_title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        pub = (item.findtext("pubDate") or "").strip()
+        # Citi RSS titles look like "Foo Analyst - (New York, NY, United States)".
+        # Split title from location.
+        m = re.match(r"^(.*?)\s*-\s*\((.+)\)\s*$", raw_title)
+        if m:
+            title, location = m.group(1).strip(), m.group(2).strip()
+        else:
+            title, location = raw_title, ""
+        if not title_is_finance_entry(title):
+            continue
+        city = infer_city(location)
+        if not city:
+            continue
+        posted_dt = None
+        if pub:
+            try:
+                dt = parsedate_to_datetime(pub)
+                if dt:
+                    posted_dt = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                posted_dt = None
+        if not within_recency(posted_dt):
+            continue
+        found.append(make_job(
+            company=name, title=title, url=link, city=city,
+            location=location, source="citi-rss",
+            posted_dt=posted_dt,
+            posted_label=posted_dt.date().isoformat() if posted_dt else "",
+        ))
+    return found
+
+
+def _playwright_companies(pw_page):
+    """Wrap the JS-rendered employers (JPMorgan, Goldman) so Playwright failures
+    on one don't kill the others. Returns the union of scraped jobs."""
+    out = []
+    try:
+        out.extend(scrape_jpmorgan_pw(pw_page))
+    except Exception as exc:
+        print(f"  [JPMorgan] playwright error: {exc}")
+    try:
+        out.extend(scrape_goldman_pw(pw_page))
+    except Exception as exc:
+        print(f"  [Goldman] playwright error: {exc}")
+    return out
+
+
+def scrape_jpmorgan_pw(page):
+    """JPMorgan careers.jpmorgan.com is a React SPA — render in headless
+    browser and scrape the resulting DOM."""
+    from bs4 import BeautifulSoup
+    name = "JPMorgan Chase"
+    candidates = []
+    for term in ("financial analyst", "investment banking", "audit", "associate"):
+        url = (
+            "https://careers.jpmorgan.com/US/en/jobs"
+            f"?search={urllib.parse.quote(term)}&location=New+York"
+        )
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=20_000)
+            page.wait_for_timeout(5000)
+        except Exception as exc:
+            print(f"  [{name}/{term}] goto error: {exc}")
+            continue
+        soup = BeautifulSoup(page.content(), "html.parser")
+        for card in soup.select("[data-job-id], .job-listing, [class*='job-card'], [class*='requisition']"):
+            title_el = card.find("h2") or card.find("h3") or card.find(class_=re.compile(r"title|heading", re.I))
+            link_el = card.find("a", href=True)
+            loc_el = card.find(class_=re.compile(r"location|city", re.I))
+            if not title_el:
+                continue
+            title = title_el.get_text(strip=True)
+            location = loc_el.get_text(strip=True) if loc_el else ""
+            href = link_el["href"] if link_el else ""
+            if href and not href.startswith("http"):
+                href = "https://careers.jpmorgan.com" + href
+            if not title_is_finance_entry(title):
+                continue
+            city = infer_city(location or title)
+            if not city:
+                continue
+            # No reliable per-card posted date on JPM's listing — accept; the
+            # dashboard layer's 2-day cutoff acts on found_at as a backstop.
+            candidates.append(make_job(
+                company=name, title=title, url=href, city=city,
+                location=location, source="playwright-jpmc",
+                posted_dt=datetime.now(timezone.utc),
+                posted_label=datetime.now(timezone.utc).date().isoformat(),
+            ))
+        time.sleep(1.5)
+    print(f"  [{name}] {len(candidates)} candidate(s)")
+    return candidates
+
+
+def scrape_goldman_pw(page):
+    """Goldman higher.gs.com is a React SPA — same approach as JPMorgan."""
+    from bs4 import BeautifulSoup
+    name = "Goldman Sachs"
+    candidates = []
+    for term in ("financial analyst", "investment banking analyst", "research analyst", "audit"):
+        url = f"https://higher.gs.com/roles?query={urllib.parse.quote(term)}&region=Americas"
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=20_000)
+            page.wait_for_timeout(4000)
+        except Exception as exc:
+            print(f"  [{name}/{term}] goto error: {exc}")
+            continue
+        soup = BeautifulSoup(page.content(), "html.parser")
+        for link_el in soup.select("a[href*='/roles/']"):
+            full_text = link_el.get_text(separator=" ", strip=True)
+            href = link_el["href"]
+            if not href.startswith("http"):
+                href = "https://higher.gs.com" + href
+            title = full_text
+            location = ""
+            for loc_kw in ("New York", "Jersey City", "NYC"):
+                if loc_kw in full_text:
+                    idx = full_text.index(loc_kw)
+                    title = full_text[:idx].strip().rstrip("-,·").strip()
+                    location = full_text[idx:]
+                    break
+            if not title_is_finance_entry(title):
+                continue
+            city = infer_city(location or full_text)
+            if not city:
+                continue
+            candidates.append(make_job(
+                company=name, title=title, url=href, city=city,
+                location=location or "New York, NY",
+                source="playwright-goldman",
+                posted_dt=datetime.now(timezone.utc),
+                posted_label=datetime.now(timezone.utc).date().isoformat(),
+            ))
+        time.sleep(1.5)
+    print(f"  [{name}] {len(candidates)} candidate(s)")
+    return candidates
+
+
 def main() -> int:
     all_jobs = []
     for name, tenant, ver, site in FINANCE_WORKDAY_COMPANIES:
@@ -327,6 +486,24 @@ def main() -> int:
         print(f"[Greenhouse] {name}…")
         all_jobs.extend(scrape_greenhouse(name, token))
         time.sleep(0.3)
+
+    print("[Citi] RSS…")
+    all_jobs.extend(scrape_citi_rss())
+
+    # JS-rendered sites need Playwright. Isolate so a single browser failure
+    # doesn't lose the rest of today's data.
+    try:
+        from playwright.sync_api import sync_playwright
+        print("[Playwright] launching Chromium for JPMorgan + Goldman…")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                pw_page = browser.new_page(user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36")
+                all_jobs.extend(_playwright_companies(pw_page))
+            finally:
+                browser.close()
+    except Exception as exc:
+        print(f"[Playwright] block failed entirely: {exc}")
 
     # Dedupe by URL
     seen = set()
