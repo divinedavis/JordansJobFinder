@@ -567,8 +567,14 @@ def resume_download_tailored(job_id: int):
     ).one_or_none()
     if not tailored or not tailored.pdf_path or not os.path.exists(tailored.pdf_path):
         abort(404)
-    company = re.sub(r"[^A-Za-z0-9._-]", "-", job.company or "company")
-    download_name = f"{company}-tailored-resume.pdf"
+    parts = []
+    for value in (job.company, job.title):
+        cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value or "").strip("-._")
+        cleaned = re.sub(r"-+", "-", cleaned)
+        if cleaned:
+            parts.append(cleaned)
+    stem = "-".join(parts) or "tailored"
+    download_name = f"{stem[:120]}-tailored-resume.pdf"
     return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
 
 
