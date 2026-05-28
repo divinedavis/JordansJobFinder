@@ -92,6 +92,12 @@ def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
     ).one()
     assert "Philadelphia, PA" in finance_saved.cities
     assert "Baltimore, MD" in finance_saved.cities
+    sales_saved = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "sales"
+    ).one()
+    assert sales_saved.title_slug == "entry-sales-any"
+    assert "New York, NY" in sales_saved.cities
+    assert "Philadelphia, PA" in sales_saved.cities
 
 
 def test_sign_out_clears_session(signed_in_client):

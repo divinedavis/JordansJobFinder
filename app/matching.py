@@ -9,6 +9,14 @@ FINANCE_SENIOR_NEGATIVE = (
     "director", "head of", "chief", "managing director",
     "vice president",
 )
+# Title keywords that disqualify a sales role as entry-level. "manager" stays
+# in (rules out plain "Sales Manager" / "Account Manager"); "engineer" is NOT
+# here because "Sales Engineer" / "Solutions Engineer" are valid entry roles.
+SALES_SENIOR_NEGATIVE = (
+    "senior", "principal", "lead", "staff vp", "vp ", " vp",
+    "director", "head of", "chief", "managing director",
+    "vice president", "manager", "managing",
+)
 from .parsing import ParsedExperience, parse_experience_years
 
 
@@ -49,6 +57,19 @@ def title_is_entry_level_finance(title: str) -> bool:
         return True
     # Catch the broader analyst/associate vocabulary as a fallback
     return "analyst" in normalized or "associate" in normalized
+
+
+def title_is_entry_level_sales(title: str) -> bool:
+    """Heuristic mirror of title_is_entry_level_finance for sales roles."""
+    normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
+    if any(neg in normalized for neg in SALES_SENIOR_NEGATIVE):
+        return False
+    sales_kws = TITLE_KEYWORDS.get("entry-sales-any", [])
+    if any(kw in normalized for kw in sales_kws):
+        return True
+    return False
 
 def experience_bucket_matches(bucket: str, parsed: ParsedExperience) -> bool:
     if parsed.min_years is None and parsed.max_years is None:
@@ -136,6 +157,17 @@ def match_job_for_user(
         if title_slug != "entry-finance-any" and not title_matches(title, title_slug):
             return False
         # If experience is parseable, require it to fit the bucket (defaults to 0-2)
+        if parsed.min_years is not None or parsed.max_years is not None:
+            return experience_bucket_matches(experience_bucket or "0-2", parsed)
+        return True
+
+    if vertical == "sales":
+        # Sales: same shape as finance — title heuristic + entry-level seniority,
+        # no salary floor, optional per-track keyword check.
+        if not title_is_entry_level_sales(title):
+            return False
+        if title_slug != "entry-sales-any" and not title_matches(title, title_slug):
+            return False
         if parsed.min_years is not None or parsed.max_years is not None:
             return experience_bucket_matches(experience_bucket or "0-2", parsed)
         return True

@@ -18,7 +18,7 @@ from flask_wtf.csrf import CSRFError
 
 from flask import send_file
 
-from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
+from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, SALES_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
 from .matching import choose_cities, city_from_slug, is_superuser_email
 from .models import BaseResume, Job, SavedSearch, Subscription, TailoredResume, User
@@ -178,6 +178,14 @@ def sign_in():
             cities=list(FINANCE_DEFAULT_CITIES),
             is_paid_city_override=False,
         ))
+        db.add(SavedSearch(
+            user_id=user.id,
+            vertical="sales",
+            title_slug="entry-sales-any",
+            experience_bucket="0-2",
+            cities=list(SALES_DEFAULT_CITIES),
+            is_paid_city_override=False,
+        ))
         db.commit()
         session.clear()
         session["user_id"] = user.id
@@ -245,8 +253,9 @@ def login():
 VERTICAL_LABELS = {
     "pm": "Product/Program Manager",
     "finance": "Entry Finance",
+    "sales": "Entry Sales",
 }
-VERTICAL_ORDER = ["pm", "finance"]
+VERTICAL_ORDER = ["pm", "finance", "sales"]
 
 
 @web.get("/dashboard")

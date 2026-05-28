@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 LEGACY_STORE = REPO_ROOT / "jobs_store.json"
 SHARED_JOBS_FILE = REPO_ROOT / "shared_jobs.json"
 SHARED_JOBS_FINANCE_FILE = REPO_ROOT / "shared_jobs_finance.json"
+SHARED_JOBS_SALES_FILE = REPO_ROOT / "shared_jobs_sales.json"
 
 
 def parse_posted_datetime(raw_value: Optional[str]):
@@ -56,6 +57,12 @@ def load_finance_jobs() -> list[dict]:
     if not SHARED_JOBS_FINANCE_FILE.exists():
         return []
     return json.loads(SHARED_JOBS_FINANCE_FILE.read_text())
+
+
+def load_sales_jobs() -> list[dict]:
+    if not SHARED_JOBS_SALES_FILE.exists():
+        return []
+    return json.loads(SHARED_JOBS_SALES_FILE.read_text())
 
 
 def normalize_legacy_job(job: dict) -> dict:
@@ -116,7 +123,8 @@ def _normalize_one(job: dict, default_vertical: str) -> dict:
 def normalized_shared_jobs() -> list[dict]:
     pm_jobs = [_normalize_one(j, "pm") for j in load_shared_jobs()]
     finance_jobs = [_normalize_one(j, "finance") for j in load_finance_jobs()]
-    combined = pm_jobs + finance_jobs
+    sales_jobs = [_normalize_one(j, "sales") for j in load_sales_jobs()]
+    combined = pm_jobs + finance_jobs + sales_jobs
     if combined:
         return combined
     return normalized_legacy_jobs()

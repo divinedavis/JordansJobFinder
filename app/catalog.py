@@ -8,6 +8,11 @@ TITLE_OPTIONS = [
     {"slug": "entry-finance-fpa", "label": "Corporate Finance / FP&A Analyst", "vertical": "finance"},
     {"slug": "entry-finance-audit", "label": "Accounting / Audit Staff", "vertical": "finance"},
     {"slug": "entry-finance-commercial-banking", "label": "Commercial Banking Analyst", "vertical": "finance"},
+    {"slug": "entry-sales-any", "label": "Any entry-level sales role", "vertical": "sales"},
+    {"slug": "entry-sales-sdr-bdr", "label": "Sales / Business Development Rep (SDR/BDR)", "vertical": "sales"},
+    {"slug": "entry-sales-account-executive", "label": "Account Executive (entry)", "vertical": "sales"},
+    {"slug": "entry-sales-solutions-engineer", "label": "Sales / Solutions Engineer", "vertical": "sales"},
+    {"slug": "entry-sales-inside-sales", "label": "Inside Sales / Sales Representative", "vertical": "sales"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
@@ -40,6 +45,36 @@ TITLE_KEYWORDS["entry-finance-any"] = sorted({
     kw
     for slug, kws in TITLE_KEYWORDS.items()
     if slug.startswith("entry-finance-")
+    for kw in kws
+})
+
+TITLE_KEYWORDS.update({
+    "entry-sales-sdr-bdr": [
+        "sales development representative", "sdr",
+        "business development representative", "bdr",
+        "sales development", "business development rep",
+        "outbound sales", "outbound development",
+    ],
+    "entry-sales-account-executive": [
+        "account executive", "ae i", "ae ii",
+        "associate account executive", "junior account executive",
+        "commercial account executive",
+    ],
+    "entry-sales-solutions-engineer": [
+        "sales engineer", "solutions engineer", "solutions consultant",
+        "pre-sales", "presales", "technical account",
+    ],
+    "entry-sales-inside-sales": [
+        "inside sales", "sales representative", "sales rep",
+        "sales associate", "client advisor", "retail sales",
+        "sales specialist",
+    ],
+})
+# "any" sales slug = union of all sales keywords
+TITLE_KEYWORDS["entry-sales-any"] = sorted({
+    kw
+    for slug, kws in TITLE_KEYWORDS.items()
+    if slug.startswith("entry-sales-")
     for kw in kws
 })
 
@@ -76,6 +111,8 @@ FINANCE_DEFAULT_CITIES = [
     "York, PA", "Lancaster, PA", "Philadelphia, PA",
     "Harrisburg, PA", "Baltimore, MD",
 ]
+# Sales mirrors finance: same 11 metros.
+SALES_DEFAULT_CITIES = list(FINANCE_DEFAULT_CITIES)
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
 
