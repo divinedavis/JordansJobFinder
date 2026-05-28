@@ -485,6 +485,12 @@ GREENHOUSE_COMPANIES = [
     ("Samsara",          "samsara",        "nyc"),
     ("Samsara ATL",      "samsara",        "atlanta"),
     ("Samsara DAL",      "samsara",        "dallas"),
+    ("Waymo",            "waymo",          "nyc"),
+    ("Waymo ATL",        "waymo",          "atlanta"),
+    ("Waymo MIA",        "waymo",          "miami"),
+    ("Waymo DAL",        "waymo",          "dallas"),
+    ("Waymo HOU",        "waymo",          "houston"),
+    ("Waymo DC",         "waymo",          "dc"),
 ]
 
 # (name, lever_token, city)
