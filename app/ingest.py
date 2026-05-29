@@ -38,7 +38,12 @@ def parse_posted_datetime(raw_value: Optional[str]):
             return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-    return None
+    # ISO 8601 with time/offset, e.g. 2026-04-30T16:35:42Z, ...285Z, ...-04:00
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def load_legacy_jobs() -> list[dict]:
