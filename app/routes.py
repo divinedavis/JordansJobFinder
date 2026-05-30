@@ -606,8 +606,8 @@ def resume_download_tailored(job_id: int):
         cleaned = re.sub(r"-+", "-", cleaned)
         if cleaned:
             parts.append(cleaned)
-    stem = "-".join(parts) or "tailored"
-    download_name = f"{stem[:120]}-tailored-resume.pdf"
+    stem = "-".join(parts) or "resume"
+    download_name = f"{stem[:120]}.pdf"
     return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
 
 
