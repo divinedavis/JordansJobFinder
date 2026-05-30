@@ -815,7 +815,15 @@ def parse_posted_datetime_from_label(posted):
             return datetime.strptime(posted, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-    return None
+    # ISO-8601 with a time/offset, e.g. 2026-02-11T03:57:07Z or ...-04:00.
+    # Without this, ATS feeds that hand back a full timestamp leave posted_at
+    # NULL while posted_label keeps the (often stale) date, so the recency
+    # filter falls back to found_at and an old job looks fresh forever.
+    try:
+        dt = datetime.fromisoformat(posted.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def extract_experience_bounds(text):

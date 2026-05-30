@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.ingest import parse_posted_datetime
+from app.ingest import _normalize_one, parse_posted_datetime
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,23 @@ def test_unparseable_returns_none():
     assert parse_posted_datetime("") is None
     assert parse_posted_datetime(None) is None
     assert parse_posted_datetime("Unknown") is None
+
+
+def test_normalize_backfills_posted_at_from_label():
+    # Regression: a feed entry with a real posted_label but NULL posted_at
+    # must get posted_at derived from the label, otherwise the recency filter
+    # falls back to found_at and an old job (e.g. Feb 11) looks fresh forever.
+    job = {
+        "url": "https://example.com/job/1",
+        "posted_label": "2026-02-11T03:57:07Z",
+        "posted_at": None,
+        "found_at": "2026-05-30T09:58:27Z",
+    }
+    out = _normalize_one(job, "pm")
+    assert out["posted_at"] == datetime(2026, 2, 11, 3, 57, 7, tzinfo=timezone.utc)
+
+
+def test_normalize_leaves_posted_at_none_when_label_unparseable():
+    job = {"url": "https://example.com/job/2", "posted_label": "Unknown", "posted_at": None}
+    out = _normalize_one(job, "pm")
+    assert out["posted_at"] is None

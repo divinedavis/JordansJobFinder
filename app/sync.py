@@ -29,7 +29,10 @@ def upsert_shared_jobs() -> int:
         existing = db.execute(select(Job).where(Job.url == incoming["url"])).scalar_one_or_none()
         if existing:
             for key, value in incoming.items():
-                if key == "found_at" and value is None:
+                # Preserve first-seen: never refresh found_at on re-discovery.
+                # Re-bumping it makes dateless jobs (posted_at NULL) look fresh
+                # forever, since the recency filter falls back to found_at.
+                if key == "found_at":
                     continue
                 setattr(existing, key, value)
         else:

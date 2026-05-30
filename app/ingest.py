@@ -121,6 +121,11 @@ def _normalize_one(job: dict, default_vertical: str) -> dict:
                 parsed[key] = datetime.fromisoformat(value.replace("Z", "+00:00"))
             except ValueError:
                 parsed[key] = None
+    # Self-heal: if the feed gave us a posted_label but no usable posted_at,
+    # derive it from the label. Otherwise the recency filter falls back to
+    # found_at (which is bumped every scrape) and a stale job looks fresh.
+    if not parsed.get("posted_at"):
+        parsed["posted_at"] = parse_posted_datetime(parsed.get("posted_label"))
     parsed.setdefault("vertical", default_vertical)
     return parsed
 
