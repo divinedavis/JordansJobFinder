@@ -49,14 +49,17 @@
                 {% for match in city_matches %}
                   <article class="match-card">
                     <div class="match-card-top">
-                      <span class="match-company">{{ match.company }}</span>
+                      <span class="match-company">
+                        {{ match.company }}{% if match.display_city %}<span class="match-city">{{ match.display_city }}</span>{% endif %}
+                      </span>
                       <span class="match-posted">{{ match.posted_label }}</span>
                     </div>
                     <div class="match-role">{{ match.title }}</div>
-                    <div class="match-meta">
-                      {% if match.salary_label %}<span>{{ match.salary_label }}</span>{% endif %}
-                      <span>{{ match.location }}</span>
-                    </div>
+                    {% if match.salary_label %}
+                      <div class="match-meta">
+                        <span>{{ match.salary_label }}</span>
+                      </div>
+                    {% endif %}
                     <div class="button-row" style="gap: 8px; flex-wrap: wrap;">
                       <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View Role</a>
                       {% if match.has_tailored_resume %}
