@@ -38,6 +38,55 @@ Filter chain for each job:
 
 Outputs: jobs.html (static public board), jobs_store.json, shared_jobs.json, seen_jobs.json
 
+## Finance + Sales Verticals (scraper_finance.py, scraper_sales.py)
+
+Two sibling scrapers surface **entry-level finance** and **entry-level sales**
+roles across all 11 metros (the 6 above plus York-PA, Lancaster-PA,
+Philadelphia-PA, Harrisburg-PA, Baltimore-MD). Each writes its own
+`shared_jobs_finance.json` / `shared_jobs_sales.json`, tagged with a `vertical`
+field, which `app/sync.py` ingests alongside `shared_jobs.json`. Both run in the
+9 AM cron chain after `scraper.py`. Filter chain: entry-level title keywords
+(no senior/manager/VP) → location in one of the 11 metros (`infer_city` /
+`CITY_LOCATION_PATTERNS`) → posted within 2 days (unknown dates are dropped).
+
+Native platforms: **Workday** (`*_WORKDAY_COMPANIES`) + **Greenhouse**
+(`*_GREENHOUSE_COMPANIES`), plus Citi RSS and Playwright (JPMorgan/Goldman) in
+finance.
+
+### Extra ATS platforms (scraper_ats_extra.py)
+
+The big national employers are on Workday/Greenhouse, but the **regional** PA/MD
+employers (Armstrong, WellSpan, Fulton Bank, Dentsply, Hershey, …) are not.
+`scraper_ats_extra.py` adds five more platforms and both verticals call its
+`collect_extra_jobs()` (passing their own `title_filter` / `infer_city` /
+`within_recency` / `make_job`, so the platform logic lives here and the vertical
+logic stays in each caller):
+
+- **Oracle Cloud Recruiting** (JSON) — WellSpan/York, Penn National/Harrisburg
+- **Lever** (JSON) — Gopuff/Philly
+- **Phenom** (JSON) — DISABLED: Exelon/Constellation 403 the droplet IP (WAF)
+- **iCIMS** (HTML, needs `&in_iframe=1`) — Fulton Bank/Lancaster, Graham Packaging/York
+- **SuccessFactors** CSB (HTML, `tr.data-row`) — Armstrong/Lancaster, Dentsply & Voith/York, Hershey/Harrisburg, McCormick/Baltimore
+
+Notes: iCIMS list pages and Voith/McCormick SF pages carry no date, so the date
+is pulled from the detail page (only for title+city survivors). SF boards are
+newest-first → dated sites early-stop; undated sites are bounded by
+`MAX_SF_PAGES`. Each company is isolated in `_safe()` so one failure/timeout
+doesn't sink the run. **York/Lancaster have no dedicated local employer on
+Workday/Greenhouse — these HTML/JSON platforms are the only way to reach them.**
+
+### Probe recipe before adding a company
+
+Never add an endpoint that doesn't return HTTP 200 from the **production droplet
+IP** (some WAFs, e.g. Phenom, allow residential IPs but block datacenters).
+Verify from the server:
+- **Workday**: `POST https://{tenant}.wd{ver}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs` with `{"appliedFacets":{},"limit":1,"offset":0,"searchText":"analyst"}`.
+- **Greenhouse**: `GET https://boards-api.greenhouse.io/v1/boards/{token}/jobs`.
+- **Oracle**: `GET https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions?onlyData=true&finder=findReqs;siteNumber={CX_n},limit=1` (siteNumber is `CX_1` or `CX` — varies).
+- **Lever**: `GET https://api.lever.co/v0/postings/{handle}?mode=json`.
+- **iCIMS**: `GET https://{sub}.icims.com/jobs/search?ss=1&hashed=-1&in_iframe=1` (browser UA; the `in_iframe=1` is mandatory).
+- **SuccessFactors**: `GET https://{careers-host}/search/?q=&startrow=0` (browser UA; parse `tr.data-row`).
+
 ## Database Models
 
 - **User** — email, password hash

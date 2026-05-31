@@ -13,6 +13,8 @@ from pathlib import Path
 
 import requests
 
+from scraper_ats_extra import collect_extra_jobs
+
 # Only keep jobs posted within this window.
 RECENCY_DAYS = 2
 
@@ -314,6 +316,18 @@ def main() -> int:
         print(f"[Greenhouse] {name}…")
         all_jobs.extend(scrape_greenhouse(name, token))
         time.sleep(0.3)
+
+    # Regional employers on non-Workday/Greenhouse platforms (Oracle, Lever,
+    # Phenom, iCIMS, SuccessFactors) — the only way to reach the PA/MD local
+    # employers (Armstrong, WellSpan, Fulton, Dentsply, Hershey, …).
+    print("[Extra ATS] Oracle/Lever/Phenom/iCIMS/SuccessFactors…")
+    all_jobs.extend(collect_extra_jobs(
+        title_filter=title_is_sales_entry,
+        infer_city=infer_city,
+        within_recency=within_recency,
+        make_job=make_job,
+        source_suffix="sales",
+    ))
 
     # Dedupe by URL
     seen = set()
