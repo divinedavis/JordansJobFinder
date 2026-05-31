@@ -32,6 +32,11 @@ def verify_turnstile(token: str, remote_ip: Optional[str] = None) -> Tuple[bool,
         )
         return False, "Bot protection is not configured."
 
+    if not token:
+        # No token in the request — never round-trip an empty value to
+        # Cloudflare (it would 'fail' anyway); reject explicitly.
+        return False, "Bot protection check did not pass."
+
     try:
         response = requests.post(
             "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -49,3 +54,26 @@ def verify_turnstile(token: str, remote_ip: Optional[str] = None) -> Tuple[bool,
     if payload.get("success"):
         return True, None
     return False, "Bot protection check did not pass."
+
+
+def enforce_turnstile(token: str, remote_ip: Optional[str] = None) -> Optional[str]:
+    """Fail-closed Turnstile gate for the auth routes.
+
+    Returns ``None`` when the request may proceed, or an error string when it
+    must be rejected. Bot protection is enforced whenever a secret is
+    configured OR when the app declares Turnstile required (production). In
+    that mode a missing/invalid token — or even a missing secret, which is a
+    production misconfiguration — rejects the request instead of passing it.
+    Only when Turnstile is neither configured nor required (local dev, tests)
+    is the check skipped so the request proceeds.
+    """
+    configured = bool(current_app.config.get("TURNSTILE_SECRET_KEY"))
+    required = bool(current_app.config.get("TURNSTILE_REQUIRED"))
+
+    if not configured and not required:
+        return None
+
+    ok, err = verify_turnstile(token, remote_ip)
+    if ok:
+        return None
+    return err or "Bot verification failed."

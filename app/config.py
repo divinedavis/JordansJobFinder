@@ -22,8 +22,15 @@ class Config:
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
     STRIPE_CITY_PLAN_PRICE_ID = os.getenv("STRIPE_CITY_PLAN_PRICE_ID", "")
     STRIPE_UNLOCK_PRICE_ID = os.getenv("STRIPE_UNLOCK_PRICE_ID", "")
+    APP_ENV = os.getenv("APP_ENV", "development")
     TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "")
     TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "")
+    # In production we *intend* Turnstile to be enforced. When required, the
+    # auth routes fail CLOSED: a missing/invalid token — or a missing secret
+    # (itself a misconfiguration) — rejects the request rather than waving it
+    # through. Outside production (local dev, the test suite) Turnstile is only
+    # enforced when a secret happens to be set.
+    TURNSTILE_REQUIRED = APP_ENV == "production"
     MAGIC_LINK_TTL_MINUTES = 20
     FREE_CITIES = ("New York, NY", "Atlanta, GA", "Miami, FL")
     FREE_SEARCH_CHANGE_LIMIT = 2

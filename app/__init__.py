@@ -34,6 +34,16 @@ def create_app() -> Flask:
         except OSError:
             app.logger.warning("Could not create resume dir %s", app.config[cfg_key])
 
+    # Fail-closed Turnstile: in production we intend bot protection to be
+    # enforced. If the secret is missing there, log loudly — the auth routes
+    # will reject signup/login (they fail closed) until it's configured.
+    if app.config.get("TURNSTILE_REQUIRED") and not app.config.get("TURNSTILE_SECRET_KEY"):
+        app.logger.warning(
+            "TURNSTILE_SECRET_KEY is unset in a PRODUCTION config. Bot protection "
+            "fails CLOSED: signup and login will be rejected until the secret is "
+            "set. Configure TURNSTILE_SECRET_KEY in the production env."
+        )
+
     app.register_blueprint(web)
 
     csrf.exempt("web.stripe_webhook")

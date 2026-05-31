@@ -44,7 +44,7 @@ from .searches import (
     revert_to_free_cities,
     validate_saved_search,
 )
-from .security import verify_turnstile
+from .security import enforce_turnstile
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +110,9 @@ def home():
 def sign_in():
     if request.method == "POST":
         turnstile_token = request.form.get("cf-turnstile-response", "")
-        turnstile_ok, turnstile_err = verify_turnstile(
-            turnstile_token, request.remote_addr
-        )
-        if not turnstile_ok and current_app.config.get("TURNSTILE_SECRET_KEY"):
-            flash(turnstile_err or "Bot verification failed.", "error")
+        turnstile_err = enforce_turnstile(turnstile_token, request.remote_addr)
+        if turnstile_err:
+            flash(turnstile_err, "error")
             return redirect(url_for("web.sign_in"))
 
         email = request.form.get("email", "").strip().lower()
@@ -206,11 +204,9 @@ def sign_in():
 def login():
     if request.method == "POST":
         turnstile_token = request.form.get("cf-turnstile-response", "")
-        turnstile_ok, turnstile_err = verify_turnstile(
-            turnstile_token, request.remote_addr
-        )
-        if not turnstile_ok and current_app.config.get("TURNSTILE_SECRET_KEY"):
-            flash(turnstile_err or "Bot verification failed.", "error")
+        turnstile_err = enforce_turnstile(turnstile_token, request.remote_addr)
+        if turnstile_err:
+            flash(turnstile_err, "error")
             return redirect(url_for("web.login"))
 
         email = request.form.get("email", "").strip().lower()
