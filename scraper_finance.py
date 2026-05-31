@@ -57,6 +57,23 @@ FINANCE_WORKDAY_COMPANIES = [
     ("The Hartford",    "thehartford",  5, "Careers_External"),
     ("Nationwide",      "nationwide",   1, "Nationwide_Career"),
     ("Travelers",       "travelers",    5, "External"),
+    # Regional employers anchored in the PA/MD metros (Harrisburg, Philadelphia,
+    # Baltimore — plus York/Lancaster spillover via the location filter). Every
+    # tuple below was verified to return HTTP 200 against the live jobs API on
+    # 2026-05-31. Lancaster/York have no dedicated local employer on Workday or
+    # Greenhouse (Armstrong/Fulton/Dentsply/WellSpan/Glatfelter are all on
+    # iCIMS/SuccessFactors/Oracle/ADP, which this scraper can't read) — Highmark
+    # (Central PA) and M&T (PA/MD branches) are the closest reachable proxies.
+    ("Highmark",               "highmarkhealth", 1,   "highmark"),                          # Harrisburg/Central PA
+    ("Rite Aid",               "riteaid",        1,   "External"),                          # Camp Hill (Harrisburg)
+    ("FMC",                    "fmc",            12,  "FMC"),                               # Philadelphia
+    ("Crown Holdings",         "crownholdings",  501, "CrownHoldings"),                     # Philadelphia (Yardley)
+    ("Penn Medicine",          "upenn",          1,   "careers-at-penn"),                   # Philadelphia
+    ("M&T Bank",               "mtb",            5,   "MTB"),                               # Baltimore + PA branches
+    ("M&T Bank Campus",        "mtb",            5,   "Campus"),                            # early-career programs
+    ("Stanley Black & Decker", "sbdinc",         1,   "Stanley_Black_Decker_Career_Site"),  # Baltimore (Towson)
+    ("Medifast",               "medifastinc",    108, "Medifast"),                          # Baltimore
+    ("Erickson Senior Living", "erickson",       108, "External"),                          # Baltimore (Catonsville)
 ]
 
 # Greenhouse: (name, token). Token "coinbase" 404'd — Coinbase moved boards.

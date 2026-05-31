@@ -35,6 +35,23 @@ SALES_WORKDAY_COMPANIES = [
     ("Adobe",          "adobe",      5,  "external_experienced"),
     ("Dell",           "dell",       1,  "External"),
     ("Comcast",        "comcast",    5,  "Comcast_Careers"),
+    # Regional employers anchored in the PA/MD metros (Harrisburg, Philadelphia,
+    # Baltimore — plus York/Lancaster spillover via the location filter). Same
+    # verified set as scraper_finance.py FINANCE_WORKDAY_COMPANIES; all returned
+    # HTTP 200 against the live jobs API on 2026-05-31. The per-scraper title
+    # filter keeps these from claiming finance jobs. Lancaster/York have no
+    # dedicated local employer on Workday/Greenhouse (the local names are all on
+    # iCIMS/SuccessFactors/Oracle/ADP) — Highmark and M&T are the proxies.
+    ("Highmark",               "highmarkhealth", 1,   "highmark"),                          # Harrisburg/Central PA
+    ("Rite Aid",               "riteaid",        1,   "External"),                          # Camp Hill (Harrisburg)
+    ("FMC",                    "fmc",            12,  "FMC"),                               # Philadelphia
+    ("Crown Holdings",         "crownholdings",  501, "CrownHoldings"),                     # Philadelphia (Yardley)
+    ("Penn Medicine",          "upenn",          1,   "careers-at-penn"),                   # Philadelphia
+    ("M&T Bank",               "mtb",            5,   "MTB"),                               # Baltimore + PA branches
+    ("M&T Bank Campus",        "mtb",            5,   "Campus"),                            # early-career programs
+    ("Stanley Black & Decker", "sbdinc",         1,   "Stanley_Black_Decker_Career_Site"),  # Baltimore (Towson)
+    ("Medifast",               "medifastinc",    108, "Medifast"),                          # Baltimore
+    ("Erickson Senior Living", "erickson",       108, "External"),                          # Baltimore (Catonsville)
 ]
 
 # Greenhouse: (name, token). Verified 200 on 2026-05-28. 404 tokens dropped
