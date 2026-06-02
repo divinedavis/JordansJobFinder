@@ -51,3 +51,45 @@ def test_normalize_leaves_posted_at_none_when_label_unparseable():
     job = {"url": "https://example.com/job/2", "posted_label": "Unknown", "posted_at": None}
     out = _normalize_one(job, "pm")
     assert out["posted_at"] is None
+
+
+def test_upsert_survives_duplicate_url_in_one_batch(app, monkeypatch):
+    """Regression: two feed entries sharing a URL in a single batch must not
+    blow up the sync. autoflush is off, so the second entry can't see the
+    first's pending row; before the fix this added a second Job and the whole
+    run died at commit with "UNIQUE constraint failed: jobs.url", freezing
+    everyone's matches and tailored resumes."""
+    from app import sync
+    from app.db import get_db
+    from app.models import Job
+    from sqlalchemy import func, select
+
+    def _make(title):
+        return {
+            "source": "successfactors-sales",
+            "company": "The Hershey Company",
+            "title": title,
+            "normalized_title": title.lower(),
+            "url": "https://careers.thehersheycompany.com/job/dup-1362262700/",
+            "city": "miami",
+            "location": "Tampa, FL, US",
+            "description": "",
+            "salary_label": "",
+            "posted_label": "2026-06-01",
+            "posted_at": None,
+            "found_at": None,
+            "vertical": "sales",
+        }
+
+    batch = [_make("Territory Sales Associate"), _make("Territory Sales Associate (Winter Haven, FL)")]
+    monkeypatch.setattr(sync, "normalized_shared_jobs", lambda: batch)
+
+    with app.app_context():
+        synced = sync.upsert_shared_jobs()  # must not raise
+        db = get_db()
+        # Both entries counted, but only one row exists for the shared URL,
+        # and the last-write-wins on its mutable fields.
+        assert synced == 2
+        assert db.scalar(select(func.count()).select_from(Job)) == 1
+        row = db.scalar(select(Job))
+        assert row.title == "Territory Sales Associate (Winter Haven, FL)"

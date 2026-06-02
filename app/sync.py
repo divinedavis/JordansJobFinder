@@ -25,18 +25,35 @@ logger = logging.getLogger(__name__)
 def upsert_shared_jobs() -> int:
     db = get_db()
     synced = 0
+    # Track rows added/touched in THIS batch by URL. autoflush is off, so a
+    # pending Job isn't visible to a later select(); without this, the same URL
+    # appearing twice in one batch (e.g. a job surfaced under two cities/feeds)
+    # would db.add() a second row and blow up the whole sync at commit with
+    # "UNIQUE constraint failed: jobs.url".
+    seen_by_url: dict[str, Job] = {}
     for incoming in normalized_shared_jobs():
-        existing = db.execute(select(Job).where(Job.url == incoming["url"])).scalar_one_or_none()
-        if existing:
+        url = incoming.get("url")
+        if not url:
+            # No usable URL → can't dedupe and the column is UNIQUE; skip it
+            # rather than risk a collision on the empty string.
+            continue
+
+        target = seen_by_url.get(url)
+        if target is None:
+            target = db.execute(select(Job).where(Job.url == url)).scalar_one_or_none()
+
+        if target is not None:
             for key, value in incoming.items():
                 # Preserve first-seen: never refresh found_at on re-discovery.
                 # Re-bumping it makes dateless jobs (posted_at NULL) look fresh
                 # forever, since the recency filter falls back to found_at.
                 if key == "found_at":
                     continue
-                setattr(existing, key, value)
+                setattr(target, key, value)
         else:
-            db.add(Job(**incoming))
+            target = Job(**incoming)
+            db.add(target)
+        seen_by_url[url] = target
         synced += 1
     db.commit()
     return synced
