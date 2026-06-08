@@ -519,6 +519,33 @@ def test_experience_and_competency_tables_are_left_aligned(app):
         assert t.hAlign == "LEFT"
 
 
+def test_long_competency_label_wraps_within_its_column(app):
+    """Regression: a label that nearly fills the label column (e.g. "Technical
+    Domain Expertise:") must wrap inside its cell rather than run to the edge
+    and collide with the value text. The right-gutter on the label column
+    guarantees it wraps like the other multi-word labels."""
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Paragraph
+    from app.resumes import _styles
+
+    with app.app_context():
+        styles = _styles()
+        leading = styles["comp_label"].leading
+        # Label column is 1.9" with a 12pt right gutter (see _competencies_block).
+        avail = 1.9 * inch - 12
+
+        def line_count(label):
+            p = Paragraph(f"{label}:", styles["comp_label"])
+            _w, h = p.wrap(avail, 1000)
+            return round(h / leading)
+
+        # The label that used to overflow now wraps to two lines, matching the
+        # other long labels — none stay on a single overflowing line.
+        assert line_count("Technical Domain Expertise") == 2
+        assert line_count("Program & Project Management") == 2
+        assert line_count("Business & Operational Skills") == 2
+
+
 def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
     """Malformed AI output → None (no crash, no broken PDF)."""
     from app import resumes as resumes_module

@@ -404,7 +404,12 @@ def _competencies_block(data: dict, styles) -> list:
             style=TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                # Gutter after the label column so long labels (e.g. "Technical
+                # Domain Expertise:") wrap within their cell instead of running
+                # to the column edge and colliding with the value text. Keeps a
+                # consistent gap whether a label wraps or not.
+                ("RIGHTPADDING", (0, 0), (0, -1), 12),
+                ("RIGHTPADDING", (1, 0), (1, -1), 0),
                 ("TOPPADDING", (0, 0), (-1, -1), 2),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
             ]),
