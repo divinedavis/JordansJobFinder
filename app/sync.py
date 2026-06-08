@@ -21,6 +21,40 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+# Maps the scraper's city slug to the human label stored on SavedSearch.cities.
+CITY_DISPLAY = {
+    "nyc": "New York, NY",
+    "atlanta": "Atlanta, GA",
+    "miami": "Miami, FL",
+    "dallas": "Dallas, TX",
+    "houston": "Houston, TX",
+    "dc": "Washington, DC",
+    "york-pa": "York, PA",
+    "lancaster-pa": "Lancaster, PA",
+    "philadelphia-pa": "Philadelphia, PA",
+    "harrisburg-pa": "Harrisburg, PA",
+    "baltimore-md": "Baltimore, MD",
+}
+
+
+def _search_matches_job(search, job, user_email) -> bool:
+    """Whether a single job belongs on a saved search's board."""
+    if job.vertical != search.vertical:
+        return False
+    allowed_cities = {c for c in (search.cities or []) if c}
+    city_display = CITY_DISPLAY.get(job.city, job.location or "")
+    if city_display not in allowed_cities and (job.location or "") not in allowed_cities:
+        return False
+    return match_job_for_user(
+        search.title_slug,
+        search.experience_bucket,
+        job.title,
+        job.description or "",
+        job.salary_min,
+        job.salary_max,
+        user_email,
+    )
+
 
 def upsert_shared_jobs() -> int:
     db = get_db()
@@ -70,34 +104,10 @@ def rebuild_matches() -> int:
     created = 0
 
     for search in saved_searches:
-        allowed_cities = {c for c in (search.cities or []) if c}
+        user = users_by_id.get(search.user_id)
+        user_email = user.email if user else None
         for job in jobs:
-            if job.vertical != search.vertical:
-                continue
-            city_display = {
-                "nyc": "New York, NY",
-                "atlanta": "Atlanta, GA",
-                "miami": "Miami, FL",
-                "dallas": "Dallas, TX",
-                "houston": "Houston, TX",
-                "dc": "Washington, DC",
-                "york-pa": "York, PA",
-                "lancaster-pa": "Lancaster, PA",
-                "philadelphia-pa": "Philadelphia, PA",
-                "harrisburg-pa": "Harrisburg, PA",
-                "baltimore-md": "Baltimore, MD",
-            }.get(job.city, job.location or "")
-            if city_display not in allowed_cities and (job.location or "") not in allowed_cities:
-                continue
-            if not match_job_for_user(
-                search.title_slug,
-                search.experience_bucket,
-                job.title,
-                job.description or "",
-                job.salary_min,
-                job.salary_max,
-                users_by_id.get(search.user_id).email if users_by_id.get(search.user_id) else None,
-            ):
+            if not _search_matches_job(search, job, user_email):
                 continue
             db.add(
                 JobMatch(
@@ -108,6 +118,42 @@ def rebuild_matches() -> int:
             )
             created += 1
 
+    db.commit()
+    return created
+
+
+def rebuild_matches_for_user(user_id: int) -> int:
+    """Rebuild JobMatch rows for one user without touching anyone else's.
+
+    Used at signup (and after a saved-search edit) so a new account lands on a
+    fully populated board immediately, instead of waiting for the next nightly
+    ``rebuild_matches`` to run.
+    """
+    db = get_db()
+    user = db.get(User, user_id)
+    if user is None:
+        return 0
+
+    db.query(JobMatch).filter(JobMatch.user_id == user_id).delete()
+    db.commit()
+
+    searches = db.execute(
+        select(SavedSearch).where(SavedSearch.user_id == user_id)
+    ).scalars().all()
+    jobs = db.execute(select(Job)).scalars().all()
+    created = 0
+    for search in searches:
+        for job in jobs:
+            if not _search_matches_job(search, job, user.email):
+                continue
+            db.add(
+                JobMatch(
+                    saved_search_id=search.id,
+                    user_id=user_id,
+                    job_id=job.id,
+                )
+            )
+            created += 1
     db.commit()
     return created
 

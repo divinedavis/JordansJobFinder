@@ -6,7 +6,7 @@ from .catalog import TITLE_LABELS
 from .db import get_db
 from .ingest import normalized_shared_jobs
 from .matching import choose_cities, match_job_for_user
-from .models import Job, JobMatch, TailoredResume
+from .models import BaseResume, Job, JobMatch, TailoredResume
 
 
 CITY_LABELS = {
@@ -77,6 +77,11 @@ def load_db_matches(saved_search) -> list[dict]:
             select(TailoredResume.job_id).where(TailoredResume.user_id == saved_search.user_id)
         ).all()
     )
+    # If the user has a base resume, every match can be tailored — the PDF is
+    # generated on first download if it wasn't pre-built by the nightly sync.
+    has_base_resume = db.scalar(
+        select(BaseResume.id).where(BaseResume.user_id == saved_search.user_id)
+    ) is not None
 
     matches = []
     for job_match, job in rows:
@@ -91,7 +96,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "posted_label": _posted_display(job.posted_label, job.found_at),
                 "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
                 "matched_at": job_match.matched_at,
-                "has_tailored_resume": job.id in tailored_job_ids,
+                "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,
             }
         )
     return matches

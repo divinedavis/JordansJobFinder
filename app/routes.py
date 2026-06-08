@@ -185,6 +185,13 @@ def sign_in():
             is_paid_city_override=False,
         ))
         db.commit()
+        # Build this user's matches now so they land on the same populated board
+        # as everyone else, instead of an empty preview until the next 6 AM sync.
+        try:
+            from .sync import rebuild_matches_for_user
+            rebuild_matches_for_user(user.id)
+        except Exception:
+            logger.exception("Failed to build initial matches for user_id=%d", user.id)
         session.clear()
         session["user_id"] = user.id
         session.permanent = True
@@ -556,7 +563,7 @@ def resume_upload():
     # Invalidate any tailored resumes — they were built off the old base.
     db.query(TailoredResume).filter(TailoredResume.user_id == user.id).delete()
     db.commit()
-    flash("Resume uploaded. Tailored versions will be generated on the next daily sync.", "success")
+    flash("Resume uploaded. Tailored versions are generated when you download them.", "success")
     return redirect(url_for("web.resume_page"))
 
 
@@ -587,6 +594,7 @@ def resume_download_tailored(job_id: int):
     if not user:
         return redirect(url_for("web.sign_in"))
     db = get_db()
+    user = db.get(User, user.id)
     job = db.get(Job, job_id)
     if not job:
         abort(404)
@@ -595,7 +603,29 @@ def resume_download_tailored(job_id: int):
         TailoredResume.job_id == job_id,
     ).one_or_none()
     if not tailored or not tailored.pdf_path or not os.path.exists(tailored.pdf_path):
-        abort(404)
+        # Not pre-built by the nightly sync — generate it on demand so a user who
+        # just signed up / uploaded a resume still gets a tailored PDF instantly.
+        base = user.base_resume if user else None
+        if not base:
+            abort(404)
+        from .resumes import generate_tailored_resume
+        try:
+            pdf_path = generate_tailored_resume(
+                user=user, job=job, base_resume=base, allow_fallback=True
+            )
+        except Exception:
+            logger.exception("On-demand tailoring failed user=%s job=%s", user.id, job_id)
+            abort(404)
+        if not pdf_path:
+            abort(404)
+        if tailored:
+            tailored.pdf_path = pdf_path
+        else:
+            tailored = TailoredResume(
+                user_id=user.id, job_id=job_id, content_text="", pdf_path=pdf_path
+            )
+            db.add(tailored)
+        db.commit()
     parts = []
     for value in (job.company, job.title):
         cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value or "").strip("-._")

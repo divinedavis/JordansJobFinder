@@ -392,6 +392,98 @@ def test_tailor_resume_structured_tolerates_leading_prose(app, monkeypatch):
     assert result["name"] == "DIVINE DAVIS"
 
 
+def _seed_match_for_signed_in_user(db_session, with_base_resume=True):
+    """Give the signed-in test user a base resume + one PM JobMatch."""
+    from app.models import BaseResume, Job, JobMatch, SavedSearch, User
+
+    user = db_session.query(User).first()
+    if with_base_resume:
+        db_session.add(BaseResume(
+            user_id=user.id, filename="resume.docx", file_path="/tmp/resume.docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            extracted_text="Jordan Doe — Senior Product Manager",
+        ))
+    job = Job(
+        source="test", company="Acme", title="Senior Product Manager",
+        normalized_title="senior product manager",
+        url="https://example.com/jobs/ondemand", city="nyc", location="New York, NY",
+        description="We need a product manager with 8 years of experience.",
+        vertical="pm", is_technical=True,
+    )
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(job)
+    saved = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
+    ).one()
+    db_session.add(JobMatch(saved_search_id=saved.id, user_id=user.id, job_id=job.id))
+    db_session.commit()
+    # Return primitive ids — the ORM objects detach once a request closes the
+    # session, so callers that assert after a request must use ids.
+    return user.id, job.id
+
+
+def test_dashboard_shows_tailored_button_when_user_has_base_resume(signed_in_client, db_session):
+    """The button must appear for every match once a base resume exists, even
+    before the nightly sync has pre-built any tailored PDFs."""
+    _seed_match_for_signed_in_user(db_session, with_base_resume=True)
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "Tailored Resume" in body
+
+
+def test_dashboard_hides_tailored_button_without_base_resume(signed_in_client, db_session):
+    """No base resume → no tailored button (nothing to tailor from)."""
+    _seed_match_for_signed_in_user(db_session, with_base_resume=False)
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "Tailored Resume" not in body
+
+
+def test_tailored_download_generates_on_demand(signed_in_client, db_session, monkeypatch, tmp_path):
+    """Clicking the button generates + serves a tailored PDF on demand (and
+    persists the row) when the nightly sync hasn't pre-built it."""
+    from app.models import TailoredResume
+
+    user_id, job_id = _seed_match_for_signed_in_user(db_session, with_base_resume=True)
+
+    class _Block:
+        type = "text"
+        text = json.dumps(SAMPLE_STRUCTURED)
+
+    class _Message:
+        content = [_Block()]
+
+    class _Messages:
+        def create(self, **kw):
+            return _Message()
+
+    class _Client:
+        def __init__(self, api_key):
+            self.messages = _Messages()
+
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+
+    app = signed_in_client.application
+    app.config["ANTHROPIC_API_KEY"] = "sk-test"
+    app.config["RESUME_TAILORED_DIR"] = str(tmp_path / "tailored")
+
+    response = signed_in_client.get(f"/resume/tailored/{job_id}")
+    assert response.status_code == 200
+    assert response.data[:4] == b"%PDF"
+
+    row = db_session.query(TailoredResume).filter(
+        TailoredResume.user_id == user_id, TailoredResume.job_id == job_id
+    ).one()
+    assert os.path.exists(row.pdf_path)
+
+
+def test_tailored_download_404_without_base_resume(signed_in_client, db_session):
+    """No base resume and no pre-built PDF → 404, not a 500."""
+    _user_id, job_id = _seed_match_for_signed_in_user(db_session, with_base_resume=False)
+    response = signed_in_client.get(f"/resume/tailored/{job_id}")
+    assert response.status_code == 404
+
+
 def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
     """Malformed AI output → None (no crash, no broken PDF)."""
     from app import resumes as resumes_module
