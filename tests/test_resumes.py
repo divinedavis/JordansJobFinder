@@ -484,6 +484,41 @@ def test_tailored_download_404_without_base_resume(signed_in_client, db_session)
     assert response.status_code == 404
 
 
+def test_experience_and_competency_tables_are_left_aligned(app):
+    """Regression: the company/date and competency tables must pin to the left
+    (hAlign LEFT). A Table flowable defaults to CENTER, and since these tables
+    are narrower than the content frame, that nudged the company name right of
+    the job title + bullets rendered below it."""
+    from reportlab.platypus import KeepTogether, Table
+    from app.resumes import _competencies_block, _experience_block, _styles
+
+    with app.app_context():
+        styles = _styles()
+        data = {
+            "experience": [{
+                "company": "JPMorgan Chase & Co.", "dates": "2022 – Present",
+                "title": "Vice President", "bullets": ["Did things."],
+            }],
+            "competencies": [{"label": "Strategy", "items": "Roadmaps, OKRs"}],
+        }
+        exp = _experience_block(data, styles)
+        comp = _competencies_block(data, styles)
+
+    def _tables(flowables):
+        found = []
+        for f in flowables:
+            if isinstance(f, Table):
+                found.append(f)
+            elif isinstance(f, KeepTogether):
+                found.extend(_tables(getattr(f, "_content", []) or []))
+        return found
+
+    tables = _tables(exp) + _tables(comp)
+    assert tables, "expected at least one table flowable"
+    for t in tables:
+        assert t.hAlign == "LEFT"
+
+
 def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
     """Malformed AI output → None (no crash, no broken PDF)."""
     from app import resumes as resumes_module

@@ -359,6 +359,10 @@ def _experience_block(data: dict, styles) -> list:
         row = Table(
             [[Paragraph(company, styles["company"]), Paragraph(dates, styles["dates"])]],
             colWidths=[4.2 * inch, 2.8 * inch],
+            # Pin to the left edge: the columns sum to less than the frame width,
+            # and a Table flowable otherwise centers itself, nudging the company
+            # name right of the job title / bullets below it.
+            hAlign="LEFT",
             style=TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -396,6 +400,7 @@ def _competencies_block(data: dict, styles) -> list:
         blocks.append(Table(
             rows,
             colWidths=[1.9 * inch, 5.1 * inch],
+            hAlign="LEFT",  # left-pin to align with section heading + other rows
             style=TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
