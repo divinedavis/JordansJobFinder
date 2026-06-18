@@ -407,6 +407,19 @@ GREENHOUSE_COMPANIES = [
     # Finance · NYC (new)
     ("Robinhood",     "robinhood",     "nyc"),
     ("Lone Pine Cap", "lonepinecapital","nyc"),
+    # ── Hedge funds / quant · NYC (probed live from droplet 2026-06-18) ────────
+    ("ExodusPoint",        "exoduspoint",                "nyc"),
+    ("Marshall Wace",      "marshallwace",               "nyc"),
+    ("Schonfeld",          "schonfeld",                  "nyc"),
+    ("IMC Trading",        "imc",                        "nyc"),
+    ("Tower Research",     "towerresearchcapital",       "nyc"),
+    ("PDT Partners",       "pdtpartners",                "nyc"),
+    ("WorldQuant",         "worldquant",                 "nyc"),
+    ("Magnetar Capital",   "magnetar",                   "nyc"),
+    ("Capstone",           "capstoneinvestmentadvisors", "nyc"),
+    ("Man Group",          "mangroup",                   "nyc"),
+    ("Five Rings",         "fiveringsllc",               "nyc"),
+    ("Squarepoint",        "squarepointcapital",         "nyc"),
     # Tech · NYC (new)
     ("Stripe",        "stripe",        "nyc"),
     ("Adyen",         "adyen",         "nyc"),
