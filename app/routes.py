@@ -21,7 +21,8 @@ from flask import send_file
 from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, SALES_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
 from .matching import choose_cities, city_from_slug, is_superuser_email
-from .models import BaseResume, Job, SavedSearch, Subscription, TailoredResume, User
+from .models import BaseResume, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
+from .models import utc_now
 from .resumes import (
     ResumeError,
     detect_kind,
@@ -625,6 +626,19 @@ def resume_download_tailored(job_id: int):
                 user_id=user.id, job_id=job_id, content_text="", pdf_path=pdf_path
             )
             db.add(tailored)
+        db.commit()
+    # Clicking "Tailored Resume" counts as applying — stamp every match row for
+    # this user+job so the dashboard shows the green "Applied" badge. Idempotent:
+    # only the first click sets the timestamp.
+    applied_marked = False
+    for jm in db.query(JobMatch).filter(
+        JobMatch.user_id == user.id,
+        JobMatch.job_id == job_id,
+    ).all():
+        if jm.applied_at is None:
+            jm.applied_at = utc_now()
+            applied_marked = True
+    if applied_marked:
         db.commit()
     parts = []
     for value in (job.company, job.title):

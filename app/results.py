@@ -97,6 +97,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
                 "matched_at": job_match.matched_at,
                 "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,
+                "applied": job_match.applied_at is not None,
             }
         )
     return matches

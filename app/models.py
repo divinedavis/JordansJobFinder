@@ -153,6 +153,9 @@ class JobMatch(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"))
     matched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    # Set when the user clicks "Tailored Resume" for this match — drives the
+    # green "Applied" badge on the dashboard. NULL means not yet applied.
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
 
     saved_search: Mapped["SavedSearch"] = relationship(back_populates="matches")
     job: Mapped["Job"] = relationship(back_populates="matches")

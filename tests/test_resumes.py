@@ -575,3 +575,54 @@ def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
             job_description="Looking for a PM.",
         )
     assert result is None
+
+
+def test_clicking_tailored_resume_marks_match_applied(signed_in_client, db_session, app, tmp_path):
+    """Downloading the tailored resume stamps applied_at on the user's JobMatch
+    (drives the green 'Applied' badge) and load_db_matches exposes it."""
+    from app.models import BaseResume, Job, JobMatch, SavedSearch, User
+    from app.results import load_db_matches
+
+    user = db_session.query(User).first()
+    db_session.add(BaseResume(
+        user_id=user.id, filename="resume.docx", file_path="/tmp/resume.docx",
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        extracted_text="Jordan Doe — Senior Product Manager. Experience: led platform teams.",
+    ))
+    job = Job(
+        source="test", company="Acme", title="Senior Product Manager",
+        normalized_title="senior product manager",
+        url="https://example.com/jobs/applied-1", city="nyc", location="New York, NY",
+        description="Looking for a senior PM.", is_technical=True,
+    )
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.refresh(job)
+    saved = db_session.query(SavedSearch).filter(SavedSearch.user_id == user.id).first()
+    assert saved is not None, "signed-up user should have an auto-seeded saved search"
+    db_session.add(JobMatch(saved_search_id=saved.id, user_id=user.id, job_id=job.id))
+    db_session.commit()
+    job_id, user_id = job.id, user.id
+
+    app.config["ANTHROPIC_API_KEY"] = ""
+    app.config["RESUME_TAILORED_DIR"] = str(tmp_path / "tailored")
+
+    # Before the click: not applied.
+    with app.app_context():
+        before = [m for m in load_db_matches(saved) if m["id"] == job_id]
+        assert before and before[0]["applied"] is False
+
+    resp = signed_in_client.get(f"/resume/tailored/{job_id}")
+    assert resp.status_code == 200
+
+    with app.app_context():
+        from app.db import get_db
+        fresh = get_db()
+        jm = fresh.query(JobMatch).filter(
+            JobMatch.user_id == user_id, JobMatch.job_id == job_id
+        ).first()
+        assert jm.applied_at is not None
+        saved = fresh.query(SavedSearch).filter(SavedSearch.user_id == user_id).first()
+        after = [m for m in load_db_matches(saved) if m["id"] == job_id]
+        assert after and after[0]["applied"] is True
