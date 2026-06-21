@@ -2,7 +2,7 @@
 """
 Jordan's Job Finder — Expanded Multi-Company Scraper
 -----------------------------------------------------
-Cities   : NYC (VP only) | Atlanta | Miami | Dallas | Houston | DC (VP or Senior)
+Cities   : NYC (VP only) | Atlanta | Miami | Dallas | Houston | DC | LA (VP or Senior)
 Finance  : Top 500 finance + hedge funds with NYC / Atlanta / Miami presence
 Tech     : Top 100 tech companies with NYC / Atlanta / Miami offices
 Output   : /var/www/jordansjobfinder/jobs.html
@@ -61,6 +61,16 @@ DC_LOCS      = ["washington", "d.c.", "dc", "arlington, va",
                 "mclean", "tysons", "reston", "bethesda",
                 "rockville", "silver spring", "fairfax",
                 "alexandria", "northern virginia", "nova"]
+# Specific LA-metro place names only (no broad ", ca"/"california" catch-all)
+# so Bay Area / San Diego roles aren't misclassified as Los Angeles.
+LA_LOCS      = ["los angeles", "l.a.", "greater los angeles", "socal",
+                "santa monica", "culver city", "long beach", "pasadena",
+                "burbank", "glendale", "el segundo", "marina del rey",
+                "playa vista", "venice, ca", "west hollywood", "hawthorne",
+                "gardena", "sherman oaks", "westwood", "century city",
+                "torrance", "manhattan beach", "redondo beach", "inglewood",
+                "van nuys", "studio city", "north hollywood", "woodland hills",
+                "santa clarita", "calabasas", "beverly hills", "ventura"]
 
 CITY_LABELS = {
     "nyc": "New York, NY",
@@ -69,6 +79,7 @@ CITY_LABELS = {
     "dallas": "Dallas, TX",
     "houston": "Houston, TX",
     "dc": "Washington, DC",
+    "la": "Los Angeles, CA",
 }
 
 CITY_SEARCH = {
@@ -78,6 +89,7 @@ CITY_SEARCH = {
     "dallas": "Dallas",
     "houston": "Houston",
     "dc": "Washington",
+    "la": "Los Angeles",
 }
 
 AMAZON_LOCATIONS = {
@@ -87,12 +99,13 @@ AMAZON_LOCATIONS = {
     "dallas": "Dallas,Texas,United States",
     "houston": "Houston,Texas,United States",
     "dc": "Washington,District of Columbia,United States",
+    "la": "Los Angeles,California,United States",
 }
 
 MIN_SALARY   = 180_000
 # Salary minimum is enforced for NYC only — every other city is salary-optional
 # (many postings outside NYC list no salary, and most non-NYC states don't mandate it).
-SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc"}
+SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc", "la"}
 VALID_POST_DAYS = 2
 TECH_THRESHOLD  = 3
 TECH_SIGNALS = [
@@ -504,6 +517,30 @@ GREENHOUSE_COMPANIES = [
     ("Waymo DAL",        "waymo",          "dallas"),
     ("Waymo HOU",        "waymo",          "houston"),
     ("Waymo DC",         "waymo",          "dc"),
+
+    # ── Top companies HQ'd in Los Angeles metro (probed live 2026-06-21) ───────
+    ("SpaceX",               "spacex",            "la"),  # Hawthorne
+    ("Riot Games",           "riotgames",         "la"),  # West LA
+    ("Relativity Space",     "relativity",        "la"),  # Long Beach
+    ("The Trade Desk",       "thetradedesk",      "la"),  # Ventura
+    ("Scopely",              "scopely",           "la"),  # Culver City
+    ("ZipRecruiter",         "ziprecruiter",      "la"),  # Santa Monica
+    ("Crunchyroll",          "crunchyroll",       "la"),  # Culver City
+    ("Sweetgreen",           "sweetgreen",        "la"),  # Culver City
+    ("Faraday Future",       "faradayfuture",     "la"),  # Gardena
+    ("Bird",                 "bird",              "la"),  # Santa Monica
+    ("GOAT Group",           "goatgroup",         "la"),  # Culver City
+    ("Boulevard",            "boulevard",         "la"),  # Los Angeles
+    ("Tebra",                "tebra",             "la"),  # Santa Monica
+    ("Thrive Market",        "thrivemarket",      "la"),  # Marina del Rey
+    ("GumGum",               "gumgum",            "la"),  # Santa Monica
+    ("Dr Squatch",           "drsquatch",         "la"),  # Marina del Rey
+    ("Boingo Wireless",      "boingo",            "la"),  # Westwood, LA
+    ("Cornerstone OnDemand", "cornerstone",       "la"),  # Santa Monica
+    ("Liquid Death",         "liquiddeath",       "la"),  # Los Angeles
+    ("Dollar Shave Club",    "dollarshaveclub",   "la"),  # Marina del Rey
+    ("Mythical Games",       "mythicalgames",     "la"),  # Sherman Oaks
+    ("The Honest Company",   "thehonestcompany",  "la"),  # Playa Vista
 ]
 
 # (name, lever_token, city)
@@ -511,6 +548,11 @@ LEVER_COMPANIES = [
     ("Palantir",       "palantir",       "nyc"),
     ("Palantir MIA",   "palantir",       "miami"),
     ("Veeva Systems",  "veeva",          "nyc"),
+
+    # ── Los Angeles metro (Lever, probed live 2026-06-21) ──────────────────────
+    ("OpenX",            "openx",          "la"),  # Pasadena
+    ("Tala",             "tala",           "la"),  # Santa Monica
+    ("System1",          "system1",        "la"),  # Marina del Rey
 
     ("Palantir DAL",     "palantir",       "dallas"),
     ("Palantir HOU",     "palantir",       "houston"),
@@ -625,6 +667,11 @@ def is_dc(text):
     return any(loc in t for loc in DC_LOCS)
 
 
+def is_la(text):
+    t = text.lower()
+    return any(loc in t for loc in LA_LOCS)
+
+
 def location_ok(text, city):
     if city == "nyc":
         return is_nyc(text)
@@ -638,6 +685,8 @@ def location_ok(text, city):
         return is_houston(text)
     if city == "dc":
         return is_dc(text)
+    if city == "la":
+        return is_la(text)
     return False
 
 

@@ -16,6 +16,7 @@ CITY_LABELS = {
     "dallas": "Dallas, TX",
     "houston": "Houston, TX",
     "dc": "Washington, DC",
+    "la": "Los Angeles, CA",
     "york-pa": "York, PA",
     "lancaster-pa": "Lancaster, PA",
     "philadelphia-pa": "Philadelphia, PA",
