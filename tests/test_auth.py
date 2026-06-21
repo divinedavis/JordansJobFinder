@@ -99,8 +99,8 @@ def test_login_with_wrong_password_fails(client):
     assert "/login" in response.headers["Location"]
 
 
-def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
-    """Open access: new signups land with all 6 metros pre-populated."""
+def test_signup_seeds_saved_search_with_all_seven_metros(client, db_session):
+    """Open access: new signups land with all 7 PM metros pre-populated."""
     from app.models import SavedSearch, User
 
     response = client.post(
@@ -124,6 +124,7 @@ def test_signup_seeds_saved_search_with_all_six_metros(client, db_session):
         "Dallas, TX",
         "Houston, TX",
         "Washington, DC",
+        "Los Angeles, CA",
     }
     finance_saved = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "finance"

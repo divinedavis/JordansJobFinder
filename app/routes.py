@@ -166,6 +166,7 @@ def sign_in():
                 "Dallas, TX",
                 "Houston, TX",
                 "Washington, DC",
+                "Los Angeles, CA",
             ],
             is_paid_city_override=False,
         ))
