@@ -38,6 +38,20 @@ Filter chain for each job:
 
 Outputs: jobs.html (static public board), jobs_store.json, shared_jobs.json, seen_jobs.json
 
+### Multi-metro $1B+ employer lists (GREENHOUSE_MULTI / LEVER_MULTI / WORKDAY_MULTI)
+
+A second wave of large-cap ($1B+ revenue / unicorn-scale) employers lives in
+these three lists. Unlike the per-city lists (one row per company×city), each
+multi entry is **fetched once** and the metro is inferred per posting via
+`infer_pm_city()` across all 7 supported cities. This avoids re-fetching the
+same board once per city. `infer_pm_city` checks metros in a deliberate order —
+Dallas LAST — because `DALLAS_LOCS` carries broad Texas catch-alls (", tx",
+"texas") and a bare "arlington" that would otherwise swallow Houston / DC. Every
+endpoint was auto-discovered + verified HTTP 200 from the droplet IP (Workday
+version+site brute-probed; Greenhouse/Lever token). The same verified set is
+appended to the finance + sales vertical lists (which already infer city). See
+`tests/test_scraper_multi.py` for the inference + list-integrity guards.
+
 ## Finance + Sales Verticals (scraper_finance.py, scraper_sales.py)
 
 Two sibling scrapers surface **entry-level finance** and **entry-level sales**

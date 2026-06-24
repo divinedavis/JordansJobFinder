@@ -566,6 +566,146 @@ EIGHTFOLD_COMPANIES = [
     ("American Express MIA", "aexp", "https://aexp.eightfold.ai/careers/job", "miami"),
 ]
 
+# ── $1B+ revenue / unicorn-scale employers (multi-metro) ──────────────────────
+# These boards are fetched ONCE each and the metro is inferred per-posting across
+# all supported cities (infer_pm_city), instead of one row per company×city. Every
+# endpoint below returned HTTP 200 from the production droplet IP on 2026-06-24
+# (auto-discovered version+site for Workday; token for Greenhouse/Lever). Tenants
+# / tokens already covered by the per-city lists above are intentionally excluded.
+
+# Greenhouse: (name, token)
+GREENHOUSE_MULTI = [
+    ("10x Genomics", "10xgenomics"),
+    ("2U", "2u"),
+    ("Amplitude", "amplitude"),
+    ("Anthropic", "anthropic"),
+    ("Asana", "asana"),
+    ("Astranis", "astranis"),
+    ("Attentive", "attentive"),
+    ("Aurora", "aurorainnovation"),
+    ("Bill.com", "billcom"),
+    ("Branch", "branchmetrics"),
+    ("Braze", "braze"),
+    ("C3.ai", "c3iot"),
+    ("Calendly", "calendly"),
+    ("Calm", "calm"),
+    ("Carta", "carta"),
+    ("Carvana", "carvana"),
+    ("Celonis", "celonis"),
+    ("Checkr", "checkr"),
+    ("ClassPass", "classpass"),
+    ("ClickHouse", "clickhouse"),
+    ("Cockroach Labs", "cockroachlabs"),
+    ("Compass", "urbancompass"),
+    ("Coupang", "coupang"),
+    ("Coursera", "coursera"),
+    ("Culture Amp", "cultureamp"),
+    ("DoubleVerify", "doubleverify"),
+    ("Duolingo", "duolingo"),
+    ("Faire", "faire"),
+    ("FanDuel", "fanduel"),
+    ("Fivetran", "fivetran"),
+    ("Flatiron Health", "flatironhealth"),
+    ("Ginkgo Bioworks", "ginkgobioworks"),
+    ("Glossier", "glossier"),
+    ("Grafana Labs", "grafanalabs"),
+    ("Greenhouse Software", "greenhouse"),
+    ("Guild", "guild"),
+    ("Gusto", "gusto"),
+    ("Imply", "imply"),
+    ("Iterable", "iterable"),
+    ("JFrog", "jfrog"),
+    ("Klaviyo", "klaviyo"),
+    ("Komodo Health", "komodohealth"),
+    ("Lattice", "lattice"),
+    ("Lucid Motors", "lucidmotors"),
+    ("Mixpanel", "mixpanel"),
+    ("Natera", "natera"),
+    ("New Relic", "newrelic"),
+    ("Nubank", "nubank"),
+    ("Nuro", "nuro"),
+    ("Oura", "oura"),
+    ("PagerDuty", "pagerduty"),
+    ("Planet Labs", "planetlabs"),
+    ("Postman", "postman"),
+    ("Recursion", "recursionpharmaceuticals"),
+    ("Scale AI", "scaleai"),
+    ("SeatGeek", "seatgeek"),
+    ("Sigma Computing", "sigmacomputing"),
+    ("Smartsheet", "smartsheet"),
+    ("Sumo Logic", "sumologic"),
+    ("Temporal", "temporaltechnologies"),
+    ("Udemy", "udemy"),
+    ("Unity Technologies", "unity3d"),
+    ("Upstart", "upstart"),
+    ("Vercel", "vercel"),
+    ("Via", "via"),
+    ("Wayve", "wayve"),
+    ("Webflow", "webflow"),
+]
+
+# Lever: (name, token)
+LEVER_MULTI = [
+    ("Alloy", "alloy"),
+    ("Ro", "ro"),
+    ("Spotify", "spotify"),
+]
+
+# Workday: (name, tenant, ver, site)
+WORKDAY_MULTI = [
+    ("Academy Sports", "academy", 1, "Careers"),
+    ("Amgen", "amgen", 1, "Careers"),
+    ("Analog Devices", "analogdevices", 1, "External"),
+    ("Applied Materials", "amat", 1, "External"),
+    ("Aptiv", "aptiv", 5, "Aptiv_Careers"),
+    ("Avnet", "avnet", 1, "External"),
+    ("BorgWarner", "borgwarner", 5, "Borgwarner_Careers"),
+    ("Burlington", "burlington", 5, "BurlingtonCareers"),
+    ("CNA Financial", "cna", 1, "Cna_Careers"),
+    ("Centene", "centene", 5, "Centene_External"),
+    ("Chewy", "chewy", 5, "External"),
+    ("Chipotle", "chipotle", 5, "ChipotleCareers"),
+    ("Choice Hotels", "choicehotels", 5, "External"),
+    ("Devon Energy", "devonenergy", 5, "Careers"),
+    ("Diageo", "diageo", 3, "Diageo_Careers"),
+    ("Ecolab", "ecolab", 1, "Ecolab_External"),
+    ("Edwards Lifesciences", "edwards", 5, "EdwardsCareers"),
+    ("Everest", "everestre", 5, "External"),
+    ("Expedia", "expediagroup", 5, "careers"),
+    ("Flex", "flextronics", 1, "Careers"),
+    ("Gilead", "gilead", 1, "GileadCareers"),
+    ("Goodyear", "goodyear", 1, "GoodyearCareers"),
+    ("Illinois Tool Works", "itw", 5, "External"),
+    ("Jabil", "jabil", 5, "Jabil_Careers"),
+    ("LPL Financial", "lplfinancial", 1, "External"),
+    ("Labcorp", "labcorp", 1, "External"),
+    ("Las Vegas Sands", "sands", 1, "Sands_Careers"),
+    ("Marathon Petroleum", "mpc", 1, "MpcCareers"),
+    ("Mars", "mars", 3, "External"),
+    ("Marvell", "marvell", 1, "MarvellCareers"),
+    ("Medtronic", "medtronic", 1, "MedtronicCareers"),
+    ("Micron", "micron", 1, "External"),
+    ("Motorola Solutions", "motorolasolutions", 5, "Careers"),
+    ("NXP", "nxp", 3, "Careers"),
+    ("Old Dominion", "odfl", 1, "Odfl_Careers"),
+    ("PPG", "ppg", 5, "Ppg_Careers"),
+    ("Qualcomm", "qualcomm", 12, "External"),
+    ("Qualys", "qualys", 5, "Careers"),
+    ("Raymond James", "raymondjames", 1, "RaymondjamesCareers"),
+    ("Regeneron", "regeneron", 1, "Careers"),
+    ("RingCentral", "ringcentral", 1, "Ringcentral_Careers"),
+    ("Stryker", "stryker", 1, "StrykerCareers"),
+    ("TJX", "tjx", 1, "Tjx_External"),
+    ("Tapestry", "tapestry", 108, "Tapestry_Careers"),
+    ("Thermo Fisher", "thermofisher", 5, "ThermofisherCareers"),
+    ("Trimble", "trimble", 1, "TrimbleCareers"),
+    ("Unisys", "unisys", 5, "External"),
+    ("Unum", "unum", 1, "External"),
+    ("Walmart", "walmart", 5, "External"),
+    ("Williams", "williams", 5, "External"),
+    ("Xcel Energy", "xcelenergy", 1, "External"),
+]
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def log(msg):
@@ -688,6 +828,21 @@ def location_ok(text, city):
     if city == "la":
         return is_la(text)
     return False
+
+
+# Metros covered by the multi-metro ($1B+) scrapers; first match wins, so the
+# order matters: the specific-named metros are checked BEFORE Dallas, whose
+# pattern list intentionally includes broad Texas catch-alls (", tx", "texas")
+# for per-city use. Without this ordering "Houston, TX" would match Dallas's
+# ", tx", and "Arlington, VA" would match Dallas's bare "arlington" before DC.
+PM_METROS = ("nyc", "miami", "atlanta", "la", "dc", "houston", "dallas")
+
+def infer_pm_city(text):
+    """Return the first supported metro whose pattern matches `text`, else None."""
+    for c in PM_METROS:
+        if location_ok(text, c):
+            return c
+    return None
 
 
 def is_recent_rfc(pub_date_str):
@@ -1211,6 +1366,141 @@ def scrape_lever_company(name, token, city):
     return candidates
 
 
+# ── Multi-metro variants ($1B+ employers) ──────────────────────────────────────
+# Fetch each board once; infer the metro per posting across every supported city
+# (infer_pm_city) rather than re-fetching once per city. Used for GREENHOUSE_MULTI
+# / LEVER_MULTI / WORKDAY_MULTI.
+
+def scrape_greenhouse_multi(name, token):
+    url = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        if resp.status_code != 200:
+            log(f"    [{name}] Greenhouse {resp.status_code}")
+            return []
+        jobs = resp.json().get("jobs", [])
+    except Exception as e:
+        log(f"    [{name}] Error: {e}")
+        return []
+
+    candidates = []
+    for job in jobs:
+        title    = job.get("title", "")
+        location = job.get("location", {}).get("name", "")
+        job_url  = job.get("absolute_url", "")
+        updated  = job.get("updated_at", "")[:10]
+        content  = BeautifulSoup(job.get("content", ""), "html.parser").get_text(" ")
+
+        if not is_target_role(title):
+            continue
+        city = infer_pm_city(location or content[:600])
+        if not city or not level_ok(title, city):
+            continue
+        if updated and not is_recent_iso(updated):
+            continue
+
+        candidates.append(make_job(
+            title=title, url=job_url, company=name, city=city,
+            posted=updated, location=location, source="greenhouse"
+        ))
+
+    return candidates
+
+
+def scrape_lever_multi(name, token):
+    url = f"https://api.lever.co/v0/postings/{token}?mode=json"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        if resp.status_code != 200:
+            log(f"    [{name}] Lever {resp.status_code}")
+            return []
+        postings = resp.json()
+    except Exception as e:
+        log(f"    [{name}] Error: {e}")
+        return []
+
+    candidates = []
+    for job in postings:
+        title     = job.get("text", "")
+        location  = job.get("categories", {}).get("location", "")
+        job_url   = job.get("hostedUrl", "")
+        created   = job.get("createdAt", 0)
+        desc_text = job.get("descriptionPlain", "") or ""
+
+        if not is_target_role(title):
+            continue
+        city = infer_pm_city(location or desc_text[:600])
+        if not city or not level_ok(title, city):
+            continue
+        try:
+            post_dt = datetime.fromtimestamp(created / 1000, tz=timezone.utc)
+            cutoff  = datetime.now(timezone.utc) - timedelta(days=VALID_POST_DAYS)
+            if post_dt < cutoff:
+                continue
+        except Exception:
+            pass
+
+        posted = datetime.fromtimestamp(created / 1000, tz=timezone.utc).strftime("%Y-%m-%d") if created else ""
+        candidates.append(make_job(
+            title=title, url=job_url, company=name, city=city,
+            posted=posted, location=location, source="lever"
+        ))
+
+    return candidates
+
+
+def scrape_workday_multi(name, tenant, wd_ver, site):
+    api = (f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com"
+           f"/wday/cxs/{tenant}/{site}/jobs")
+    candidates = []
+
+    for term in ["product manager", "program manager"]:
+        offset = 0
+        while True:
+            try:
+                resp = requests.post(api,
+                    json={"appliedFacets": {}, "limit": 20,
+                          "offset": offset, "searchText": term},
+                    headers={"Content-Type": "application/json",
+                             "User-Agent": HEADERS["User-Agent"]},
+                    timeout=15)
+                if resp.status_code != 200:
+                    break
+                data = resp.json()
+            except Exception as e:
+                log(f"    [{name}] Error: {e}")
+                break
+
+            postings = data.get("jobPostings", [])
+            total    = data.get("total", 0)
+
+            for job in postings:
+                title    = job.get("title", "")
+                ext_path = job.get("externalPath", "")
+                location = job.get("locationsText", "")
+                posted   = job.get("postedOn", "")
+
+                if not is_target_role(title):
+                    continue
+                city = infer_pm_city(location or title)
+                if not city or not level_ok(title, city):
+                    continue
+
+                url = (f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com"
+                       f"/en-US/{site}{ext_path}")
+                candidates.append(make_job(
+                    title=title, url=url, company=name, city=city,
+                    posted=posted, location=location, source="workday"
+                ))
+
+            offset += 20
+            if offset >= total or not postings:
+                break
+            time.sleep(0.5)
+
+    return candidates
+
+
 # ── Generic Eightfold API ──────────────────────────────────────────────────────
 
 def scrape_eightfold_company(name, domain, base_url, city):
@@ -1666,6 +1956,25 @@ def main():
     for name, domain, base_url, city in EIGHTFOLD_COMPANIES:
         log(f"  [{name}] Eightfold...")
         result = scrape_eightfold_company(name, domain, base_url, city)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
+    # ── $1B+ multi-metro employers (one fetch each, metro inferred per posting) ──
+    for name, token in GREENHOUSE_MULTI:
+        log(f"  [{name}] Greenhouse (multi)...")
+        result = scrape_greenhouse_multi(name, token)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
+    for name, token in LEVER_MULTI:
+        log(f"  [{name}] Lever (multi)...")
+        result = scrape_lever_multi(name, token)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
+    for name, tenant, ver, site in WORKDAY_MULTI:
+        log(f"  [{name}] Workday (multi)...")
+        result = scrape_workday_multi(name, tenant, ver, site)
         log(f"  [{name}] {len(result)} candidate(s)")
         all_candidates += result
 
