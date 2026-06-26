@@ -1,5 +1,6 @@
 from typing import Optional
 
+from corporate_filter import is_corporate_role
 from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS, TITLE_VERTICALS
 
 EXCLUDE_TITLES = ["governance"]
@@ -57,6 +58,8 @@ def title_is_entry_level_finance(title: str) -> bool:
     normalized = normalize_text(title)
     if _title_excluded(normalized):
         return False
+    if not is_corporate_role(normalized):
+        return False
     if any(neg in normalized for neg in FINANCE_SENIOR_NEGATIVE):
         return False
     finance_kws = TITLE_KEYWORDS.get("entry-finance-any", [])
@@ -70,6 +73,8 @@ def title_is_entry_level_sales(title: str) -> bool:
     """Heuristic mirror of title_is_entry_level_finance for sales roles."""
     normalized = normalize_text(title)
     if _title_excluded(normalized):
+        return False
+    if not is_corporate_role(normalized):
         return False
     if any(neg in normalized for neg in SALES_SENIOR_NEGATIVE):
         return False

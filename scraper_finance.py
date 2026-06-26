@@ -17,6 +17,7 @@ from pathlib import Path
 import requests
 
 from scraper_ats_extra import collect_extra_jobs
+from corporate_filter import is_corporate_role
 
 # Only keep jobs posted within this window.
 RECENCY_DAYS = 2
@@ -265,6 +266,8 @@ NEGATIVE_TITLE_KEYWORDS = (
 def title_is_finance_entry(title: str) -> bool:
     t = (title or "").lower().strip()
     if not t:
+        return False
+    if not is_corporate_role(t):
         return False
     if any(neg in t for neg in NEGATIVE_TITLE_KEYWORDS):
         return False

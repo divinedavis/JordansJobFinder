@@ -7,10 +7,63 @@ from app.matching import (
     is_superuser_email,
     match_job_for_user,
     salary_meets_minimum,
+    title_is_entry_level_finance,
+    title_is_entry_level_sales,
     title_matches,
     title_matches_superuser_scope,
 )
 from app.parsing import ParsedExperience, parse_experience_years
+
+
+# Real retail/store-floor/manufacturing titles that leaked into the finance and
+# sales verticals — these must be rejected so only corporate roles remain.
+NON_CORPORATE_TITLES = [
+    "Merchandise Associate",
+    "Retail Sales Associate",
+    "Sales Floor Associate",
+    "5am Stockroom Associate",
+    "Store Cleaning Associate",
+    "Loss Prevention Customer Service Associate",
+    "Xfinity Retail Service Associate - Bilingual Required",
+    "Hershey's Part-Time Territory Sales Associate (Dallas Metro)",
+    "Temporary Sales Associate",
+    "Parts Sales Associate",
+    "Production Associate",
+]
+
+# Corporate finance/sales titles that must keep matching.
+CORPORATE_FINANCE_TITLES = [
+    "Financial Analyst",
+    "Credit Analyst II",
+    "Equity Research Associate",
+    "Investment Banking Analyst",
+]
+CORPORATE_SALES_TITLES = [
+    "Sales Development Representative",
+    "Business Development Representative",
+    "Account Executive",
+    "Inside Sales Representative",
+]
+
+
+def test_finance_rejects_non_corporate_titles():
+    for title in NON_CORPORATE_TITLES:
+        assert title_is_entry_level_finance(title) is False, title
+
+
+def test_sales_rejects_non_corporate_titles():
+    for title in NON_CORPORATE_TITLES:
+        assert title_is_entry_level_sales(title) is False, title
+
+
+def test_finance_keeps_corporate_titles():
+    for title in CORPORATE_FINANCE_TITLES:
+        assert title_is_entry_level_finance(title) is True, title
+
+
+def test_sales_keeps_corporate_titles():
+    for title in CORPORATE_SALES_TITLES:
+        assert title_is_entry_level_sales(title) is True, title
 
 
 def test_is_superuser_email_open_access():
