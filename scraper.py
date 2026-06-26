@@ -629,7 +629,6 @@ GREENHOUSE_MULTI = [
     ("Planet Labs", "planetlabs"),
     ("Postman", "postman"),
     ("Recursion", "recursionpharmaceuticals"),
-    ("Scale AI", "scaleai"),
     ("SeatGeek", "seatgeek"),
     ("Sigma Computing", "sigmacomputing"),
     ("Smartsheet", "smartsheet"),

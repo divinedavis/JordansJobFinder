@@ -3,6 +3,9 @@ from typing import Optional
 from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS, TITLE_VERTICALS
 
 EXCLUDE_TITLES = ["governance"]
+# Companies the user never wants to see on the dashboard, matched
+# case-insensitively against the normalized company name.
+EXCLUDE_COMPANIES = {"scale ai"}
 # Title keywords that disqualify a finance role as entry-level
 FINANCE_SENIOR_NEGATIVE = (
     "senior", "principal", "lead", "staff vp", "vp ", " vp",
@@ -27,6 +30,10 @@ def normalize_text(value: str) -> str:
 
 def _title_excluded(normalized: str) -> bool:
     return any(term in normalized for term in EXCLUDE_TITLES)
+
+
+def company_excluded(company: str) -> bool:
+    return normalize_text(company) in EXCLUDE_COMPANIES
 
 
 def title_matches(title: str, selected_slug: str) -> bool:

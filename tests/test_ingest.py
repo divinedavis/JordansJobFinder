@@ -53,6 +53,23 @@ def test_normalize_leaves_posted_at_none_when_label_unparseable():
     assert out["posted_at"] is None
 
 
+def test_blocked_company_is_dropped_from_ingest(monkeypatch):
+    """Regression: jobs from a blocklisted company (e.g. Scale AI) must never
+    reach the dashboard, regardless of which scraper feed surfaced them."""
+    from app import ingest
+
+    monkeypatch.setattr(ingest, "load_shared_jobs", lambda: [
+        {"company": "Scale AI", "title": "Product Manager", "url": "https://x/1"},
+        {"company": "scale ai", "title": "Program Manager", "url": "https://x/2"},
+        {"company": "Postman", "title": "Product Manager", "url": "https://x/3"},
+    ])
+    monkeypatch.setattr(ingest, "load_finance_jobs", lambda: [])
+    monkeypatch.setattr(ingest, "load_sales_jobs", lambda: [])
+
+    companies = {job["company"] for job in ingest.normalized_shared_jobs()}
+    assert companies == {"Postman"}
+
+
 def test_upsert_survives_duplicate_url_in_one_batch(app, monkeypatch):
     """Regression: two feed entries sharing a URL in a single batch must not
     blow up the sync. autoflush is off, so the second entry can't see the

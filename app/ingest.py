@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from .matching import normalize_text
+from .matching import company_excluded, normalize_text
 from .parsing import format_salary_label, parse_experience_years, parse_salary
 
 
@@ -109,7 +109,11 @@ def normalize_legacy_job(job: dict) -> dict:
 
 
 def normalized_legacy_jobs() -> list[dict]:
-    return [normalize_legacy_job(job) for job in load_legacy_jobs()]
+    return [
+        normalize_legacy_job(job)
+        for job in load_legacy_jobs()
+        if not company_excluded(job.get("company", ""))
+    ]
 
 
 def _normalize_one(job: dict, default_vertical: str) -> dict:
@@ -134,7 +138,11 @@ def normalized_shared_jobs() -> list[dict]:
     pm_jobs = [_normalize_one(j, "pm") for j in load_shared_jobs()]
     finance_jobs = [_normalize_one(j, "finance") for j in load_finance_jobs()]
     sales_jobs = [_normalize_one(j, "sales") for j in load_sales_jobs()]
-    combined = pm_jobs + finance_jobs + sales_jobs
+    combined = [
+        job
+        for job in (pm_jobs + finance_jobs + sales_jobs)
+        if not company_excluded(job.get("company", ""))
+    ]
     if combined:
         return combined
     return normalized_legacy_jobs()
