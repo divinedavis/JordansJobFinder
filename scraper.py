@@ -1134,37 +1134,6 @@ def fetch_detail(page, url):
     return salary, full_text, posted
 
 
-def fetch_google_detail(url):
-    """Fetch a careers.google.com job page via plain HTTP — Google server-renders the description."""
-    try:
-        resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=20)
-        if resp.status_code != 200:
-            return "", "", ""
-    except Exception:
-        return "", "", ""
-
-    html = resp.text
-    soup = BeautifulSoup(html, "html.parser")
-    full_text = soup.get_text(separator=" ", strip=True)
-
-    salary = ""
-    salary_sources = [full_text, html]
-    for script in soup.find_all("script", type="application/ld+json"):
-        raw = script.get_text(" ", strip=True)
-        if raw:
-            salary_sources.append(raw)
-
-    for source_text in salary_sources:
-        parsed_salary = parse_salary(source_text)
-        if not parsed_salary:
-            continue
-        salary = format_salary_label(parsed_salary)
-        break
-
-    posted = extract_posted_date(soup, full_text)
-    return salary, full_text, posted
-
-
 def fetch_workday_detail(url):
     try:
         resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=20)
@@ -1658,46 +1627,6 @@ def scrape_metlife(page):
     return candidates
 
 
-# ── Google — Playwright ───────────────────────────────────────────────────────
-
-def scrape_google(page, city="nyc"):
-    log(f"  [Google] Playwright ({city})...")
-    candidates = []
-    loc_param  = urllib.parse.quote(CITY_LABELS[city])
-    for term in ["product manager", "program manager"]:
-        url = (f"https://www.google.com/about/careers/applications/jobs/results/"
-               f"?q={urllib.parse.quote(term)}&location={loc_param}&employment_type=FULL_TIME")
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=20_000)
-            page.wait_for_timeout(5000)
-        except PWTimeout:
-            continue
-
-        soup = BeautifulSoup(page.content(), "html.parser")
-        for card in soup.select("li[class*='lLd3Je'], [jsmodel], [class*='job-result']"):
-            title_el = card.find(class_=re.compile(r"title|heading|QJPWVe", re.I)) or card.find("h3")
-            link_el  = card.find("a", href=True)
-            loc_el   = card.find(class_=re.compile(r"location|r0wTof|NiZ4Mc", re.I))
-            if not title_el:
-                continue
-            title    = title_el.get_text(strip=True)
-            location = loc_el.get_text(strip=True) if loc_el else ""
-            href     = link_el["href"] if link_el else ""
-            if href and not href.startswith("http"):
-                href = "https://careers.google.com/" + href.lstrip("/")
-            if not href or not href.startswith("http"):
-                continue
-            if not (is_target_role(title) and level_ok(title, city)):
-                continue
-            if not location_ok(location or url, city):
-                continue
-            candidates.append(make_job(title=title, url=href,
-                                       company="Google", city=city, location=location, source="playwright-google"))
-        time.sleep(2)
-    log(f"  [Google] {len(candidates)} candidate(s)")
-    return candidates
-
-
 # ── Meta — Playwright ─────────────────────────────────────────────────────────
 
 def scrape_meta(page, city="nyc"):
@@ -1994,12 +1923,6 @@ def main():
         all_candidates += scrape_jpmorgan(pw_page)
         all_candidates += scrape_goldman(pw_page)
         all_candidates += scrape_metlife(pw_page)
-        all_candidates += scrape_google(pw_page, "nyc")
-        all_candidates += scrape_google(pw_page, "atlanta")
-        all_candidates += scrape_google(pw_page, "miami")
-        all_candidates += scrape_google(pw_page, "dallas")
-        all_candidates += scrape_google(pw_page, "houston")
-        all_candidates += scrape_google(pw_page, "dc")
         all_candidates += scrape_meta(pw_page, "nyc")
         all_candidates += scrape_meta(pw_page, "atlanta")
         all_candidates += scrape_meta(pw_page, "miami")
@@ -2020,7 +1943,6 @@ def main():
             log(f"  Detail: {job['company']} [{job['city'].upper()}] | {job['title'][:50]}")
 
             is_workday = "myworkdayjobs.com" in url
-            is_google = "careers.google.com" in url
             is_builtin = job.get("source") == "builtinnyc"
 
             if is_builtin:
@@ -2037,11 +1959,8 @@ def main():
                 if tech_hits < 2:
                     log(f"    ✗ Not tech-focused (builtin tile, {tech_hits} signals)")
                     continue
-            elif is_workday or is_google:
-                if is_workday:
-                    salary, description, posted = fetch_workday_detail(url)
-                else:
-                    salary, description, posted = fetch_google_detail(url)
+            elif is_workday:
+                salary, description, posted = fetch_workday_detail(url)
                 job["description"] = description
                 if salary:
                     job["salary"] = salary
