@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="theme-color" content="#f8f4ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -379,6 +380,36 @@
     .match-card button.button {
       font-size: 13px;
       padding: 7px 14px;
+    }
+    .applied-toggle {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      line-height: 1;
+      border: 1px solid #d9d2c4;
+      color: #6b6453;
+      background: transparent;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .applied-toggle:hover {
+      border-color: #b9b1a0;
+    }
+    .applied-toggle .applied-check {
+      font-weight: 800;
+      display: none;
+    }
+    .applied-toggle.is-applied {
+      border-color: #b6e6c9;
+      color: #0a7f3f;
+      background: #e7f7ee;
+    }
+    .applied-toggle.is-applied .applied-check {
+      display: inline;
     }
     @media (max-width: 780px) {
       body {
