@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Applied | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">History</span>
+    <h1>Jobs you've applied to.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      Every role you downloaded a tailored resume for is kept here for a year so
+      you can see which jobs and companies you've already applied to.
+    </p>
+  </section>
+
+  {% if applications %}
+    <section class="panel">
+      <div class="match-header">
+        <div>
+          <p class="match-kicker">Total applications</p>
+          <h3 class="match-title">By company</h3>
+        </div>
+        <strong class="match-count">{{ total }}</strong>
+      </div>
+      <div class="list" style="margin-top: 12px;">
+        {% for c in company_summary %}
+          <div class="list-item">
+            <strong>{{ c.company }}</strong>
+            <span class="muted">
+              {{ c.count }} application{{ '' if c.count == 1 else 's' }}
+              · last {{ c.last.strftime('%b %-d, %Y') }}
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>All applications</h2>
+      <div class="match-cards">
+        {% for a in applications %}
+          <article class="match-card">
+            <div class="match-card-top">
+              <span class="match-company">
+                {{ a.company }}{% if a.city %}<span class="match-city">{{ a.city }}</span>{% endif %}
+              </span>
+              <span class="match-posted">Applied {{ a.applied_at.strftime('%b %-d, %Y') }}</span>
+            </div>
+            <div class="match-role">{{ a.title }}</div>
+            {% if a.salary_label and a.salary_label != 'See posting' %}
+              <div class="match-meta"><span>{{ a.salary_label }}</span></div>
+            {% endif %}
+            <div class="button-row" style="margin-top: 10px;">
+              <a class="button secondary" href="{{ a.url if a.url.startswith('http') else '#' }}" target="_blank" rel="noreferrer">View Role</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% else %}
+    <section class="panel">
+      <h2>No applications yet</h2>
+      <p class="muted">
+        When you download a tailored resume for a role from your
+        <a href="{{ url_for('web.dashboard') }}">dashboard</a>, it'll show up here.
+      </p>
+    </section>
+  {% endif %}
+{% endblock %}

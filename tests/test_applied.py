@@ -80,3 +80,101 @@ def test_rebuild_matches_for_user_preserves_applied_at(app, db_session):
         JobMatch.user_id == user_id, JobMatch.job_id == job_id
     ).one()
     assert jm.applied_at is not None, "Applied note was lost on per-user rebuild"
+
+
+# ── Durable application history (AppliedJob) ──────────────────────────────────
+
+
+def test_record_application_is_idempotent_and_keeps_first_date(app, db_session):
+    from datetime import datetime, timezone
+    from app.applications import record_application
+    from app.models import AppliedJob, Job
+
+    user_id, job_id = _seed_user_search_job(db_session)
+    job = db_session.get(Job, job_id)
+
+    first = datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc)
+    record_application(db_session, user_id, job, applied_at=first)
+    # A later re-download must not move the original applied date.
+    record_application(db_session, user_id, job, applied_at=datetime(2026, 5, 1, tzinfo=timezone.utc))
+    db_session.commit()
+
+    rows = db_session.query(AppliedJob).filter(AppliedJob.user_id == user_id).all()
+    assert len(rows) == 1
+    # SQLite returns naive datetimes — compare the wall-clock value, not tzinfo.
+    got = rows[0].applied_at.replace(tzinfo=None)
+    assert got == first.replace(tzinfo=None), f"date moved to {got}"
+    assert rows[0].company == "Acme"
+
+
+def test_prune_old_applications(app, db_session):
+    from datetime import datetime, timezone
+    from app.applications import prune_old_applications, record_application
+    from app.models import AppliedJob, Job
+
+    user_id, job_id = _seed_user_search_job(db_session)
+    job = db_session.get(Job, job_id)
+    record_application(db_session, user_id, job, applied_at=datetime(2024, 1, 1, tzinfo=timezone.utc))
+    db_session.commit()
+
+    removed = prune_old_applications(db_session, days=365)
+    db_session.commit()
+    assert removed == 1
+    assert db_session.query(AppliedJob).count() == 0
+
+
+def test_applied_badge_shows_from_history_without_jobmatch_stamp(app, db_session):
+    """Even with JobMatch.applied_at unset, a recorded application lights the badge."""
+    from app.applications import record_application
+    from app.models import Job, JobMatch
+    from app.results import load_db_matches
+    from app.sync import rebuild_matches
+
+    user_id, job_id = _seed_user_search_job(db_session)
+    rebuild_matches()
+    jm = db_session.query(JobMatch).filter(
+        JobMatch.user_id == user_id, JobMatch.job_id == job_id
+    ).one()
+    assert jm.applied_at is None  # never stamped on the match row
+
+    record_application(db_session, user_id, db_session.get(Job, job_id))
+    db_session.commit()
+
+    saved = jm.saved_search
+    matches = load_db_matches(saved)
+    applied = {m["id"]: m["applied"] for m in matches}
+    assert applied.get(job_id) is True
+
+
+def test_applied_history_page_lists_applications(signed_in_client, db_session):
+    from app.applications import record_application
+    from app.models import Job, User
+
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    job = Job(
+        source="test", company="Stripe", title="Product Manager, Payments",
+        normalized_title="product manager, payments",
+        url="https://example.com/jobs/applied-page-1", city="nyc",
+        location="New York, NY", description="PM role.", is_technical=True,
+    )
+    db_session.add(job)
+    db_session.commit()
+    record_application(db_session, user.id, job)
+    db_session.commit()
+
+    resp = signed_in_client.get("/applied")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "Stripe" in body
+    assert "Product Manager, Payments" in body
+
+
+def test_applied_history_page_requires_sign_in(client):
+    resp = client.get("/applied")
+    assert resp.status_code == 302  # redirect to sign-in
+
+
+def test_nav_includes_applied_link(signed_in_client):
+    resp = signed_in_client.get("/dashboard")
+    body = resp.get_data(as_text=True)
+    assert ">Applied</a>" in body

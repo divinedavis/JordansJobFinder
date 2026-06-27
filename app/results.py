@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
 
+from .applications import applied_urls_for_user
 from .catalog import TITLE_LABELS
 from .db import get_db
 from .ingest import normalized_shared_jobs
@@ -78,6 +79,10 @@ def load_db_matches(saved_search) -> list[dict]:
             select(TailoredResume.job_id).where(TailoredResume.user_id == saved_search.user_id)
         ).all()
     )
+    # The durable application log is the safety net for the "Applied" badge: even
+    # if a JobMatch.applied_at stamp is ever lost, a recorded application keeps
+    # the green note showing for a job still on the board.
+    applied_urls = applied_urls_for_user(db, saved_search.user_id)
     # If the user has a base resume, every match can be tailored — the PDF is
     # generated on first download if it wasn't pre-built by the nightly sync.
     has_base_resume = db.scalar(
@@ -98,7 +103,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
                 "matched_at": job_match.matched_at,
                 "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,
-                "applied": job_match.applied_at is not None,
+                "applied": (job_match.applied_at is not None) or (job.url in applied_urls),
             }
         )
     return matches

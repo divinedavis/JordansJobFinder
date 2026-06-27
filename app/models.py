@@ -195,3 +195,34 @@ class TailoredResume(Base):
     content_text: Mapped[str] = mapped_column(Text)
     pdf_path: Mapped[str] = mapped_column(String(512))
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class AppliedJob(Base):
+    """Durable, per-user record of an application (a Tailored Resume download).
+
+    Kept independent of JobMatch on purpose: JobMatch rows are rebuilt nightly
+    and only exist while a job still matches the user's current saved search, so
+    they can't hold a year of history. This table snapshots the job details at
+    apply-time and survives rebuilds, board aging, and search changes — it's the
+    source of truth for the Applied history / analysis page. Retained ~1 year.
+    """
+
+    __tablename__ = "applied_jobs"
+    __table_args__ = (UniqueConstraint("user_id", "url", name="uq_applied_user_url"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # SET NULL (not CASCADE): if a job row is ever removed we keep the snapshot.
+    job_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True
+    )
+    company: Mapped[str] = mapped_column(String(255))
+    title: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(Text)
+    city: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    salary_label: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    vertical: Mapped[str] = mapped_column(String(32), default="pm", index=True)
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )

@@ -39,6 +39,7 @@ from .payments import (
     sync_checkout_result,
 )
 from .results import group_matches_by_city, load_db_matches, preview_matches
+from .applications import applications_for_user, record_application
 from .searches import (
     can_change_search,
     requires_paid_city_override,
@@ -628,19 +629,19 @@ def resume_download_tailored(job_id: int):
             )
             db.add(tailored)
         db.commit()
-    # Clicking "Tailored Resume" counts as applying — stamp every match row for
-    # this user+job so the dashboard shows the green "Applied" badge. Idempotent:
-    # only the first click sets the timestamp.
-    applied_marked = False
+    # Clicking "Tailored Resume" counts as applying. Two records get written:
+    #   1. JobMatch.applied_at — drives the green "Applied" badge on the board.
+    #   2. AppliedJob (record_application) — the durable, ~1-year history that
+    #      survives the nightly rebuild and powers the Applied analysis page.
+    # Both are idempotent: the first application wins the timestamp.
     for jm in db.query(JobMatch).filter(
         JobMatch.user_id == user.id,
         JobMatch.job_id == job_id,
     ).all():
         if jm.applied_at is None:
             jm.applied_at = utc_now()
-            applied_marked = True
-    if applied_marked:
-        db.commit()
+    record_application(db, user.id, job)
+    db.commit()
     parts = []
     for value in (job.company, job.title):
         cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", value or "").strip("-._")
@@ -650,6 +651,41 @@ def resume_download_tailored(job_id: int):
     stem = "-".join(parts) or "resume"
     download_name = f"{stem[:120]}.pdf"
     return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
+
+
+@web.get("/applied")
+def applied_history():
+    """Durable history of every job the user applied to (Tailored Resume click).
+
+    Survives the nightly rebuild and the 2-day board window, so the user can
+    analyse which roles and companies they've applied to over the past year.
+    """
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    applications = applications_for_user(db, user.id)
+
+    # Company leaderboard for quick analysis: count + most recent application.
+    by_company: dict[str, dict] = {}
+    for app_row in applications:
+        bucket = by_company.setdefault(
+            app_row.company, {"company": app_row.company, "count": 0, "last": app_row.applied_at}
+        )
+        bucket["count"] += 1
+        if app_row.applied_at > bucket["last"]:
+            bucket["last"] = app_row.applied_at
+    company_summary = sorted(
+        by_company.values(), key=lambda c: (-c["count"], c["company"].lower())
+    )
+
+    return render_template(
+        "applied.html",
+        user=user,
+        applications=applications,
+        company_summary=company_summary,
+        total=len(applications),
+    )
 
 
 @web.post("/stripe/webhook")

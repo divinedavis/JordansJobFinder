@@ -5,6 +5,7 @@ from typing import Optional
 from flask import has_app_context
 from sqlalchemy import select
 
+from .applications import prune_old_applications
 from .db import get_db
 from .ingest import normalized_shared_jobs
 from .matching import match_job_for_user
@@ -265,6 +266,8 @@ def run_daily_sync(run_key: Optional[str] = None) -> dict:
             (MagicLinkToken.expires_at < datetime.now(timezone.utc))
             | (MagicLinkToken.used_at.isnot(None))
         ).delete()
+        # Retention: drop application history older than ~1 year.
+        prune_old_applications(db)
         db.commit()
 
         run.status = "completed"
