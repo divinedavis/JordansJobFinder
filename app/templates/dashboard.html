@@ -65,14 +65,10 @@
                       {% if match.has_tailored_resume %}
                         <a class="button tailored-btn" data-job-id="{{ match.id }}" href="{{ url_for('web.resume_download_tailored', job_id=match.id) }}">Tailored Resume</a>
                       {% endif %}
-                      <button type="button"
-                              class="applied-toggle{% if match.applied %} is-applied{% endif %}"
-                              data-job-id="{{ match.id }}"
-                              aria-pressed="{{ 'true' if match.applied else 'false' }}"
-                              title="Toggle whether you've applied to this role">
-                        <span class="applied-check" aria-hidden="true">&#10003;</span>
-                        <span class="applied-label">{{ 'Applied' if match.applied else 'Mark applied' }}</span>
-                      </button>
+                      <span class="applied-badge" data-job-id="{{ match.id }}" role="status"
+                            style="display: {% if match.applied %}inline-flex{% else %}none{% endif %}; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; color: #0a7f3f; background: #e7f7ee; border: 1px solid #b6e6c9; font-weight: 600; font-size: 0.85rem;">
+                        <span aria-hidden="true" style="font-weight: 800;">&#10003;</span> Applied
+                      </span>
                     </div>
                   </article>
                 {% endfor %}

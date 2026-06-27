@@ -652,39 +652,6 @@ def resume_download_tailored(job_id: int):
     return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
 
 
-@web.post("/jobs/<int:job_id>/applied")
-def toggle_applied(job_id: int):
-    """Toggle the "Applied" state for the signed-in user + a given job.
-
-    The dashboard needs an explicit, user-controlled way to remember which jobs
-    were already applied to — clicking "View Role" opens the company's own site
-    and never round-trips through us, so the Tailored Resume download alone
-    misses every application made the normal way. This stamps (or clears)
-    ``applied_at`` on every JobMatch row for this user+job and returns the new
-    state as JSON. Idempotent per state: re-applying is a no-op, undoing clears.
-    """
-    user = require_user()
-    if not user:
-        return jsonify({"error": "unauthorized"}), 401
-    db = get_db()
-    rows = (
-        db.query(JobMatch)
-        .filter(JobMatch.user_id == user.id, JobMatch.job_id == job_id)
-        .all()
-    )
-    if not rows:
-        return jsonify({"error": "not_found"}), 404
-    # Only treat it as "undo" when every row is already applied; any unstamped
-    # row means we're (re)applying so the badge becomes consistent across cities.
-    currently_applied = all(jm.applied_at is not None for jm in rows)
-    new_applied = not currently_applied
-    stamp = utc_now() if new_applied else None
-    for jm in rows:
-        jm.applied_at = stamp
-    db.commit()
-    return jsonify({"applied": new_applied})
-
-
 @web.post("/stripe/webhook")
 def stripe_webhook():
     payload = request.get_data()

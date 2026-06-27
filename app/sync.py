@@ -96,6 +96,12 @@ def upsert_shared_jobs() -> int:
 
 def rebuild_matches() -> int:
     db = get_db()
+    # Preserve each user's "Applied" memory across the nightly rebuild. Clicking
+    # "Tailored Resume" stamps applied_at on the JobMatch row, but this function
+    # deletes and recreates every row — without carrying applied_at over, the
+    # green "Applied" note would vanish every morning. Keyed by (user, job) so
+    # the same role still reads as applied after the row is regenerated.
+    applied = _snapshot_applied(db)
     db.query(JobMatch).delete()
     db.commit()
 
@@ -115,6 +121,7 @@ def rebuild_matches() -> int:
                     saved_search_id=search.id,
                     user_id=search.user_id,
                     job_id=job.id,
+                    applied_at=applied.get((search.user_id, job.id)),
                 )
             )
             created += 1
@@ -135,6 +142,9 @@ def rebuild_matches_for_user(user_id: int) -> int:
     if user is None:
         return 0
 
+    # Preserve this user's "Applied" memory across the rebuild (see the note in
+    # rebuild_matches). A saved-search edit shouldn't forget what they applied to.
+    applied = _snapshot_applied(db, user_id=user_id)
     db.query(JobMatch).filter(JobMatch.user_id == user_id).delete()
     db.commit()
 
@@ -152,11 +162,26 @@ def rebuild_matches_for_user(user_id: int) -> int:
                     saved_search_id=search.id,
                     user_id=user_id,
                     job_id=job.id,
+                    applied_at=applied.get((user_id, job.id)),
                 )
             )
             created += 1
     db.commit()
     return created
+
+
+def _snapshot_applied(db, user_id: Optional[int] = None) -> dict:
+    """Map (user_id, job_id) -> applied_at for every already-applied match.
+
+    Captured before a rebuild deletes the rows so the stamp can be restored on
+    the regenerated ones. Optionally scoped to a single user.
+    """
+    stmt = select(JobMatch.user_id, JobMatch.job_id, JobMatch.applied_at).where(
+        JobMatch.applied_at.isnot(None)
+    )
+    if user_id is not None:
+        stmt = stmt.where(JobMatch.user_id == user_id)
+    return {(uid, jid): applied_at for uid, jid, applied_at in db.execute(stmt).all()}
 
 
 def generate_tailored_resumes() -> int:
