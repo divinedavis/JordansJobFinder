@@ -15,7 +15,8 @@ from math import ceil, floor
 
 from sqlalchemy import select
 
-from .models import Job
+from .models import AppliedJob, Job
+from .parsing import parse_salary
 
 # City slug (as stored on Job.city / AppliedJob.city) -> human label. Mirrors
 # the maps in results.py / sync.py; kept local so this module stays standalone.
@@ -236,16 +237,95 @@ def _market_stats(points, experience_bucket):
     }
 
 
-def build_market_research(db, cities, vertical="pm", experience_bucket=None):
+def _applied_point(applied_row, job):
+    """Numeric salary for one application. Prefers the linked Job's real
+    min/max; falls back to parsing the snapshot salary_label string."""
+    vals = []
+    if job is not None:
+        vals = [
+            v
+            for v in (job.salary_min, job.salary_max)
+            if v and SANE_SALARY_MIN <= v <= SANE_SALARY_MAX
+        ]
+    if not vals and applied_row.salary_label:
+        parsed = parse_salary(applied_row.salary_label)
+        if parsed:
+            vals = [v for v in parsed if SANE_SALARY_MIN <= v <= SANE_SALARY_MAX]
+    if vals:
+        return sum(vals) / len(vals)
+    return None
+
+
+def _applied_salary_by_market(db, user_id, vertical):
+    """Map city slug -> {count, points} for the user's applications in this
+    vertical. ``points`` are the salaries of jobs they actually applied to."""
+    rows = db.execute(
+        select(AppliedJob, Job)
+        .outerjoin(Job, Job.id == AppliedJob.job_id)
+        .where(AppliedJob.user_id == user_id, AppliedJob.vertical == vertical)
+    ).all()
+    by_slug = {}
+    for applied_row, job in rows:
+        slug = applied_row.city or ""
+        bucket = by_slug.setdefault(slug, {"count": 0, "points": []})
+        bucket["count"] += 1
+        point = _applied_point(applied_row, job)
+        if point is not None:
+            bucket["points"].append(point)
+    for bucket in by_slug.values():
+        bucket["points"].sort()
+    return by_slug
+
+
+def _applied_stats(bucket):
+    """Salary range + a 'potential' target from the jobs the user applied to.
+
+    ``potential`` is the 75th-percentile of what they applied to — the realistic
+    upper end of the offers their actual applications could land."""
+    points = bucket["points"]
+    if not points:
+        return {
+            "count": bucket["count"],
+            "with_salary": 0,
+            "has_salary": False,
+        }
+    potential = _percentile(points, 0.75)
+    median = _percentile(points, 0.50)
+    return {
+        "count": bucket["count"],
+        "with_salary": len(points),
+        "has_salary": True,
+        "min": points[0],
+        "median": median,
+        "max": points[-1],
+        "potential": potential,
+        "min_fmt": _usd_k(points[0]),
+        "median_fmt": _usd_k(median),
+        "max_fmt": _usd_k(points[-1]),
+        "potential_fmt": _usd_k(potential),
+    }
+
+
+def build_market_research(db, cities, vertical="pm", experience_bucket=None, user_id=None):
     """Per-market salary aggregates for the cities on a saved search.
 
     For each city we pull every Job in that vertical/market that carries a real
     salary, summarize the distribution, and recommend an ask band scaled to the
     user's experience bucket. Markets with no salary data are still listed (so
     the user knows we cover them) but flagged as thin.
+
+    When ``user_id`` is given, each market also carries an ``applied`` block:
+    the salary range + a 'potential' target derived from the jobs the user has
+    actually applied to in that market.
     """
+    applied_by_slug = (
+        _applied_salary_by_market(db, user_id, vertical) if user_id else {}
+    )
+
     markets = []
     all_points = []
+    applied_all_points = []
+    applied_total = 0
     for label in cities:
         slug = _LABEL_TO_SLUG.get(label)
         conditions = [Job.vertical == vertical]
@@ -263,6 +343,14 @@ def build_market_research(db, cities, vertical="pm", experience_bucket=None):
         if points:
             entry.update(_market_stats(points, experience_bucket))
             all_points.extend(points)
+
+        bucket = applied_by_slug.get(slug) if slug else None
+        if bucket and bucket["count"]:
+            entry["applied"] = _applied_stats(bucket)
+            applied_total += bucket["count"]
+            applied_all_points.extend(bucket["points"])
+        else:
+            entry["applied"] = None
         markets.append(entry)
 
     with_data = [m for m in markets if m["has_data"]]
@@ -280,10 +368,35 @@ def build_market_research(db, cities, vertical="pm", experience_bucket=None):
             "top_market_median_fmt": top_market["median_fmt"] if top_market else None,
         }
 
+    applied_overall = None
+    if applied_total:
+        applied_all_points.sort()
+        best_applied = max(
+            (m for m in markets if m["applied"] and m["applied"]["has_salary"]),
+            key=lambda m: m["applied"]["median"],
+            default=None,
+        )
+        applied_overall = {
+            "count": applied_total,
+            "with_salary": len(applied_all_points),
+            "median_fmt": _usd_k(_percentile(applied_all_points, 0.50))
+            if applied_all_points
+            else "—",
+            "potential_fmt": _usd_k(_percentile(applied_all_points, 0.75))
+            if applied_all_points
+            else "—",
+            "max_fmt": _usd_k(applied_all_points[-1]) if applied_all_points else "—",
+            "top_market": best_applied["city"] if best_applied else None,
+            "top_market_median_fmt": best_applied["applied"]["median_fmt"]
+            if best_applied
+            else None,
+        }
+
     return {
         "vertical": vertical,
         "experience_bucket": experience_bucket,
         "experience_label": EXPERIENCE_LABELS.get(experience_bucket, "your level"),
         "markets": markets,
         "overall": overall,
+        "applied_overall": applied_overall,
     }

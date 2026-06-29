@@ -66,6 +66,29 @@
       .quartiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .market-top { flex-direction: column; }
     }
+    .applied-block {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px dashed rgba(29, 36, 51, 0.14);
+    }
+    .applied-block .stat-label { color: var(--success); }
+    .applied-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 18px;
+      align-items: baseline;
+      margin-top: 8px;
+    }
+    .applied-stats .pair { display: inline-flex; gap: 6px; align-items: baseline; }
+    .applied-stats .pair .v {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 1.1rem;
+    }
+    .potential {
+      font-family: "Iowan Old Style", Georgia, serif;
+      color: var(--success);
+      font-weight: 700;
+    }
   </style>
 
   <section class="panel">
@@ -102,6 +125,36 @@
         <div class="card">
           <span class="stat-label">Postings with pay</span>
           <span class="stat-value">{{ overall.count }}</span>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if applied_overall %}
+    <section class="panel">
+      <span class="eyebrow">Based on what you applied to</span>
+      <h2>Your potential salary.</h2>
+      <p style="margin-top: 8px; max-width: 64ch;">
+        Pulled from the {{ applied_overall.count }} job{{ '' if applied_overall.count == 1 else 's' }}
+        you've actually applied to in this track. The <strong>potential</strong>
+        figure is the upper end (75th percentile) of those roles — a realistic
+        target your current applications could land.
+      </p>
+      <div class="grid three" style="margin-top: 16px;">
+        <div class="card">
+          <span class="stat-label">Potential (applied)</span>
+          <span class="stat-value potential">{{ applied_overall.potential_fmt }}</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">Median of applied</span>
+          <span class="stat-value">{{ applied_overall.median_fmt }}</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">Top applied role</span>
+          <span class="stat-value">{{ applied_overall.max_fmt }}</span>
+          {% if applied_overall.top_market %}
+            <p class="muted" style="margin-top: 6px;">best market: {{ applied_overall.top_market }} ({{ applied_overall.top_market_median_fmt }})</p>
+          {% endif %}
         </div>
       </div>
     </section>
@@ -168,6 +221,23 @@
                 We cover this market, but the current postings don't list pay.
                 Salary tends to surface as more roles come through.
               </p>
+            {% endif %}
+
+            {% if m.applied %}
+              <div class="applied-block">
+                <span class="stat-label">
+                  You applied to {{ m.applied.count }} here{% if m.applied.has_salary and m.applied.with_salary != m.applied.count %} ({{ m.applied.with_salary }} with pay data){% endif %}
+                </span>
+                {% if m.applied.has_salary %}
+                  <div class="applied-stats">
+                    <span class="pair"><span class="muted">Range</span><span class="v">{{ m.applied.min_fmt }}&ndash;{{ m.applied.max_fmt }}</span></span>
+                    <span class="pair"><span class="muted">Median</span><span class="v">{{ m.applied.median_fmt }}</span></span>
+                    <span class="pair"><span class="muted">Potential</span><span class="potential">{{ m.applied.potential_fmt }}</span></span>
+                  </div>
+                {% else %}
+                  <p class="muted" style="margin-top: 6px;">None of those listed pay, so no range yet.</p>
+                {% endif %}
+              </div>
             {% endif %}
           </div>
         {% endfor %}

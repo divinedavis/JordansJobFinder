@@ -143,6 +143,68 @@ def test_market_research_aggregates_salary_by_city(app, db_session):
     assert data["overall"]["top_market"] == "New York, NY"
 
 
+def test_market_research_includes_applied_salary_per_market(app, db_session):
+    from app.analytics import build_market_research
+    from app.applications import record_application
+    from app.models import Job, User
+
+    _seed_pm_jobs(db_session)
+    user = User(email="applied-research@example.com")
+    user.set_password("password123")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    # Apply to two NYC roles (200k & 270k midpoints) and one Atlanta role (170k).
+    for url in ("https://x/1", "https://x/3", "https://x/4"):
+        job = db_session.query(Job).filter(Job.url == url).one()
+        record_application(db_session, user.id, job)
+    db_session.commit()
+
+    data = build_market_research(
+        db_session,
+        cities=["New York, NY", "Atlanta, GA", "Miami, FL"],
+        vertical="pm",
+        experience_bucket="7-9",
+        user_id=user.id,
+    )
+    by_city = {m["city"]: m for m in data["markets"]}
+
+    nyc_applied = by_city["New York, NY"]["applied"]
+    assert nyc_applied is not None
+    assert nyc_applied["count"] == 2
+    assert nyc_applied["with_salary"] == 2
+    assert nyc_applied["min"] == 200000
+    assert nyc_applied["max"] == 270000
+    # 75th percentile of [200k, 270k] = 252.5k -> potential sits in range.
+    assert nyc_applied["min"] <= nyc_applied["potential"] <= nyc_applied["max"]
+
+    # Miami had no application -> no applied block.
+    assert by_city["Miami, FL"]["applied"] is None
+
+    assert data["applied_overall"]["count"] == 3
+    assert data["applied_overall"]["top_market"] == "New York, NY"
+
+
+def test_market_research_no_applications_no_applied_overall(app, db_session):
+    from app.analytics import build_market_research
+    from app.models import User
+
+    _seed_pm_jobs(db_session)
+    user = User(email="noapps@example.com")
+    user.set_password("password123")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    data = build_market_research(
+        db_session, cities=["New York, NY"], vertical="pm",
+        experience_bucket="7-9", user_id=user.id,
+    )
+    assert data["applied_overall"] is None
+    assert data["markets"][0]["applied"] is None
+
+
 def test_market_research_no_data():
     # No DB rows touched: empty city list -> empty markets, no overall.
     from app.analytics import build_market_research

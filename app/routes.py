@@ -729,7 +729,11 @@ def research():
     cities = list(saved_search.cities) if saved_search else []
     experience_bucket = saved_search.experience_bucket if saved_search else None
     data = build_market_research(
-        db, cities, vertical=active_tab, experience_bucket=experience_bucket
+        db,
+        cities,
+        vertical=active_tab,
+        experience_bucket=experience_bucket,
+        user_id=user.id,
     )
     return render_template(
         "research.html",
@@ -740,6 +744,7 @@ def research():
         saved_search=saved_search,
         markets=data["markets"],
         overall=data["overall"],
+        applied_overall=data["applied_overall"],
         experience_label=data["experience_label"],
     )
 
