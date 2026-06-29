@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <style>
+    .bars { display: grid; gap: 10px; margin-top: 16px; }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 96px 1fr 36px;
+      align-items: center;
+      gap: 12px;
+    }
+    .bar-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .bar-track {
+      background: rgba(29, 36, 51, 0.06);
+      border-radius: 999px;
+      height: 14px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), #4f78ff);
+      min-width: 2px;
+    }
+    .bar-fill.empty { background: transparent; }
+    .bar-value {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 14px;
+      text-align: right;
+    }
+    .stat-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    @media (max-width: 780px) {
+      .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .bar-row { grid-template-columns: 72px 1fr 30px; }
+    }
+    .seg { margin-top: 6px; }
+    .seg-toggle { display: flex; gap: 8px; }
+  </style>
+
+  <section class="panel">
+    <span class="eyebrow">Year in Review</span>
+    <h1>Your application analytics.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      Every job you applied to (downloaded a tailored resume for) counted here,
+      grouped by week and month so you can see your momentum over the year.
+    </p>
+  </section>
+
+  {% if summary.total == 0 %}
+    <section class="panel">
+      <h2>No applications yet</h2>
+      <p class="muted">
+        Download a tailored resume for a role from your
+        <a href="{{ url_for('web.dashboard') }}">dashboard</a> and it'll start
+        showing up here, week by week.
+      </p>
+    </section>
+  {% else %}
+    <section class="panel">
+      <div class="stat-grid">
+        <div class="card">
+          <span class="stat-label">Total applied</span>
+          <span class="stat-value">{{ summary.total }}</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">This year</span>
+          <span class="stat-value">{{ summary.this_year }}</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">This month</span>
+          <span class="stat-value">{{ summary.this_month }}</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">This week</span>
+          <span class="stat-value">{{ summary.this_week }}</span>
+        </div>
+      </div>
+      <p class="muted" style="margin-top: 16px;">
+        {% if summary.first_applied %}
+          First application on {{ summary.first_applied.strftime('%b %-d, %Y') }}.
+        {% endif %}
+        Averaging <strong>{{ summary.avg_per_active_week }}</strong> per active week.
+        {% if summary.busiest_month and summary.busiest_month.count %}
+          Busiest month: <strong>{{ summary.busiest_month.label }}</strong>
+          ({{ summary.busiest_month.count }}).
+        {% endif %}
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="match-header">
+        <div>
+          <p class="match-kicker">Last 12 months</p>
+          <h3 class="match-title">Applications per month</h3>
+        </div>
+      </div>
+      <div class="bars">
+        {% for m in monthly %}
+          <div class="bar-row">
+            <span class="bar-label">{{ m.label }}</span>
+            <div class="bar-track">
+              <div class="bar-fill{% if m.count == 0 %} empty{% endif %}" style="width: {{ m.pct }}%;"></div>
+            </div>
+            <span class="bar-value">{{ m.count }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="match-header">
+        <div>
+          <p class="match-kicker">Last 12 weeks</p>
+          <h3 class="match-title">Applications per week</h3>
+        </div>
+      </div>
+      <div class="bars">
+        {% for w in weekly %}
+          <div class="bar-row">
+            <span class="bar-label">{{ w.short }}</span>
+            <div class="bar-track">
+              <div class="bar-fill{% if w.count == 0 %} empty{% endif %}" style="width: {{ w.pct }}%;"></div>
+            </div>
+            <span class="bar-value">{{ w.count }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="grid two">
+        <div>
+          <h3 class="match-title">By track</h3>
+          <div class="list" style="margin-top: 12px;">
+            {% for v in by_vertical %}
+              <div class="list-item">
+                <strong>{{ v.label }}</strong>
+                <span class="muted">{{ v.count }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <h3 class="match-title">By market</h3>
+          {% if by_city %}
+            <div class="list" style="margin-top: 12px;">
+              {% for c in by_city %}
+                <div class="list-item">
+                  <strong>{{ c.label }}</strong>
+                  <span class="muted">{{ c.count }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="muted" style="margin-top: 12px;">No market data on your applications yet.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

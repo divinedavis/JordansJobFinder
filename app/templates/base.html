@@ -470,6 +470,8 @@
         {% if user %}
           <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
           <a href="{{ url_for('web.applied_history') }}">Applied</a>
+          <a href="{{ url_for('web.analytics') }}">Analytics</a>
+          <a href="{{ url_for('web.research') }}">Research</a>
           <a href="{{ url_for('web.resume_page') }}">Resume</a>
           <form method="post" action="{{ url_for('web.sign_out') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

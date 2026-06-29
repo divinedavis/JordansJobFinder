@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Research | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <style>
+    .market-card {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(29, 36, 51, 0.08);
+      border-radius: 18px;
+      padding: 18px 20px;
+    }
+    .market-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .ask-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid rgba(25, 71, 229, 0.18);
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .range {
+      position: relative;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(29, 36, 51, 0.08);
+      margin: 22px 0 12px;
+    }
+    .range-fill {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), #4f78ff);
+    }
+    .range-scale {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .quartiles {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .quartiles .q { text-align: center; }
+    .quartiles .q .stat-label { margin-bottom: 4px; }
+    .quartiles .q .v {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 1.2rem;
+    }
+    @media (max-width: 780px) {
+      .quartiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .market-top { flex-direction: column; }
+    }
+  </style>
+
+  <section class="panel">
+    <span class="eyebrow">Market Research</span>
+    <h1>What you're worth.</h1>
+    <p style="margin-top: 14px; max-width: 64ch;">
+      Real salary figures pulled from the postings on your board, by market. The
+      <strong>suggested ask</strong> is scaled to your saved experience level
+      ({{ experience_label }}) — aim there when you negotiate.
+    </p>
+
+    <nav class="tab-nav" style="margin-top: 24px; display: flex; gap: 8px; flex-wrap: wrap;">
+      {% for slug in tab_order %}
+        <a
+          href="{{ url_for('web.research') }}?tab={{ slug }}"
+          class="tab-pill{% if slug == active_tab %} active{% endif %}"
+        >{{ tab_labels[slug] }}</a>
+      {% endfor %}
+    </nav>
+  </section>
+
+  {% if overall %}
+    <section class="panel">
+      <div class="grid three">
+        <div class="card">
+          <span class="stat-label">Median across markets</span>
+          <span class="stat-value">{{ overall.median_fmt }}</span>
+        </div>
+        <div class="card">
+          <span class="stat-label">Top market</span>
+          <span class="stat-value" style="font-size: 1.5rem;">{{ overall.top_market }}</span>
+          <p class="muted" style="margin-top: 6px;">median {{ overall.top_market_median_fmt }}</p>
+        </div>
+        <div class="card">
+          <span class="stat-label">Postings with pay</span>
+          <span class="stat-value">{{ overall.count }}</span>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if not saved_search %}
+    <section class="panel">
+      <h2>No saved search yet</h2>
+      <p class="muted">Set up a saved search to see market value for your cities.</p>
+    </section>
+  {% else %}
+    <section class="panel">
+      <h2>By market</h2>
+      <div class="grid" style="margin-top: 12px;">
+        {% for m in markets %}
+          <div class="market-card">
+            <div class="market-top">
+              <div>
+                <h3 class="match-title">{{ m.city }}</h3>
+                <p class="muted" style="margin-top: 4px;">
+                  {% if m.has_data %}
+                    {{ m.count }} posting{{ '' if m.count == 1 else 's' }} with salary data
+                  {% else %}
+                    {{ m.total_postings }} posting{{ '' if m.total_postings == 1 else 's' }} · no salary data yet
+                  {% endif %}
+                </p>
+              </div>
+              {% if m.has_data %}
+                <span class="ask-pill">Ask {{ m.ask_low_fmt }}&ndash;{{ m.ask_high_fmt }}</span>
+              {% endif %}
+            </div>
+
+            {% if m.has_data %}
+              <div class="range">
+                {% set span = (m.max - m.min) or 1 %}
+                {% set left = ((m.p25 - m.min) / span * 100) %}
+                {% set width = ((m.p75 - m.p25) / span * 100) %}
+                <div class="range-fill" style="left: {{ left }}%; width: {{ width if width > 2 else 2 }}%;"></div>
+              </div>
+              <div class="range-scale">
+                <span>{{ m.min_fmt }}</span>
+                <span>{{ m.max_fmt }}</span>
+              </div>
+              <div class="quartiles">
+                <div class="q">
+                  <span class="stat-label">Low (25th)</span>
+                  <div class="v">{{ m.p25_fmt }}</div>
+                </div>
+                <div class="q">
+                  <span class="stat-label">Median</span>
+                  <div class="v">{{ m.median_fmt }}</div>
+                </div>
+                <div class="q">
+                  <span class="stat-label">High (75th)</span>
+                  <div class="v">{{ m.p75_fmt }}</div>
+                </div>
+                <div class="q">
+                  <span class="stat-label">Top</span>
+                  <div class="v">{{ m.max_fmt }}</div>
+                </div>
+              </div>
+            {% else %}
+              <p class="muted">
+                We cover this market, but the current postings don't list pay.
+                Salary tends to surface as more roles come through.
+              </p>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <p class="muted" style="margin-top: 18px;">
+        Figures are aggregated from real job postings on your board. Use them as
+        a negotiating floor, not a guarantee — actual offers vary by company,
+        level, and equity.
+      </p>
+    </section>
+  {% endif %}
+{% endblock %}

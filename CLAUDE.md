@@ -143,6 +143,27 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
 - Salary only displayed when a real value exists (no placeholder text)
 - Jobs grouped by city
 
+## Analytics + Research Tabs
+
+Two nav tabs built on existing data (no schema changes), logic in `app/analytics.py`:
+
+- **Analytics** (`/analytics`, `analytics.html`) — year-in-review of the user's
+  applications. Reads the durable `AppliedJob` history (survives the nightly
+  rebuild + 2-day board window), groups into a contiguous, zero-filled 12-month
+  and 12-week series rendered as pure-CSS bars, plus summary stats (total, this
+  week/month/year, busiest month, avg/active week) and by-track / by-market
+  breakdowns. `build_application_analytics(applications, now=...)` is pure and
+  `now`-injectable for tests.
+- **Research** (`/research?tab=pm|finance|sales`, `research.html`) — market
+  value per city on the user's saved search. `build_market_research()`
+  aggregates real `Job.salary_min/max` midpoints per market (filtered to a sane
+  $40K–$1M band to drop scraper garbage), shows the min/p25/median/p75/max
+  distribution, and a **suggested ask** band scaled to the saved
+  `experience_bucket` via `EXPERIENCE_BANDS` (more experience → higher
+  percentiles). Markets with no salary data are still listed but flagged thin.
+
+Tests: `tests/test_analytics.py` (aggregation math, route auth, nav links).
+
 ## Billing (Scaffolded)
 
 - $2.99/mo city plan — replaces default 3 cities with custom ones

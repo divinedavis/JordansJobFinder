@@ -40,6 +40,7 @@ from .payments import (
 )
 from .results import group_matches_by_city, load_db_matches, preview_matches
 from .applications import applications_for_user, record_application
+from .analytics import build_application_analytics, build_market_research
 from .searches import (
     can_change_search,
     requires_paid_city_override,
@@ -685,6 +686,61 @@ def applied_history():
         applications=applications,
         company_summary=company_summary,
         total=len(applications),
+    )
+
+
+@web.get("/analytics")
+def analytics():
+    """Year-in-review: how many jobs the user applied to per week / month.
+
+    Built off the durable AppliedJob history (app/applications.py), so it spans
+    up to a year regardless of the 2-day board window or nightly rebuild.
+    """
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    applications = applications_for_user(db, user.id)
+    data = build_application_analytics(applications)
+    return render_template(
+        "analytics.html",
+        user=user,
+        summary=data["summary"],
+        monthly=data["monthly"],
+        weekly=data["weekly"],
+        by_vertical=data["by_vertical"],
+        by_city=data["by_city"],
+    )
+
+
+@web.get("/research")
+def research():
+    """Market value: what each market on the user's board pays, and what to ask
+    for given their experience bucket."""
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    user = db.get(User, user.id)
+    active_tab = request.args.get("tab", "pm")
+    if active_tab not in VERTICAL_LABELS:
+        active_tab = "pm"
+    saved_search = user.saved_search_for(active_tab)
+    cities = list(saved_search.cities) if saved_search else []
+    experience_bucket = saved_search.experience_bucket if saved_search else None
+    data = build_market_research(
+        db, cities, vertical=active_tab, experience_bucket=experience_bucket
+    )
+    return render_template(
+        "research.html",
+        user=user,
+        active_tab=active_tab,
+        tab_labels=VERTICAL_LABELS,
+        tab_order=VERTICAL_ORDER,
+        saved_search=saved_search,
+        markets=data["markets"],
+        overall=data["overall"],
+        experience_label=data["experience_label"],
     )
 
 
