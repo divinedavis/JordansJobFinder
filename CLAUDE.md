@@ -161,8 +161,14 @@ Two nav tabs built on existing data (no schema changes), logic in `app/analytics
   distribution, and a **suggested ask** band scaled to the saved
   `experience_bucket` via `EXPERIENCE_BANDS` (more experience → higher
   percentiles). Markets with no salary data are still listed but flagged thin.
+  When `user_id` is passed, each market also carries an `applied` block — the
+  salary range / median / 'potential' (75th pct) of the jobs the user actually
+  applied to in that market (numeric salary resolved from the linked `Job`, or
+  parsed from the `AppliedJob.salary_label` snapshot) — plus an
+  `applied_overall` summary panel ("Your potential salary").
 
-Tests: `tests/test_analytics.py` (aggregation math, route auth, nav links).
+Tests: `tests/test_analytics.py` (aggregation math, applied-salary per market,
+route auth, nav links).
 
 ## Billing (Scaffolded)
 
