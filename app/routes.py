@@ -20,8 +20,8 @@ from flask import send_file
 
 from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, SALES_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
-from .matching import choose_cities, city_from_slug, is_superuser_email
-from .models import BaseResume, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
+from .matching import choose_cities, city_from_slug, is_admin_email, is_superuser_email
+from .models import BaseResume, Feedback, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
 from .models import utc_now
 from .resumes import (
     ResumeError,
@@ -85,6 +85,14 @@ def require_user():
         return user
     flash("Please sign in first.", "error")
     return None
+
+
+@web.app_context_processor
+def inject_admin_flag():
+    """Expose `is_admin` to every template so the nav can show the
+    Feedback Inbox link only to the owner."""
+    user = current_user()
+    return {"is_admin": is_admin_email(user.email) if user else False}
 
 
 def ensure_subscription(user: User, db):
@@ -747,6 +755,81 @@ def research():
         applied_overall=data["applied_overall"],
         experience_label=data["experience_label"],
     )
+
+
+FEEDBACK_MAX_LEN = 5000
+
+
+@web.route("/feedback", methods=["GET", "POST"])
+def feedback():
+    """Open feedback form — any visitor (signed in or not) can leave a note,
+    stored for the owner to review at /feedback/admin."""
+    user = current_user()
+    if request.method == "POST":
+        message = request.form.get("message", "").strip()
+        if not message:
+            flash("Please enter your feedback before sending.", "error")
+            return redirect(url_for("web.feedback"))
+        message = message[:FEEDBACK_MAX_LEN]
+        email = request.form.get("email", "").strip().lower()
+        if user and not email:
+            email = user.email
+        # Capture where they were so the owner has context; never trust it for
+        # control flow — it's only display text and Jinja autoescapes it.
+        page = (request.form.get("page", "").strip() or request.referrer or "")[:255]
+
+        db = get_db()
+        db.add(Feedback(
+            user_id=user.id if user else None,
+            email=email or None,
+            message=message,
+            page=page or None,
+        ))
+        db.commit()
+        logger.info("Feedback submitted user_id=%s", user.id if user else None)
+        flash("Thanks for the feedback — it's been sent to the team.", "success")
+        return redirect(url_for("web.feedback"))
+
+    return render_template("feedback.html", user=user)
+
+
+@web.get("/feedback/admin")
+def feedback_admin():
+    """Owner-only inbox of submitted feedback. Returns 404 (not 403) for
+    everyone else so the route's existence isn't disclosed."""
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    if not is_admin_email(user.email):
+        abort(404)
+
+    db = get_db()
+    items = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
+    open_count = sum(1 for item in items if not item.is_resolved)
+    return render_template(
+        "feedback_admin.html",
+        user=user,
+        items=items,
+        open_count=open_count,
+        total=len(items),
+    )
+
+
+@web.post("/feedback/<int:feedback_id>/resolve")
+def feedback_resolve(feedback_id: int):
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    if not is_admin_email(user.email):
+        abort(404)
+
+    db = get_db()
+    item = db.get(Feedback, feedback_id)
+    if not item:
+        abort(404)
+    item.is_resolved = not item.is_resolved
+    db.commit()
+    return redirect(url_for("web.feedback_admin"))
 
 
 @web.post("/stripe/webhook")

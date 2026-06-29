@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Feedback · Jordan's Job Finder{% endblock %}
+{% block content %}
+<section class="panel">
+  <span class="eyebrow">Feedback</span>
+  <h2>Tell us what you think</h2>
+  <p class="muted">Found a bug, missing a feature, or have an idea to make the job hunt easier? Send it straight to the team — every note is read.</p>
+  <form method="post" action="{{ url_for('web.feedback') }}" style="margin-top:18px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="page" value="{{ request.referrer or '' }}">
+    {% if not user %}
+    <label for="feedback-email">Your email (optional)</label>
+    <input id="feedback-email" type="email" name="email" placeholder="you@example.com" maxlength="255">
+    {% endif %}
+    <label for="feedback-message">Your feedback</label>
+    <textarea id="feedback-message" name="message" rows="6" required maxlength="5000"
+      placeholder="What's working, what's not, what would you love to see?"
+      style="width:100%;border-radius:14px;border:1px solid rgba(29,36,51,0.12);background:rgba(255,255,255,0.86);color:var(--ink);font:inherit;padding:14px 16px;margin-bottom:16px;resize:vertical;"></textarea>
+    <div class="button-row">
+      <button type="submit" class="button">Send feedback</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

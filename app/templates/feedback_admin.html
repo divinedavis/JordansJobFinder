@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Feedback Inbox · Jordan's Job Finder{% endblock %}
+{% block content %}
+<section class="panel">
+  <span class="eyebrow">Feedback Inbox</span>
+  <h2>User feedback</h2>
+  <p class="muted">{{ open_count }} open · {{ total }} total</p>
+  {% if not items %}
+    <p style="margin-top:16px;">No feedback yet.</p>
+  {% else %}
+    <div class="list" style="margin-top:16px;">
+      {% for item in items %}
+      <div class="card" style="{% if item.is_resolved %}opacity:0.55;{% endif %}">
+        <div class="match-card-top">
+          <span class="match-company">{{ item.email or 'anonymous' }}</span>
+          <span class="match-posted">{{ item.created_at.strftime('%b %d, %Y · %H:%M UTC') }}</span>
+        </div>
+        <p style="white-space:pre-wrap;margin:6px 0 10px;">{{ item.message }}</p>
+        {% if item.page %}<p class="muted" style="word-break:break-all;">From: {{ item.page }}</p>{% endif %}
+        <form method="post" action="{{ url_for('web.feedback_resolve', feedback_id=item.id) }}" style="margin-top:10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="button secondary">{{ 'Reopen' if item.is_resolved else 'Mark reviewed' }}</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

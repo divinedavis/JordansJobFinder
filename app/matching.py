@@ -150,6 +150,17 @@ def is_superuser_email(email: Optional[str]) -> bool:
     return bool((email or "").strip())
 
 
+def is_admin_email(email: Optional[str]) -> bool:
+    """Only the configured owner (SUPERUSER_EMAIL) may review submitted feedback.
+
+    is_superuser_email() is intentionally open to every signed-in user, so it
+    can't gate the feedback inbox — this stricter check matches the single
+    owner account (divinejdavis@gmail.com in production) exactly.
+    """
+    target = (SUPERUSER_EMAIL or "").strip().lower()
+    return bool(target) and (email or "").strip().lower() == target
+
+
 def match_job_for_user(
     title_slug: str,
     experience_bucket: str,

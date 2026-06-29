@@ -226,3 +226,27 @@ class AppliedJob(Base):
     applied_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, index=True
     )
+
+
+class Feedback(Base):
+    """User-submitted feedback, reviewed by the owner at /feedback/admin.
+
+    Open to signed-in users and anonymous visitors. user_id is SET NULL (not
+    CASCADE) on account deletion so the feedback history is never lost — the
+    email snapshot is kept so the owner can still follow up.
+    """
+
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    message: Mapped[str] = mapped_column(Text)
+    # Where the visitor was when they hit "Feedback" (request.referrer), for context.
+    page: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )
