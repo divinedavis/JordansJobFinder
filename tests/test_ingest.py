@@ -63,7 +63,9 @@ def test_blocked_company_is_dropped_from_ingest(monkeypatch):
         {"company": "scale ai", "title": "Program Manager", "url": "https://x/2"},
         {"company": "Google", "title": "Program Manager", "url": "https://x/3"},
         {"company": "google", "title": "Product Manager", "url": "https://x/4"},
-        {"company": "Postman", "title": "Product Manager", "url": "https://x/5"},
+        {"company": "Celonis", "title": "Product Manager", "url": "https://x/5"},
+        {"company": "celonis", "title": "Program Manager", "url": "https://x/6"},
+        {"company": "Postman", "title": "Product Manager", "url": "https://x/7"},
     ])
     monkeypatch.setattr(ingest, "load_finance_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_sales_jobs", lambda: [])

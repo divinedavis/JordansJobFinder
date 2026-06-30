@@ -6,7 +6,7 @@ from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS, TITLE_VERTICA
 EXCLUDE_TITLES = ["governance"]
 # Companies the user never wants to see on the dashboard, matched
 # case-insensitively against the normalized company name.
-EXCLUDE_COMPANIES = {"scale ai", "google"}
+EXCLUDE_COMPANIES = {"scale ai", "google", "celonis"}
 # Title keywords that disqualify a finance role as entry-level
 FINANCE_SENIOR_NEGATIVE = (
     "senior", "principal", "lead", "staff vp", "vp ", " vp",
