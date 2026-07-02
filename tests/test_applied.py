@@ -146,35 +146,15 @@ def test_applied_badge_shows_from_history_without_jobmatch_stamp(app, db_session
     assert applied.get(job_id) is True
 
 
-def test_applied_history_page_lists_applications(signed_in_client, db_session):
-    from app.applications import record_application
-    from app.models import Job, User
-
-    user = db_session.query(User).filter(User.email == "user@example.com").one()
-    job = Job(
-        source="test", company="Stripe", title="Product Manager, Payments",
-        normalized_title="product manager, payments",
-        url="https://example.com/jobs/applied-page-1", city="nyc",
-        location="New York, NY", description="PM role.", is_technical=True,
-    )
-    db_session.add(job)
-    db_session.commit()
-    record_application(db_session, user.id, job)
-    db_session.commit()
-
+def test_applied_route_redirects_to_analytics(signed_in_client):
+    """The Applied tab is retired — old bookmarks land on Analytics."""
     resp = signed_in_client.get("/applied")
-    assert resp.status_code == 200
-    body = resp.get_data(as_text=True)
-    assert "Stripe" in body
-    assert "Product Manager, Payments" in body
+    assert resp.status_code == 302
+    assert "/analytics" in resp.headers["Location"]
 
 
-def test_applied_history_page_requires_sign_in(client):
-    resp = client.get("/applied")
-    assert resp.status_code == 302  # redirect to sign-in
-
-
-def test_nav_includes_applied_link(signed_in_client):
+def test_nav_does_not_include_applied_link(signed_in_client):
+    """Regression guard: the Applied tab must not creep back into the nav."""
     resp = signed_in_client.get("/dashboard")
     body = resp.get_data(as_text=True)
-    assert ">Applied</a>" in body
+    assert ">Applied</a>" not in body

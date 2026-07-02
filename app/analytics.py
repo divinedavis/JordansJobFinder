@@ -192,6 +192,55 @@ def build_application_analytics(applications, now=None, months=12, weeks=12):
     }
 
 
+# ── Leaderboard (all users) ───────────────────────────────────────────────────
+
+
+def _display_name(email) -> str:
+    """Leaderboard display name — the part before the @, so full addresses stay
+    off a page every signed-in user can see."""
+    return (email or "").split("@")[0] or "user"
+
+
+def build_application_leaderboard(rows, now=None):
+    """Per-user application counts for the leaderboard on the Analytics tab.
+
+    ``rows`` is ``(user_id, email, applied_at-or-None)`` — one row per
+    application, plus a single ``applied_at=None`` row for users with no
+    applications (produced by an outer join). That way EVERY user appears on
+    the board, even with a zero week / month / year. ``now`` is injectable
+    for tests. Sorted by total descending, then name.
+    """
+    now = _naive(now) or datetime.now(timezone.utc).replace(tzinfo=None)
+    cur_monday = _monday(now)
+    users = {}
+    for user_id, email, applied_at in rows:
+        entry = users.setdefault(
+            user_id,
+            {
+                "user_id": user_id,
+                "name": _display_name(email),
+                "total": 0,
+                "this_week": 0,
+                "this_month": 0,
+                "this_year": 0,
+            },
+        )
+        d = _naive(applied_at)
+        if d is None:
+            continue
+        entry["total"] += 1
+        if d.year == now.year:
+            entry["this_year"] += 1
+            if d.month == now.month:
+                entry["this_month"] += 1
+        if d >= cur_monday:
+            entry["this_week"] += 1
+    board = sorted(users.values(), key=lambda u: (-u["total"], u["name"].lower()))
+    for rank, entry in enumerate(board, start=1):
+        entry["rank"] = rank
+    return board
+
+
 # ── Research (market value) ───────────────────────────────────────────────────
 
 

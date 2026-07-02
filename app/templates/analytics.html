@@ -37,6 +37,37 @@
     }
     .seg { margin-top: 6px; }
     .seg-toggle { display: flex; gap: 8px; }
+    .lb { display: grid; gap: 4px; margin-top: 16px; }
+    .lb-row {
+      display: grid;
+      grid-template-columns: 34px 1fr repeat(4, 72px);
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+    }
+    .lb-row.lb-head {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding-top: 0;
+      padding-bottom: 4px;
+    }
+    .lb-row.me { background: rgba(79, 120, 255, 0.09); }
+    .lb-rank {
+      font-family: "Iowan Old Style", Georgia, serif;
+      font-size: 15px;
+      color: var(--muted);
+    }
+    .lb-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-name .you { color: var(--muted); font-weight: 400; font-size: 12px; }
+    .lb-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .lb-num.zero { color: var(--muted); }
+    .lb-total { font-weight: 700; }
+    @media (max-width: 780px) {
+      .lb-row { grid-template-columns: 26px 1fr repeat(4, 46px); gap: 6px; padding: 8px 8px; }
+    }
   </style>
 
   <section class="panel">
@@ -160,4 +191,37 @@
       </div>
     </section>
   {% endif %}
+
+  <section class="panel">
+    <div class="match-header">
+      <div>
+        <p class="match-kicker">Everyone on the board</p>
+        <h3 class="match-title">Application leaderboard</h3>
+      </div>
+    </div>
+    <p class="muted" style="margin-top: 8px;">
+      How everyone's applications stack up — every member is listed, even with
+      a zero for the week, month, or year.
+    </p>
+    <div class="lb">
+      <div class="lb-row lb-head">
+        <span>#</span>
+        <span>Member</span>
+        <span class="lb-num">Week</span>
+        <span class="lb-num">Month</span>
+        <span class="lb-num">Year</span>
+        <span class="lb-num">Total</span>
+      </div>
+      {% for entry in leaderboard %}
+        <div class="lb-row{% if entry.user_id == user.id %} me{% endif %}">
+          <span class="lb-rank">{{ entry.rank }}</span>
+          <span class="lb-name">{{ entry.name }}{% if entry.user_id == user.id %} <span class="you">(you)</span>{% endif %}</span>
+          <span class="lb-num{% if entry.this_week == 0 %} zero{% endif %}">{{ entry.this_week }}</span>
+          <span class="lb-num{% if entry.this_month == 0 %} zero{% endif %}">{{ entry.this_month }}</span>
+          <span class="lb-num{% if entry.this_year == 0 %} zero{% endif %}">{{ entry.this_year }}</span>
+          <span class="lb-num lb-total{% if entry.total == 0 %} zero{% endif %}">{{ entry.total }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
 {% endblock %}

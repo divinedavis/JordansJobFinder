@@ -15,13 +15,14 @@ from flask import (
     url_for,
 )
 from flask_wtf.csrf import CSRFError
+from sqlalchemy import select as sa_select
 
 from flask import send_file
 
 from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, SALES_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
 from .db import get_db
 from .matching import choose_cities, city_from_slug, is_admin_email, is_superuser_email
-from .models import BaseResume, Feedback, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
+from .models import AppliedJob, BaseResume, Feedback, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
 from .models import utc_now
 from .resumes import (
     ResumeError,
@@ -40,7 +41,11 @@ from .payments import (
 )
 from .results import group_matches_by_city, load_db_matches, preview_matches
 from .applications import applications_for_user, record_application
-from .analytics import build_application_analytics, build_market_research
+from .analytics import (
+    build_application_analytics,
+    build_application_leaderboard,
+    build_market_research,
+)
 from .searches import (
     can_change_search,
     requires_paid_city_override,
@@ -664,37 +669,9 @@ def resume_download_tailored(job_id: int):
 
 @web.get("/applied")
 def applied_history():
-    """Durable history of every job the user applied to (Tailored Resume click).
-
-    Survives the nightly rebuild and the 2-day board window, so the user can
-    analyse which roles and companies they've applied to over the past year.
-    """
-    user = require_user()
-    if not user:
-        return redirect(url_for("web.sign_in"))
-    db = get_db()
-    applications = applications_for_user(db, user.id)
-
-    # Company leaderboard for quick analysis: count + most recent application.
-    by_company: dict[str, dict] = {}
-    for app_row in applications:
-        bucket = by_company.setdefault(
-            app_row.company, {"company": app_row.company, "count": 0, "last": app_row.applied_at}
-        )
-        bucket["count"] += 1
-        if app_row.applied_at > bucket["last"]:
-            bucket["last"] = app_row.applied_at
-    company_summary = sorted(
-        by_company.values(), key=lambda c: (-c["count"], c["company"].lower())
-    )
-
-    return render_template(
-        "applied.html",
-        user=user,
-        applications=applications,
-        company_summary=company_summary,
-        total=len(applications),
-    )
+    """The Applied tab is retired — old bookmarks land on Analytics, which now
+    carries the application history plus the all-users leaderboard."""
+    return redirect(url_for("web.analytics"))
 
 
 @web.get("/analytics")
@@ -703,6 +680,7 @@ def analytics():
 
     Built off the durable AppliedJob history (app/applications.py), so it spans
     up to a year regardless of the 2-day board window or nightly rebuild.
+    Also renders a leaderboard of every user's application counts.
     """
     user = require_user()
     if not user:
@@ -710,6 +688,12 @@ def analytics():
     db = get_db()
     applications = applications_for_user(db, user.id)
     data = build_application_analytics(applications)
+    # Outer join so users with zero applications still make the leaderboard.
+    leaderboard_rows = db.execute(
+        sa_select(User.id, User.email, AppliedJob.applied_at)
+        .outerjoin(AppliedJob, AppliedJob.user_id == User.id)
+    ).all()
+    leaderboard = build_application_leaderboard(leaderboard_rows)
     return render_template(
         "analytics.html",
         user=user,
@@ -718,6 +702,7 @@ def analytics():
         weekly=data["weekly"],
         by_vertical=data["by_vertical"],
         by_city=data["by_city"],
+        leaderboard=leaderboard,
     )
 
 
