@@ -646,7 +646,7 @@ def resume_download_tailored(job_id: int):
     # Clicking "Tailored Resume" counts as applying. Two records get written:
     #   1. JobMatch.applied_at — drives the green "Applied" badge on the board.
     #   2. AppliedJob (record_application) — the durable, ~1-year history that
-    #      survives the nightly rebuild and powers the Applied analysis page.
+    #      survives the nightly rebuild and powers the Analytics page.
     # Both are idempotent: the first application wins the timestamp.
     for jm in db.query(JobMatch).filter(
         JobMatch.user_id == user.id,

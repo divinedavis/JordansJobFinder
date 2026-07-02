@@ -153,7 +153,12 @@ Two nav tabs built on existing data (no schema changes), logic in `app/analytics
   and 12-week series rendered as pure-CSS bars, plus summary stats (total, this
   week/month/year, busiest month, avg/active week) and by-track / by-market
   breakdowns. `build_application_analytics(applications, now=...)` is pure and
-  `now`-injectable for tests.
+  `now`-injectable for tests. Also renders an **application leaderboard** of
+  every user's week/month/year/total counts (`build_application_leaderboard`,
+  fed by a User⟕AppliedJob outer join so zero-application users still appear;
+  display names are the email local part — full addresses never render). The
+  old **Applied** tab is retired: `/applied` 302s to `/analytics` and a nav
+  regression guard keeps the tab from creeping back.
 - **Research** (`/research?tab=pm|finance|sales`, `research.html`) — market
   value per city on the user's saved search. `build_market_research()`
   aggregates real `Job.salary_min/max` midpoints per market (filtered to a sane
