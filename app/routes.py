@@ -52,7 +52,13 @@ from .searches import (
     revert_to_free_cities,
     validate_saved_search,
 )
-from .security import enforce_turnstile
+from .security import (
+    account_locked,
+    clear_failed_logins,
+    enforce_turnstile,
+    hash_identifier,
+    register_failed_login,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -244,8 +250,24 @@ def login():
 
         db = get_db()
         user = db.query(User).filter(User.email == email).one_or_none()
+
+        if user is not None and account_locked(user):
+            logger.warning(
+                "Login attempt on locked account user_id=%d ip=%s",
+                user.id, request.remote_addr,
+            )
+            flash("Too many failed attempts. Try again in a few minutes.", "error")
+            return redirect(url_for("web.login"))
+
         if not user or not user.check_password(password):
-            logger.warning("Failed login attempt email=%s ip=%s", email, request.remote_addr)
+            if user is not None:
+                register_failed_login(user)
+                db.commit()
+            # Hash the submitted email — failed attempts must not log PII.
+            logger.warning(
+                "Failed login attempt email_hash=%s ip=%s",
+                hash_identifier(email), request.remote_addr,
+            )
             flash("Invalid email or password.", "error")
             return redirect(url_for("web.login"))
 
@@ -255,6 +277,8 @@ def login():
             flash("Invalid email or password.", "error")
             return redirect(url_for("web.login"))
 
+        clear_failed_logins(user)
+        db.commit()
         session.clear()
         session["user_id"] = user.id
         session.permanent = True

@@ -28,6 +28,10 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Brute-force lockout: consecutive failed logins and the naive-UTC time
+    # until which the account rejects sign-in attempts (see routes.login).
+    failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     saved_searches: Mapped[list["SavedSearch"]] = relationship(
         back_populates="user",

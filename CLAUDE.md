@@ -175,6 +175,28 @@ Two nav tabs built on existing data (no schema changes), logic in `app/analytics
 Tests: `tests/test_analytics.py` (aggregation math, applied-salary per market,
 route auth, nav links).
 
+## Security Hardening (2026-07-03 audit)
+
+- **Rate limits** (flask-limiter, Redis-backed via `RATELIMIT_STORAGE_URI` in .env —
+  shared across gunicorn workers): login/sign-in 8/min, tailored-resume download
+  30/hour, resume upload 10/hour, feedback POST 10/hour. nginx adds a per-IP
+  `limit_req` backstop on /login + /sign-in (zone in /etc/nginx/conf.d/security.conf).
+- **Account lockout**: 10 consecutive failed logins → 15-min lockout
+  (users.failed_login_count / locked_until, helpers in app/security.py).
+- **Uploads**: magic-byte sniffing (%PDF- / PK zip) + DOCX decompression-bomb cap
+  (50 MB inflated) in app/resumes.py; nginx client_max_body_size 6m.
+- **LLM guardrails** (resume tailoring): job description capped at 8K chars, base
+  resume 20K (token-cost bomb), prompt instructs the model to treat the scraped
+  posting as untrusted data (prompt-injection guard), max_tokens=4000.
+- **Config**: production refuses to boot with a placeholder/short SECRET_KEY;
+  sessions 14 days; failed-login logs hash the email (no PII).
+- **Server**: systemd sandbox on the service (ProtectSystem=strict etc. in
+  jordansjobfinder.service.d/hardening.conf), server_tokens off, nightly DB backup
+  cron (/usr/local/bin/jjf-backup.sh, 14-day rotation in backups/).
+- **GitHub**: secret scanning + push protection + Dependabot security updates +
+  private vulnerability reporting enabled; weekly pip bumps via .github/dependabot.yml.
+- Tests guarding all of this: `tests/test_security.py`.
+
 ## Billing (Scaffolded)
 
 - $2.99/mo city plan — replaces default 3 cities with custom ones

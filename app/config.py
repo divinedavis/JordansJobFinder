@@ -5,8 +5,21 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+_WEAK_SECRET_KEYS = {"change-me", "changeme", "secret", "dev", "development"}
+
+
 class Config:
     SECRET_KEY = os.environ["SECRET_KEY"]
+    # A guessable session-signing key lets anyone forge login cookies. Refuse
+    # to boot production with the .env.example placeholder or a trivially
+    # short key (dev/tests keep working with whatever they set).
+    if os.getenv("APP_ENV", "development") == "production" and (
+        SECRET_KEY.lower() in _WEAK_SECRET_KEYS or len(SECRET_KEY) < 16
+    ):
+        raise RuntimeError(
+            "SECRET_KEY is a placeholder or too short for production — "
+            "generate one with: python -c 'import secrets; print(secrets.token_hex(32))'"
+        )
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
         f"sqlite:///{BASE_DIR / 'jordansjobfinder.db'}",
@@ -47,4 +60,9 @@ class Config:
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
-    PERMANENT_SESSION_LIFETIME = 86400 * 30  # 30 days
+    PERMANENT_SESSION_LIFETIME = 86400 * 14  # 14 days
+
+    # flask-limiter counter storage. The in-memory default is per-gunicorn-worker
+    # (each worker keeps its own counts), so production points this at Redis via
+    # .env; dev and the test suite stay on memory://.
+    RATELIMIT_STORAGE_URI = os.getenv("RATELIMIT_STORAGE_URI", "memory://")

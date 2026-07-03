@@ -48,11 +48,22 @@ def create_app() -> Flask:
 
     csrf.exempt("web.stripe_webhook")
 
-    # Fix #4: Rate limit auth endpoints
-    for endpoint in ("sign_in", "login"):
+    # Fix #4: Rate limit auth + expensive endpoints. Auth limits slow brute
+    # force; the resume routes guard the Anthropic API spend (each cache-miss
+    # tailored download is a paid LLM call) and the PDF/DOCX parse cost.
+    route_limits = {
+        "sign_in": ("8/minute", None),
+        "login": ("8/minute", None),
+        "resume_download_tailored": ("30/hour", None),
+        "resume_upload": ("10/hour", None),
+        "feedback": ("10/hour", ["POST"]),
+    }
+    for endpoint, (limit, methods) in route_limits.items():
         view_func = app.view_functions.get(f"web.{endpoint}")
         if view_func:
-            app.view_functions[f"web.{endpoint}"] = limiter.limit("8/minute")(view_func)
+            app.view_functions[f"web.{endpoint}"] = limiter.limit(
+                limit, methods=methods
+            )(view_func)
 
     @app.after_request
     def set_security_headers(response):
