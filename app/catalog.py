@@ -13,6 +13,7 @@ TITLE_OPTIONS = [
     {"slug": "entry-sales-account-executive", "label": "Account Executive (entry)", "vertical": "sales"},
     {"slug": "entry-sales-solutions-engineer", "label": "Sales / Solutions Engineer", "vertical": "sales"},
     {"slug": "entry-sales-inside-sales", "label": "Inside Sales / Sales Representative", "vertical": "sales"},
+    {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
@@ -78,6 +79,11 @@ TITLE_KEYWORDS["entry-sales-any"] = sorted({
     for kw in kws
 })
 
+TITLE_KEYWORDS["it-project-program-manager"] = [
+    "project manager", "program manager",
+    "project management", "program management",
+]
+
 EXPERIENCE_BUCKETS = [
     {"slug": "0-2", "label": "0-2 years"},
     {"slug": "3-6", "label": "3-6 years"},
@@ -104,6 +110,10 @@ CITY_OPTIONS = [
     {"slug": "philadelphia-pa", "label": "Philadelphia, PA"},
     {"slug": "harrisburg-pa", "label": "Harrisburg, PA"},
     {"slug": "baltimore-md", "label": "Baltimore, MD"},
+    {"slug": "tampa-fl", "label": "Tampa, FL"},
+    {"slug": "orlando-fl", "label": "Orlando, FL"},
+    {"slug": "jacksonville-fl", "label": "Jacksonville, FL"},
+    {"slug": "florida-other", "label": "Florida (other)"},
 ]
 FINANCE_DEFAULT_CITIES = [
     "New York, NY", "Atlanta, GA", "Miami, FL",
@@ -113,6 +123,13 @@ FINANCE_DEFAULT_CITIES = [
 ]
 # Sales mirrors finance: same 11 metros.
 SALES_DEFAULT_CITIES = list(FINANCE_DEFAULT_CITIES)
+# IT project/program track: central/eastern PA plus every Florida metro (the
+# job just has to sit in one of these locations — HQ doesn't matter).
+IT_DEFAULT_CITIES = [
+    "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
+    "Miami, FL", "Tampa, FL", "Orlando, FL", "Jacksonville, FL",
+    "Florida (other)",
+]
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
 

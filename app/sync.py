@@ -36,6 +36,10 @@ CITY_DISPLAY = {
     "philadelphia-pa": "Philadelphia, PA",
     "harrisburg-pa": "Harrisburg, PA",
     "baltimore-md": "Baltimore, MD",
+    "tampa-fl": "Tampa, FL",
+    "orlando-fl": "Orlando, FL",
+    "jacksonville-fl": "Jacksonville, FL",
+    "florida-other": "Florida (other)",
 }
 
 

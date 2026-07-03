@@ -298,8 +298,16 @@ VERTICAL_LABELS = {
     "pm": "Product/Program Manager",
     "finance": "Entry Finance",
     "sales": "Entry Sales",
+    "it": "IT Project/Program Manager",
 }
-VERTICAL_ORDER = ["pm", "finance", "sales"]
+VERTICAL_ORDER = ["pm", "finance", "sales", "it"]
+
+
+def user_verticals(user) -> list[str]:
+    """Tabs are personal: a user only sees the verticals they have a saved
+    search for (e.g. an IT-track user sees just the IT tab — no finance/sales)."""
+    tabs = [v for v in VERTICAL_ORDER if user.saved_search_for(v)]
+    return tabs or ["pm"]
 
 
 @web.get("/dashboard")
@@ -310,9 +318,10 @@ def dashboard():
 
     db = get_db()
     user = db.get(User, user.id)
-    active_tab = request.args.get("tab", "pm")
-    if active_tab not in VERTICAL_LABELS:
-        active_tab = "pm"
+    tabs = user_verticals(user)
+    active_tab = request.args.get("tab", "")
+    if active_tab not in tabs:
+        active_tab = tabs[0]
     saved_search = user.saved_search_for(active_tab)
     matches = load_db_matches(saved_search) if saved_search else []
     preview = preview_matches(saved_search) if (saved_search and not matches) else []
@@ -326,7 +335,7 @@ def dashboard():
         title_labels=TITLE_LABELS,
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,
-        tab_order=VERTICAL_ORDER,
+        tab_order=tabs,
     )
 
 
@@ -739,9 +748,10 @@ def research():
         return redirect(url_for("web.sign_in"))
     db = get_db()
     user = db.get(User, user.id)
-    active_tab = request.args.get("tab", "pm")
-    if active_tab not in VERTICAL_LABELS:
-        active_tab = "pm"
+    tabs = user_verticals(user)
+    active_tab = request.args.get("tab", "")
+    if active_tab not in tabs:
+        active_tab = tabs[0]
     saved_search = user.saved_search_for(active_tab)
     cities = list(saved_search.cities) if saved_search else []
     experience_bucket = saved_search.experience_bucket if saved_search else None
@@ -757,7 +767,7 @@ def research():
         user=user,
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,
-        tab_order=VERTICAL_ORDER,
+        tab_order=tabs,
         saved_search=saved_search,
         markets=data["markets"],
         overall=data["overall"],

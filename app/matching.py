@@ -69,6 +69,45 @@ def title_is_entry_level_finance(title: str) -> bool:
     return "analyst" in normalized or "associate" in normalized
 
 
+# IT project/program manager track. The title must be a project- or
+# program-management role AND carry an IT/technology signal — otherwise a
+# "Project Manager" at an oil company (construction, facilities, …) leaks in.
+IT_PM_ROLE_KEYWORDS = (
+    "project manager", "program manager",
+    "project management", "program management",
+)
+IT_TITLE_SIGNALS = (
+    "information technology", "information systems", "information security",
+    "technical", "technology", "software", "infrastructure", "cyber",
+    "security", "cloud", "erp", "sap", "crm", "salesforce", "digital",
+    "data", "application", "systems", "network", "devops", "agile",
+    "scrum", "pmo", "implementation", "integration",
+)
+IT_NEGATIVE_KEYWORDS = (
+    "construction", "civil", "clinical", "facilities", "hvac",
+    "electrical", "mechanical", "plumbing", "landscap", "roofing",
+    "wastewater", "highway", "bridge", "real estate", "property",
+)
+
+
+def title_is_it_pm(title: str) -> bool:
+    """Project/program manager titles with an IT/technology signal."""
+    import re
+    normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
+    if not is_corporate_role(normalized):
+        return False
+    if any(neg in normalized for neg in IT_NEGATIVE_KEYWORDS):
+        return False
+    if not any(kw in normalized for kw in IT_PM_ROLE_KEYWORDS):
+        return False
+    # "IT" needs a word boundary ("recruit", "digital" would substring-match).
+    if re.search(r"\bit\b", normalized):
+        return True
+    return any(sig in normalized for sig in IT_TITLE_SIGNALS)
+
+
 def title_is_entry_level_sales(title: str) -> bool:
     """Heuristic mirror of title_is_entry_level_finance for sales roles."""
     normalized = normalize_text(title)
@@ -183,6 +222,13 @@ def match_job_for_user(
         if parsed.min_years is not None or parsed.max_years is not None:
             return experience_bucket_matches(experience_bucket or "0-2", parsed)
         return True
+
+    if vertical == "it":
+        # IT project/program manager: title heuristic only. No salary floor
+        # (jobs without pay data still show) and no experience exclusion —
+        # this track serves a 10+ years user who qualifies for every level,
+        # so a "5+ years required" posting must not be filtered out.
+        return title_is_it_pm(title)
 
     if vertical == "sales":
         # Sales: same shape as finance — title heuristic + entry-level seniority,
