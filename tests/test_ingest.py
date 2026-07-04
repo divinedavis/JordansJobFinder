@@ -65,10 +65,13 @@ def test_blocked_company_is_dropped_from_ingest(monkeypatch):
         {"company": "google", "title": "Product Manager", "url": "https://x/4"},
         {"company": "Celonis", "title": "Product Manager", "url": "https://x/5"},
         {"company": "celonis", "title": "Program Manager", "url": "https://x/6"},
+        {"company": "TJX", "title": "Program Manager", "url": "https://x/8"},
+        {"company": "tjx", "title": "Product Manager", "url": "https://x/9"},
         {"company": "Postman", "title": "Product Manager", "url": "https://x/7"},
     ])
     monkeypatch.setattr(ingest, "load_finance_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_sales_jobs", lambda: [])
+    monkeypatch.setattr(ingest, "load_it_jobs", lambda: [])
 
     companies = {job["company"] for job in ingest.normalized_shared_jobs()}
     assert companies == {"Postman"}

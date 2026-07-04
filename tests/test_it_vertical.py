@@ -126,6 +126,41 @@ def test_research_tabs_follow_user_verticals(signed_in_client, db_session):
     assert "?tab=sales" not in body
 
 
+# ── Board freshness window ────────────────────────────────────────────────────
+
+
+def test_it_board_keeps_a_week_of_jobs(app, signed_in_client, db_session):
+    """IT roles post rarely in these metros — the board keeps 7 days, not the
+    2-day window the national tracks use."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models import Job, SavedSearch
+    from app.results import load_db_matches
+    from app.sync import rebuild_matches_for_user
+
+    user_id = _convert_to_it_user(db_session)
+    five_days_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=5)
+    job = Job(
+        source="test", company="Chewy", title="IT Program Manager",
+        normalized_title="it program manager",
+        url="https://example.com/jobs/it-week-1", city="orlando-fl",
+        location="Orlando, FL", description="", vertical="it",
+        is_technical=True, posted_at=five_days_ago,
+    )
+    db_session.add(job)
+    db_session.commit()
+    job_id = job.id
+
+    rebuild_matches_for_user(user_id)
+    search = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user_id
+    ).one()
+    matches = load_db_matches(search)
+    assert any(m["id"] == job_id for m in matches), (
+        "5-day-old IT job fell off the board — 7-day window regressed"
+    )
+
+
 # ── End-to-end matching ───────────────────────────────────────────────────────
 
 

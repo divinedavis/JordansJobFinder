@@ -60,12 +60,26 @@ def group_matches_by_city(matches: list[dict]) -> dict:
     return grouped
 
 
+# Board freshness window per vertical. IT project/program roles in the PA/FL
+# metros post far less often than the national tracks — a 2-day window leaves
+# that board nearly empty, so it keeps a week.
+BOARD_WINDOW_DAYS = {"it": 7}
+DEFAULT_BOARD_WINDOW_DAYS = 2
+
+
+def _board_cutoff(vertical: str):
+    days = BOARD_WINDOW_DAYS.get(vertical, DEFAULT_BOARD_WINDOW_DAYS)
+    return datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+    ) - timedelta(days=days)
+
+
 def load_db_matches(saved_search) -> list[dict]:
     if not saved_search:
         return []
 
     db = get_db()
-    cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None) - timedelta(days=2)
+    cutoff = _board_cutoff(saved_search.vertical)
     effective_date = case(
         (Job.posted_at.isnot(None), Job.posted_at),
         else_=Job.found_at,
@@ -117,7 +131,7 @@ def preview_matches(saved_search) -> list[dict]:
     if not saved_search:
         return []
 
-    cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None) - timedelta(days=2)
+    cutoff = _board_cutoff(saved_search.vertical)
     cities = {c for c in (saved_search.cities or []) if c}
     matches = []
     for job in normalized_shared_jobs():

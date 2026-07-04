@@ -121,7 +121,8 @@ FINANCE_WORKDAY_COMPANIES = [
     ("Regeneron", "regeneron", 1, "Careers"),
     ("RingCentral", "ringcentral", 1, "Ringcentral_Careers"),
     ("Stryker", "stryker", 1, "StrykerCareers"),
-    ("TJX", "tjx", 1, "Tjx_External"),
+    # TJX removed 2026-07-04 — owner excluded the company site-wide
+    # (see EXCLUDE_COMPANIES in app/matching.py).
     ("Tapestry", "tapestry", 108, "Tapestry_Careers"),
     ("Thermo Fisher", "thermofisher", 5, "ThermofisherCareers"),
     ("Trimble", "trimble", 1, "TrimbleCareers"),

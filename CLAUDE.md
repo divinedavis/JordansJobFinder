@@ -67,6 +67,35 @@ Native platforms: **Workday** (`*_WORKDAY_COMPANIES`) + **Greenhouse**
 (`*_GREENHOUSE_COMPANIES`), plus Citi RSS and Playwright (JPMorgan/Goldman) in
 finance.
 
+## IT Project/Program Manager Vertical (scraper_it.py)
+
+Third sibling vertical (`vertical="it"`), built for a specific user (Frank,
+fbnorris0502@gmail.com): **mid-to-senior IT project/program manager** roles at
+$1B+ employers in **Lancaster PA, Philadelphia PA, Harrisburg PA, and every
+Florida metro** (miami, tampa-fl, orlando-fl, jacksonville-fl, plus a
+`florida-other` catch-all checked LAST so no FL posting is dropped). The job
+only needs to SIT in one of these locations — HQ doesn't matter. **No salary
+floor and no experience exclusion** (serves a 10+ years candidate who
+qualifies for every level). Title heuristic (`matching.title_is_it_pm`,
+duplicated in the scraper per the vertical pattern): project/program-manager
+keyword AND an IT signal (word-boundary "IT", software, cloud, ERP, cyber, …),
+with construction/facilities/clinical negatives. Writes `shared_jobs_it.json`;
+runs in the 9 AM cron chain after scraper_sales.py. Employer set = the UNION
+of the verified sales + finance Workday/Greenhouse lists (deduped; the finance
+list contributes Vanguard/Malvern, Fidelity/Jacksonville, Raymond James/Tampa)
++ regional extra-ATS platforms. **7-day windows** on both sides (scraper
+`RECENCY_DAYS` and `results.BOARD_WINDOW_DAYS["it"]`) because IT-PM roles in
+these metros post rarely — the national tracks stay at 2 days. Workday
+postings listed as "N Locations" get a detail-page fetch (title+recency
+survivors only) to recover the real cities — without it, most big-bank
+postings are invisible to the location filter.
+
+**Dashboard/Research tabs are per-user**: `routes.user_verticals()` shows only
+the verticals a user has a SavedSearch for. Frank has ONLY the `it` search
+(his pm/finance/sales defaults were removed 2026-07-03), so he sees just the
+IT tab; everyone else keeps pm/finance/sales and never sees the IT tab.
+Tests: `tests/test_it_vertical.py`.
+
 ### Extra ATS platforms (scraper_ats_extra.py)
 
 The big national employers are on Workday/Greenhouse, but the **regional** PA/MD

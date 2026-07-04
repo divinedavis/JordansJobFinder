@@ -20,6 +20,10 @@ from pathlib import Path
 import requests
 
 from scraper_ats_extra import collect_extra_jobs
+from scraper_finance import (
+    FINANCE_GREENHOUSE_COMPANIES,
+    FINANCE_WORKDAY_COMPANIES,
+)
 from scraper_sales import (
     SALES_GREENHOUSE_COMPANIES,
     SALES_WORKDAY_COMPANIES,
@@ -29,8 +33,10 @@ from scraper_sales import (
 )
 from corporate_filter import is_corporate_role
 
-# Only keep jobs posted within this window.
-RECENCY_DAYS = 2
+# Only keep jobs posted within this window. Wider than the 2-day national
+# tracks: senior IT-PM roles in the PA/FL metros post less frequently, and the
+# dashboard shows this vertical a 7-day board (results.BOARD_WINDOW_DAYS).
+RECENCY_DAYS = 7
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SHARED_JOBS_FILE = SCRIPT_DIR / "shared_jobs_it.json"
@@ -40,11 +46,31 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; JordansJobFinder/it)",
 }
 
-# Same verified $1B+ / regional employer set as the sales vertical — every
-# endpoint returned HTTP 200 from the droplet IP. The per-scraper title filter
-# keeps the verticals from claiming each other's jobs.
-IT_WORKDAY_COMPANIES = list(SALES_WORKDAY_COMPANIES)
-IT_GREENHOUSE_COMPANIES = list(SALES_GREENHOUSE_COMPANIES)
+# Union of BOTH verified $1B+ / regional employer sets (sales + finance) —
+# every endpoint returned HTTP 200 from the droplet IP. The finance list adds
+# the banks/insurers with big PA and FL technology hubs (Vanguard in Malvern,
+# Fidelity in Jacksonville, Raymond James in Tampa, …). The per-scraper title
+# filter keeps the verticals from claiming each other's jobs.
+def _merge_unique(*lists, key):
+    seen, out = set(), []
+    for lst in lists:
+        for entry in lst:
+            k = key(entry)
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append(entry)
+    return out
+
+
+IT_WORKDAY_COMPANIES = _merge_unique(
+    SALES_WORKDAY_COMPANIES, FINANCE_WORKDAY_COMPANIES,
+    key=lambda e: (e[1], e[2], e[3]),  # (tenant, wd_ver, site)
+)
+IT_GREENHOUSE_COMPANIES = _merge_unique(
+    SALES_GREENHOUSE_COMPANIES, FINANCE_GREENHOUSE_COMPANIES,
+    key=lambda e: e[1],  # token
+)
 
 # Location patterns per city slug. Order matters: the generic Florida
 # catch-all MUST be checked last so the named FL metros claim their postings
@@ -144,6 +170,27 @@ def make_job(*, company, title, url, city, location, source, posted_dt, posted_l
     }
 
 
+def _workday_detail_locations(tenant, wd_ver, site, ext_path):
+    """All location strings for one posting. Multi-location Workday postings
+    list only 'N Locations' on the search result — the real cities live on the
+    detail endpoint. Big employers (Fidelity, banks) post most roles this way;
+    without this the whole posting is invisible to the location filter."""
+    api = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{ext_path}"
+    try:
+        resp = requests.get(api, headers=HEADERS, timeout=15)
+        if resp.status_code != 200:
+            return []
+        info = resp.json().get("jobPostingInfo") or {}
+        locations = [info.get("location") or ""]
+        locations.extend(info.get("additionalLocations") or [])
+        return [loc for loc in locations if loc]
+    except Exception:
+        return []
+
+
+_MULTI_LOCATION_RE = re.compile(r"^\d+\s+locations$", re.IGNORECASE)
+
+
 def scrape_workday(name, tenant, wd_ver, site):
     api = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
     found = []
@@ -172,14 +219,23 @@ def scrape_workday(name, tenant, wd_ver, site):
                 location = job.get("locationsText", "")
                 if not title_is_it_pm(title):
                     continue
-                city = infer_city(location)
-                if not city:
-                    continue
                 posted_label = job.get("postedOn", "") or ""
                 posted_dt = parse_relative_posted(posted_label)
                 if not within_recency(posted_dt):
                     continue
                 ext_path = job.get("externalPath", "")
+                city = infer_city(location)
+                if not city and _MULTI_LOCATION_RE.match((location or "").strip()):
+                    # "N Locations" hides the real cities — pull the detail
+                    # page (only for title+recency survivors) and keep the
+                    # first location inside the track's metros.
+                    for loc in _workday_detail_locations(tenant, wd_ver, site, ext_path):
+                        city = infer_city(loc)
+                        if city:
+                            location = loc
+                            break
+                if not city:
+                    continue
                 url = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/en-US/{site}{ext_path}"
                 found.append(make_job(
                     company=name, title=title, url=url, city=city,
