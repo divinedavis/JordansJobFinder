@@ -324,6 +324,18 @@ WORKDAY_COMPANIES = [
     ("NRG Energy",       "nrg",            5,   "NRG_Careers",             "houston"),
     ("Targa Resources",  "targaresources", 5,   "TargaResources",          "houston"),
     ("EOG Resources",    "eogresources",   5,   "EOG_Careers",             "houston"),
+    # Fortune 1000 Houston-HQ additions (endpoints verified HTTP 200 from the
+    # droplet 2026-07-04; site names discovered via landing-page redirects).
+    ("Plains All American",   "plains",              1, "plains",                "houston"),
+    ("Corebridge Financial",  "corebridgefinancial", 1, "corebridgefinancial",   "houston"),
+    ("Westlake",              "westlake",            1, "westlake",              "houston"),
+    ("KBR",                   "kbr",                 5, "kbr_careers",           "houston"),
+    ("Chord Energy",          "chordenergy",         1, "External",              "houston"),
+    ("Service Corp Intl",     "sci",                 5, "sci",                   "houston"),
+    ("Stewart Title",         "stewart",             1, "External",              "houston"),
+    ("Occidental",            "oxy",                 5, "Corporate",             "houston"),
+    ("Comfort Systems USA",   "comfortsystemsusa",   1, "Corpcareers",           "houston"),
+    ("DNOW",                  "distributionnow",     5, "DNOW_Careers",          "houston"),
     # ── Washington DC / Northern Virginia ─────────────────────────────────────
     ("Capital One DC",   "capitalone",     1,   "Capital_One",             "dc"),
     ("Booz Allen",       "boozallen",      5,   "Booz_Allen_Careers",      "dc"),
@@ -1002,6 +1014,60 @@ def format_posted_label(job):
 def make_job(title, url, company, city, salary="", posted="Unknown", location="", source="unknown"):
     return dict(title=title, url=url, company=company, city=city,
                 salary=salary, posted=posted, location=location, source=source)
+
+
+# ── Fortune 1000 Houston extra-ATS employers (Oracle Cloud / iCIMS) ──────────
+# Houston-HQ Fortune 1000 companies whose boards aren't on Workday/Greenhouse/
+# Lever. Scraped through scraper_ats_extra's platform functions with PM-scope
+# filters; the candidates then flow through the same detail-page enrichment
+# (description / salary / tech-focus) as every other source. Endpoints
+# verified HTTP 200 from the droplet 2026-07-04. Still unreachable: Enterprise
+# Products (legacy Taleo), CenterPoint + Murphy Oil (hosted SuccessFactors
+# variant), Crown Castle (UKG), APA + Crescent Energy (no public ATS API).
+HOUSTON_EXTRA_ORACLE = [
+    ("Cheniere Energy", "hcgi.fa.us2.oraclecloud.com",              "CX_2"),
+    ("NOV",             "egay.fa.us6.oraclecloud.com",              "CX_2001"),
+    ("Patterson-UTI",   "fa-elpm-saasfaprod1.fa.ocs.oraclecloud.com", "CX"),
+    ("Oceaneering",     "ebfr.fa.us2.oraclecloud.com",              "CX_3001"),
+]
+HOUSTON_EXTRA_ICIMS = [
+    ("Quanta Services",    "careers-quanta"),
+    ("Group 1 Automotive", "group1auto"),
+    ("Kinder Morgan",      "careers-kindermorgan"),
+    ("Kirby",              "kirbycorp"),
+]
+
+
+def collect_houston_extra():
+    """PM-scope candidates from the Houston Oracle/iCIMS employers above."""
+    from types import SimpleNamespace
+
+    from scraper_ats_extra import _safe, scrape_icims, scrape_oracle
+
+    def _recent(posted_dt):
+        if posted_dt is None:
+            return False
+        return (datetime.now(timezone.utc) - posted_dt).days <= VALID_POST_DAYS
+
+    ctx = SimpleNamespace(
+        title_filter=lambda t: is_target_role(t) and level_ok(t, "houston"),
+        infer_city=infer_pm_city,
+        within_recency=_recent,
+        make_job=lambda **kw: make_job(
+            title=kw["title"], url=kw["url"], company=kw["company"],
+            city=kw["city"], posted=kw.get("posted_label") or "Unknown",
+            location=kw.get("location", ""), source=kw["source"],
+        ),
+        source=lambda platform: f"{platform}-pm",
+    )
+    jobs = []
+    for name, host, site in HOUSTON_EXTRA_ORACLE:
+        log(f"  [{name}] Oracle...")
+        jobs += _safe(name, scrape_oracle, ctx, name, host, site)
+    for name, subdomain in HOUSTON_EXTRA_ICIMS:
+        log(f"  [{name}] iCIMS...")
+        jobs += _safe(name, scrape_icims, ctx, name, subdomain)
+    return jobs
 
 
 def city_display(city, location):
@@ -1863,6 +1929,9 @@ def main():
     all_candidates = []
 
     all_candidates += scrape_citi()
+
+    # Fortune 1000 Houston employers on Oracle Cloud / iCIMS.
+    all_candidates += collect_houston_extra()
 
     for name, tenant, ver, site, city in WORKDAY_COMPANIES:
         log(f"  [{name}] Workday...")

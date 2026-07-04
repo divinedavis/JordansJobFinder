@@ -52,6 +52,18 @@ version+site brute-probed; Greenhouse/Lever token). The same verified set is
 appended to the finance + sales vertical lists (which already infer city). See
 `tests/test_scraper_multi.py` for the inference + list-integrity guards.
 
+### Fortune 1000 Houston coverage (2026-07-04)
+
+All reachable Fortune 1000 Houston-HQ employers are in the PM scraper: 10 new
+per-city Workday entries (Plains, Corebridge, Westlake, KBR, Chord, SCI,
+Stewart, Occidental, Comfort Systems, DNOW) plus a `collect_houston_extra()`
+pass driving scraper_ats_extra's Oracle (Cheniere, NOV, Patterson-UTI,
+Oceaneering) and iCIMS (Quanta, Group 1, Kinder Morgan, Kirby) functions with
+PM-scope filters; those candidates flow through the normal detail-page
+enrichment. Unreachable (no supported ATS): Enterprise Products (legacy
+Taleo), CenterPoint + Murphy Oil (hosted SuccessFactors variant), Crown Castle
+(UKG), APA, Crescent Energy. Tests: `tests/test_scraper_houston.py`.
+
 ## Finance + Sales Verticals (scraper_finance.py, scraper_sales.py)
 
 Two sibling scrapers surface **entry-level finance** and **entry-level sales**
