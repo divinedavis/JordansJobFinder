@@ -41,7 +41,10 @@ HR_GREENHOUSE_COMPANIES = list(IT_GREENHOUSE_COMPANIES)
 CITY_LOCATION_PATTERNS = {
     "york-pa":         ["york, pa", "york county"],
     "lancaster-pa":    ["lancaster, pa", "lancaster county"],
-    "philadelphia-pa": ["philadelphia", "philly", "malvern", "horsham", "blue bell", "wayne, pa", "valley forge", "king of prussia"],
+    # Penn Medicine's Workday lists campus names, not "Philadelphia, PA" —
+    # HUP / Perelman / Pennsylvania Hospital postings must still land.
+    "philadelphia-pa": ["philadelphia", "philly", "malvern", "horsham", "blue bell", "wayne, pa", "valley forge", "king of prussia",
+                        "hup", "perelman", "pennsylvania hospital", "penn presbyterian", "university city"],
     "harrisburg-pa":   ["harrisburg", "camp hill", "mechanicsburg", "hershey, pa"],
 }
 
