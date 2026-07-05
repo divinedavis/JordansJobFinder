@@ -113,6 +113,15 @@ def _with_pct(series):
     return series
 
 
+def _trim_leading_zeros(series):
+    """Drop zero rows before the first period with activity. The 12-period
+    window is a ceiling, not a quota — a user whose history starts in June
+    shouldn't stare at ten empty months above it. Once real history fills the
+    window this is a no-op, so the chart stays a rolling last-12."""
+    first = next((i for i, row in enumerate(series) if row["count"]), None)
+    return series if first is None else series[first:]
+
+
 # ── Analytics (year in review) ────────────────────────────────────────────────
 
 
@@ -144,6 +153,7 @@ def build_application_analytics(applications, now=None, months=12, weeks=12):
         }
         for yy, mm in reversed(seq)
     ]
+    monthly = _trim_leading_zeros(monthly)
     _with_pct(monthly)
 
     # Weekly series — Monday anchored, contiguous, zero-filled.
@@ -158,6 +168,7 @@ def build_application_analytics(applications, now=None, months=12, weeks=12):
         }
         for wk in reversed([cur_monday - timedelta(weeks=i) for i in range(weeks)])
     ]
+    weekly = _trim_leading_zeros(weekly)
     _with_pct(weekly)
 
     # Breakdowns.

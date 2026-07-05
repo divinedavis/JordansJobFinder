@@ -44,15 +44,21 @@ def test_application_analytics_counts_by_week_and_month():
     assert monthly["2026-06"] == 3
     assert monthly["2026-05"] == 1
     assert monthly["2025-12"] == 1
-    # 12-month contiguous window, oldest -> newest.
-    assert len(data["monthly"]) == 12
+    # Contiguous, oldest -> newest, leading zero months trimmed: the series
+    # starts at the first month with an application (Dec 2025), not the full
+    # 12-month window.
+    assert len(data["monthly"]) == 7
+    assert data["monthly"][0]["key"] == "2025-12"
     assert data["monthly"][-1]["key"] == "2026-06"
 
     # Prior week (Mon Jun 22) holds the Jun 23 + Jun 24 applications.
     weekly = {row["key"]: row["count"] for row in data["weekly"]}
     assert weekly["2026-06-29"] == 1
     assert weekly["2026-06-22"] == 2
-    assert len(data["weekly"]) == 12
+    # Same trim for weeks: starts at the week of the first in-window app
+    # (May 10 -> Monday May 4).
+    assert len(data["weekly"]) == 9
+    assert data["weekly"][0]["key"] == "2026-05-04"
 
     verticals = {row["key"]: row["count"] for row in data["by_vertical"]}
     assert verticals == {"pm": 3, "finance": 1, "sales": 1}
@@ -69,6 +75,22 @@ def test_application_analytics_empty():
     assert data["summary"]["busiest_month"] is None
     assert all(row["count"] == 0 for row in data["monthly"])
     assert all(row["pct"] == 0 for row in data["weekly"])
+
+
+def test_application_analytics_trims_leading_zero_months():
+    from app.analytics import build_application_analytics
+
+    now = _dt(2026, 7, 5)
+    # History starts in June — no empty Aug-2025..May-2026 rows above it.
+    apps = [_AppRow(_dt(2026, 6, 13)), _AppRow(_dt(2026, 7, 2))]
+    data = build_application_analytics(apps, now=now)
+    assert [m["key"] for m in data["monthly"]] == ["2026-06", "2026-07"]
+    # Internal zeros are kept once history exists: the window stays rolling.
+    apps_gap = [_AppRow(_dt(2025, 8, 10)), _AppRow(_dt(2026, 7, 2))]
+    data_gap = build_application_analytics(apps_gap, now=now)
+    assert len(data_gap["monthly"]) == 12  # full rolling window, no trim
+    assert data_gap["monthly"][0]["key"] == "2025-08"
+    assert any(m["count"] == 0 for m in data_gap["monthly"][1:-1])
 
 
 def test_application_analytics_bar_pct_relative_to_max():
