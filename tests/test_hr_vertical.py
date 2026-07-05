@@ -136,3 +136,18 @@ def test_hr_search_matches_hr_jobs_in_pa(signed_in_client, db_session):
     }
     assert good.id in matched
     assert director.id not in matched
+
+
+def test_dashboard_offers_hr_add_pill_until_added(signed_in_client):
+    """The tab row shows a one-click '+ HR Coordinator+' pill; once the track
+    is added the pill is replaced by the real tab."""
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "+ HR Coordinator+" in body
+    assert "?tab=hr" not in body
+
+    signed_in_client.post("/search", data={
+        "title_slug": "hr-coordinator", "experience_bucket": "7-9",
+    })
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "+ HR Coordinator+" not in body
+    assert "?tab=hr" in body
