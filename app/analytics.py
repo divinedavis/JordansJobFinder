@@ -45,6 +45,7 @@ VERTICAL_LABELS = {
     "finance": "Entry Finance",
     "sales": "Entry Sales",
     "it": "IT Project/Program Manager",
+    "hr": "HR Coordinator+",
 }
 
 # Drop obviously-bogus salaries before averaging (scraper occasionally pulls a

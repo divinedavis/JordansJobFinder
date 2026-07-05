@@ -108,6 +108,22 @@ the verticals a user has a SavedSearch for. Frank has ONLY the `it` search
 IT tab; everyone else keeps pm/finance/sales and never sees the IT tab.
 Tests: `tests/test_it_vertical.py`.
 
+## HR Coordinator Vertical (scraper_hr.py)
+
+Fifth vertical (`vertical="hr"`), user-selectable: picking "HR Coordinator /
+Generalist (5+ yrs)" on `/search` creates the `hr` SavedSearch (pinned to
+**York PA, Lancaster PA, Philadelphia PA, Harrisburg PA** —
+`HR_DEFAULT_CITIES`; the 3-city picker is PM-only) and its tab appears
+immediately (matches rebuilt on the spot). Scope: HR coordinator + the level
+above (generalist/specialist; "senior …" variants pass; director/VP/head-of
+excluded). **No salary requirement and no experience exclusion** (5+ years
+candidates qualify for all coordinator/generalist levels). 7-day windows both
+sides, same as IT. Employer set = the IT union + the regional extra-ATS
+platforms (the only reach into York/Lancaster). Runs in the 9 AM cron chain
+after scraper_it.py; writes `shared_jobs_hr.json`. Selecting any non-PM title
+on /search now upserts THAT vertical's search via `VERTICAL_DEFAULT_CITIES`
+(previously it corrupted the PM search). Tests: `tests/test_hr_vertical.py`.
+
 ### Extra ATS platforms (scraper_ats_extra.py)
 
 The big national employers are on Workday/Greenhouse, but the **regional** PA/MD

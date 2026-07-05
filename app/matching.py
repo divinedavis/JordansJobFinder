@@ -69,6 +69,32 @@ def title_is_entry_level_finance(title: str) -> bool:
     return "analyst" in normalized or "associate" in normalized
 
 
+# HR track: coordinator roles and the level directly above (generalist /
+# specialist). No salary requirement; directors/VPs stay out of scope.
+HR_ROLE_KEYWORDS = (
+    "hr coordinator", "human resources coordinator",
+    "people operations coordinator", "hr operations coordinator",
+    "hr generalist", "human resources generalist",
+    "hr specialist", "human resources specialist",
+)
+HR_NEGATIVE_KEYWORDS = (
+    "director", "vice president", " vp", "vp ", "head of", "chief",
+    "intern", "internship",
+)
+
+
+def title_is_hr(title: str) -> bool:
+    """HR coordinator/generalist/specialist titles ('senior' variants pass)."""
+    normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
+    if not is_corporate_role(normalized):
+        return False
+    if any(neg in normalized for neg in HR_NEGATIVE_KEYWORDS):
+        return False
+    return any(kw in normalized for kw in HR_ROLE_KEYWORDS)
+
+
 # IT project/program manager track. The title must be a project- or
 # program-management role AND carry an IT/technology signal — otherwise a
 # "Project Manager" at an oil company (construction, facilities, …) leaks in.
@@ -222,6 +248,13 @@ def match_job_for_user(
         if parsed.min_years is not None or parsed.max_years is not None:
             return experience_bucket_matches(experience_bucket or "0-2", parsed)
         return True
+
+    if vertical == "hr":
+        # HR coordinator/generalist: no salary requirement (postings without
+        # pay still show) and no experience exclusion — the track serves a
+        # 5+ years candidate, who qualifies for every coordinator/generalist
+        # level (same reasoning as the IT track).
+        return title_is_hr(title)
 
     if vertical == "it":
         # IT project/program manager: title heuristic only. No salary floor

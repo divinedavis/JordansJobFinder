@@ -1,0 +1,138 @@
+"""HR coordinator/generalist vertical: title heuristic, no-salary matching,
+PA city coverage (York/Lancaster/Philadelphia/Harrisburg), and the
+select-a-track flow on /search that adds the HR tab."""
+
+
+# ── Title heuristic ───────────────────────────────────────────────────────────
+
+
+def test_title_is_hr_accepts_coordinator_and_level_above():
+    from app.matching import title_is_hr
+
+    for title in (
+        "HR Coordinator",
+        "Senior HR Coordinator",
+        "Human Resources Coordinator",
+        "HR Generalist",
+        "Senior Human Resources Generalist",
+        "HR Specialist",
+        "People Operations Coordinator",
+    ):
+        assert title_is_hr(title), title
+
+
+def test_title_is_hr_rejects_out_of_scope_titles():
+    from app.matching import title_is_hr
+
+    for title in (
+        "HR Director",
+        "VP, Human Resources",
+        "Head of People",
+        "HR Intern",
+        "Recruiting Coordinator",   # recruiting, not HR core
+        "Payroll Analyst",
+        "HR Business Partner",      # above the generalist band
+    ):
+        assert not title_is_hr(title), title
+
+
+def test_hr_vertical_matches_without_salary(app):
+    from app.matching import match_job_for_user
+
+    # No salary on the posting — must still match.
+    assert match_job_for_user(
+        "hr-coordinator", "7-9", "HR Coordinator", "", None, None, "someone@example.com",
+    )
+    # A stated low salary must not exclude either.
+    assert match_job_for_user(
+        "hr-coordinator", "7-9", "HR Generalist", "", 45000, 55000, "someone@example.com",
+    )
+    # A junior requirement suits a 5+ years candidate — must not filter.
+    assert match_job_for_user(
+        "hr-coordinator", "7-9", "HR Coordinator", "Requires 2+ years of experience.",
+        None, None, "someone@example.com",
+    )
+
+
+# ── City coverage ─────────────────────────────────────────────────────────────
+
+
+def test_hr_scraper_covers_the_four_pa_metros_only():
+    from scraper_hr import infer_city
+
+    assert infer_city("York, PA") == "york-pa"
+    assert infer_city("Lancaster, PA") == "lancaster-pa"
+    assert infer_city("Philadelphia, PA") == "philadelphia-pa"
+    assert infer_city("Harrisburg, PA") == "harrisburg-pa"
+    assert infer_city("Hershey, PA") == "harrisburg-pa"
+    assert infer_city("New York, NY") == ""
+    assert infer_city("Miami, FL") == ""
+
+
+def test_hr_default_cities_pin_the_four_pa_metros():
+    from app.catalog import HR_DEFAULT_CITIES
+
+    assert HR_DEFAULT_CITIES == [
+        "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
+    ]
+
+
+# ── Select-a-track flow ───────────────────────────────────────────────────────
+
+
+def test_selecting_hr_title_adds_hr_tab_with_pa_cities(signed_in_client, db_session):
+    from app.models import SavedSearch, User
+
+    resp = signed_in_client.post("/search", data={
+        "title_slug": "hr-coordinator",
+        "experience_bucket": "7-9",
+    })
+    assert resp.status_code == 302
+    assert "tab=hr" in resp.headers["Location"]
+
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    search = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "hr"
+    ).one()
+    assert search.title_slug == "hr-coordinator"
+    assert search.cities == [
+        "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
+    ]
+
+    body = signed_in_client.get("/dashboard?tab=hr").get_data(as_text=True)
+    assert "HR coordinator and generalist roles" in body
+    assert "?tab=hr" in body
+
+
+def test_hr_search_matches_hr_jobs_in_pa(signed_in_client, db_session):
+    from app.models import Job, JobMatch, User
+    from app.sync import rebuild_matches_for_user
+
+    signed_in_client.post("/search", data={
+        "title_slug": "hr-coordinator", "experience_bucket": "7-9",
+    })
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+
+    good = Job(
+        source="test", company="WellSpan Health", title="Senior HR Coordinator",
+        normalized_title="senior hr coordinator",
+        url="https://example.com/jobs/hr-1", city="york-pa",
+        location="York, PA", description="", vertical="hr", is_technical=False,
+    )
+    director = Job(
+        source="test", company="Hershey", title="HR Director",
+        normalized_title="hr director",
+        url="https://example.com/jobs/hr-2", city="harrisburg-pa",
+        location="Harrisburg, PA", description="", vertical="hr", is_technical=False,
+    )
+    db_session.add_all([good, director])
+    db_session.commit()
+
+    rebuild_matches_for_user(user.id)
+    db_session.expire_all()
+    matched = {
+        m.job_id
+        for m in db_session.query(JobMatch).filter(JobMatch.user_id == user.id).all()
+    }
+    assert good.id in matched
+    assert director.id not in matched

@@ -19,7 +19,17 @@ from sqlalchemy import select as sa_select
 
 from flask import send_file
 
-from .catalog import DEFAULT_CITIES, FINANCE_DEFAULT_CITIES, SALES_DEFAULT_CITIES, TITLE_LABELS, city_choices, experience_choices, title_choices
+from .catalog import (
+    DEFAULT_CITIES,
+    FINANCE_DEFAULT_CITIES,
+    SALES_DEFAULT_CITIES,
+    TITLE_LABELS,
+    TITLE_VERTICALS,
+    VERTICAL_DEFAULT_CITIES,
+    city_choices,
+    experience_choices,
+    title_choices,
+)
 from .db import get_db
 from .matching import choose_cities, city_from_slug, is_admin_email, is_superuser_email
 from .models import AppliedJob, BaseResume, Feedback, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
@@ -50,6 +60,8 @@ from .searches import (
     can_change_search,
     requires_paid_city_override,
     revert_to_free_cities,
+    valid_experience_bucket,
+    valid_title_slug,
     validate_saved_search,
 )
 from .security import (
@@ -299,8 +311,9 @@ VERTICAL_LABELS = {
     "finance": "Entry Finance",
     "sales": "Entry Sales",
     "it": "IT Project/Program Manager",
+    "hr": "HR Coordinator+",
 }
-VERTICAL_ORDER = ["pm", "finance", "sales", "it"]
+VERTICAL_ORDER = ["pm", "finance", "sales", "it", "hr"]
 
 
 def user_verticals(user) -> list[str]:
@@ -460,6 +473,33 @@ def saved_search():
     if request.method == "POST":
         title_slug = request.form.get("title_slug", "").strip()
         experience_bucket = request.form.get("experience_bucket", "").strip()
+
+        # Non-PM titles (finance/sales/IT/HR) select a whole track: the
+        # vertical's search is created/updated with its pinned city set (the
+        # 3-city picker below is PM-specific) and its tab appears on the
+        # dashboard immediately.
+        vertical = TITLE_VERTICALS.get(title_slug, "pm")
+        if vertical != "pm":
+            if not valid_title_slug(title_slug) or not valid_experience_bucket(experience_bucket):
+                flash("Choose a supported title and experience level.", "error")
+                return redirect(url_for("web.saved_search"))
+            search = user.saved_search_for(vertical)
+            if search is None:
+                search = SavedSearch(user_id=user.id, vertical=vertical)
+                db.add(search)
+            search.title_slug = title_slug
+            search.experience_bucket = experience_bucket
+            search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])
+            search.is_paid_city_override = False
+            db.commit()
+            try:
+                from .sync import rebuild_matches_for_user
+                rebuild_matches_for_user(user.id)
+            except Exception:
+                logger.exception("Match rebuild after track add failed user_id=%d", user.id)
+            flash(f"{TITLE_LABELS.get(title_slug, title_slug)} added to your dashboard.", "success")
+            return redirect(url_for("web.dashboard", tab=vertical))
+
         city_1 = request.form.get("city_1", "").strip()
         city_2 = request.form.get("city_2", "").strip()
         city_3 = request.form.get("city_3", "").strip()

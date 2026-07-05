@@ -14,6 +14,7 @@ TITLE_OPTIONS = [
     {"slug": "entry-sales-solutions-engineer", "label": "Sales / Solutions Engineer", "vertical": "sales"},
     {"slug": "entry-sales-inside-sales", "label": "Inside Sales / Sales Representative", "vertical": "sales"},
     {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
+    {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
@@ -84,6 +85,15 @@ TITLE_KEYWORDS["it-project-program-manager"] = [
     "project management", "program management",
 ]
 
+# HR track: coordinator roles plus the level directly above (generalist /
+# specialist). "senior hr coordinator" matches via the coordinator substring.
+TITLE_KEYWORDS["hr-coordinator"] = [
+    "hr coordinator", "human resources coordinator",
+    "people operations coordinator", "hr operations coordinator",
+    "hr generalist", "human resources generalist",
+    "hr specialist", "human resources specialist",
+]
+
 EXPERIENCE_BUCKETS = [
     {"slug": "0-2", "label": "0-2 years"},
     {"slug": "3-6", "label": "3-6 years"},
@@ -130,6 +140,18 @@ IT_DEFAULT_CITIES = [
     "Miami, FL", "Tampa, FL", "Orlando, FL", "Jacksonville, FL",
     "Florida (other)",
 ]
+# HR coordinator track: the four PA metros, always — selecting the HR title
+# pins these cities (the 3-city picker on the form is PM-specific).
+HR_DEFAULT_CITIES = [
+    "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
+]
+# Vertical -> fixed default city set used when a non-PM title is selected.
+VERTICAL_DEFAULT_CITIES = {
+    "finance": FINANCE_DEFAULT_CITIES,
+    "sales": SALES_DEFAULT_CITIES,
+    "it": IT_DEFAULT_CITIES,
+    "hr": HR_DEFAULT_CITIES,
+}
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
 
