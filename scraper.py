@@ -324,18 +324,6 @@ WORKDAY_COMPANIES = [
     ("NRG Energy",       "nrg",            5,   "NRG_Careers",             "houston"),
     ("Targa Resources",  "targaresources", 5,   "TargaResources",          "houston"),
     ("EOG Resources",    "eogresources",   5,   "EOG_Careers",             "houston"),
-    # Fortune 1000 Houston-HQ additions (endpoints verified HTTP 200 from the
-    # droplet 2026-07-04; site names discovered via landing-page redirects).
-    ("Plains All American",   "plains",              1, "plains",                "houston"),
-    ("Corebridge Financial",  "corebridgefinancial", 1, "corebridgefinancial",   "houston"),
-    ("Westlake",              "westlake",            1, "westlake",              "houston"),
-    ("KBR",                   "kbr",                 5, "kbr_careers",           "houston"),
-    ("Chord Energy",          "chordenergy",         1, "External",              "houston"),
-    ("Service Corp Intl",     "sci",                 5, "sci",                   "houston"),
-    ("Stewart Title",         "stewart",             1, "External",              "houston"),
-    ("Occidental",            "oxy",                 5, "Corporate",             "houston"),
-    ("Comfort Systems USA",   "comfortsystemsusa",   1, "Corpcareers",           "houston"),
-    ("DNOW",                  "distributionnow",     5, "DNOW_Careers",          "houston"),
     # ── Washington DC / Northern Virginia ─────────────────────────────────────
     ("Capital One DC",   "capitalone",     1,   "Capital_One",             "dc"),
     ("Booz Allen",       "boozallen",      5,   "Booz_Allen_Careers",      "dc"),
@@ -664,6 +652,20 @@ LEVER_MULTI = [
 
 # Workday: (name, tenant, ver, site)
 WORKDAY_MULTI = [
+    # Fortune 1000 Houston-HQ employers (verified HTTP 200 from the droplet
+    # 2026-07-04; site names discovered via landing-page redirects). Listed as
+    # multi-metro so a KBR program-manager role in DC or NYC surfaces too —
+    # the posting's own location decides the metro, not the HQ.
+    ("Plains All American",  "plains",              1, "plains"),
+    ("Corebridge Financial", "corebridgefinancial", 1, "corebridgefinancial"),
+    ("Westlake",             "westlake",            1, "westlake"),
+    ("KBR",                  "kbr",                 5, "kbr_careers"),
+    ("Chord Energy",         "chordenergy",         1, "External"),
+    ("Service Corp Intl",    "sci",                 5, "sci"),
+    ("Stewart Title",        "stewart",             1, "External"),
+    ("Occidental",           "oxy",                 5, "Corporate"),
+    ("Comfort Systems USA",  "comfortsystemsusa",   1, "Corpcareers"),
+    ("DNOW",                 "distributionnow",     5, "DNOW_Careers"),
     ("Academy Sports", "academy", 1, "Careers"),
     ("Amgen", "amgen", 1, "Careers"),
     ("Analog Devices", "analogdevices", 1, "External"),

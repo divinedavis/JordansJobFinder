@@ -3,9 +3,12 @@ Oracle/iCIMS extra-ATS pass (list shape + PM-scope title gate)."""
 
 
 def test_houston_f1000_workday_entries_present():
+    """The 10 Fortune 1000 Houston-HQ Workday boards live in the MULTI list —
+    a posting's own location decides the metro, so their DC/NYC roles surface
+    too, not just Houston ones."""
     import scraper
 
-    hou = {(t, s) for _, t, _, s, c in scraper.WORKDAY_COMPANIES if c == "houston"}
+    multi = {(t, s) for _, t, _, s in scraper.WORKDAY_MULTI}
     for tenant, site in [
         ("plains", "plains"),
         ("corebridgefinancial", "corebridgefinancial"),
@@ -18,7 +21,7 @@ def test_houston_f1000_workday_entries_present():
         ("comfortsystemsusa", "Corpcareers"),
         ("distributionnow", "DNOW_Careers"),
     ]:
-        assert (tenant, site) in hou, f"missing Houston Workday entry {tenant}/{site}"
+        assert (tenant, site) in multi, f"missing Houston Workday multi entry {tenant}/{site}"
 
 
 def test_houston_extra_ats_lists_well_formed():
