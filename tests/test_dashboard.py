@@ -36,3 +36,12 @@ def test_nav_includes_resume_link(signed_in_client):
     body = response.get_data(as_text=True)
     assert "/resume" in body
     assert ">Resume</a>" in body
+
+
+def test_nav_has_mobile_hamburger(signed_in_client):
+    """The topbar must carry the CSS-only hamburger (checkbox + label) so nav
+    links collapse instead of running off small screens."""
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert 'id="nav-toggle"' in body
+    assert 'for="nav-toggle"' in body
+    assert body.count("nav-toggle-bar") >= 3

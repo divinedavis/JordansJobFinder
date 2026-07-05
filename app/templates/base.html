@@ -93,6 +93,11 @@
       text-decoration: none;
       color: var(--muted);
     }
+    /* Mobile hamburger (pure CSS — the strict CSP blocks inline JS). The
+       checkbox + label live in the header; small screens hide the inline
+       links and reveal them as a dropdown when the box is checked. */
+    .nav-toggle-box { display: none; }
+    .nav-toggle { display: none; }
     .shell {
       display: grid;
       gap: 20px;
@@ -460,12 +465,72 @@
         font-size: clamp(2.15rem, 11vw, 3.2rem);
       }
     }
+
+    /* Collapse the nav into a hamburger before the links can overflow.
+       Placed last so it wins the cascade over the narrow-screen block above. */
+    @media (max-width: 920px) {
+      .topbar { position: relative; }
+      .brand { white-space: nowrap; }
+      .nav-toggle {
+        display: inline-flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        width: 44px;
+        height: 40px;
+        padding: 10px;
+        border-radius: 12px;
+        cursor: pointer;
+        background: rgba(29, 36, 51, 0.05);
+      }
+      .nav-toggle-bar {
+        display: block;
+        height: 2px;
+        border-radius: 2px;
+        background: #1d2433;
+      }
+      .nav {
+        display: none;
+        position: absolute;
+        top: calc(100% + 10px);
+        left: 0;
+        right: 0;
+        z-index: 40;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        /* Solid backdrop — the shared --paper is translucent and lets the
+           page content ghost through the open menu. */
+        background: #fbf7f0;
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        border-radius: 18px;
+        box-shadow: 0 18px 40px rgba(29, 36, 51, 0.22);
+        padding: 12px;
+      }
+      .nav-toggle-box:checked ~ .nav { display: flex; }
+      .nav a, .nav button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 12px 14px;
+        border-radius: 12px;
+        font-size: 1.02rem;
+      }
+      .nav a:hover, .nav a:active, .nav button:hover { background: rgba(29, 36, 51, 0.06); }
+      .nav form { width: 100%; }
+    }
   </style>
 </head>
 <body>
   <div class="page">
     <header class="topbar{% if request.endpoint in ['web.sign_in', 'web.login'] and not user %} auth-topbar{% endif %}">
       <a class="brand" href="{{ url_for('web.home') }}">Jordan's Job Finder</a>
+      <input type="checkbox" id="nav-toggle" class="nav-toggle-box" aria-hidden="true">
+      <label for="nav-toggle" class="nav-toggle" aria-label="Menu">
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+        <span class="nav-toggle-bar"></span>
+      </label>
       <nav class="nav">
         {% if user %}
           <a href="{{ url_for('web.dashboard') }}">Dashboard</a>
