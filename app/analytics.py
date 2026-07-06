@@ -41,7 +41,7 @@ CITY_LABELS = {
 _LABEL_TO_SLUG = {label: slug for slug, label in CITY_LABELS.items()}
 
 VERTICAL_LABELS = {
-    "pm": "Product/Program Manager",
+    "pm": "Product / Program / IT Manager",
     "finance": "Corporate Finance",
     "sales": "Corporate Sales",
     "it": "IT Project/Program Manager",

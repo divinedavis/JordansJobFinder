@@ -24,10 +24,11 @@ TITLE_VERTICALS = {item["slug"]: item["vertical"] for item in TITLE_OPTIONS}
 # per track. The full TITLE_OPTIONS list above stays for validation/labels so
 # legacy saved searches with sub-track slugs keep working.
 SELECTABLE_TITLES = [
-    {"slug": "technical-product-manager", "label": "Product / Program Manager", "vertical": "pm"},
+    # Combined selection: product, program, AND IT project/program manager
+    # roles ride one option — a PM search also matches IT-vertical jobs.
+    {"slug": "technical-product-manager", "label": "Product / Program / IT Manager", "vertical": "pm"},
     {"slug": "entry-finance-any", "label": "Corporate Finance", "vertical": "finance"},
     {"slug": "entry-sales-any", "label": "Corporate Sales", "vertical": "sales"},
-    {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
 ]
 

@@ -8,7 +8,7 @@ from sqlalchemy import select
 from .applications import prune_old_applications
 from .db import get_db
 from .ingest import normalized_shared_jobs
-from .matching import location_matches_city, match_job_for_user
+from .matching import location_matches_city, match_job_for_user, title_is_it_pm
 from .models import (
     BaseResume,
     DailyRun,
@@ -46,7 +46,10 @@ CITY_DISPLAY = {
 def _search_matches_job(search, job, user_email) -> bool:
     """Whether a single job belongs on a saved search's board."""
     if job.vertical != search.vertical:
-        return False
+        # Combined selection: the PM track also covers IT project/program
+        # manager jobs (one dropdown option for both role families).
+        if not (search.vertical == "pm" and job.vertical == "it"):
+            return False
     allowed_cities = {c for c in (search.cities or []) if c}
     city_display = CITY_DISPLAY.get(job.city, job.location or "")
     if city_display not in allowed_cities and (job.location or "") not in allowed_cities:
@@ -57,6 +60,10 @@ def _search_matches_job(search, job, user_email) -> bool:
             for label in allowed_cities
         ):
             return False
+    if search.vertical == "pm" and job.vertical == "it":
+        # IT-vertical feeds carry no salary or experience data — apply the IT
+        # track's own rule (title heuristic only) instead of the PM gates.
+        return title_is_it_pm(job.title)
     return match_job_for_user(
         search.title_slug,
         search.experience_bucket,

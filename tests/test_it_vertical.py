@@ -202,3 +202,41 @@ def test_it_search_matches_it_jobs_only(signed_in_client, db_session):
     assert good.id in matched_job_ids
     assert construction.id not in matched_job_ids
     assert wrong_city.id not in matched_job_ids
+
+
+def test_pm_search_also_matches_it_jobs(signed_in_client, db_session):
+    """Combined selection: the PM track covers IT project/program jobs too —
+    an IT-vertical job in one of the user's cities lands on the PM board."""
+    from app.models import Job, JobMatch, SavedSearch, User
+    from app.sync import rebuild_matches_for_user
+
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    search = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
+    ).one()
+    search.cities = ["Tampa, FL", "New York, NY", "Miami, FL"]
+    db_session.commit()
+
+    it_job = Job(
+        source="test", company="Jabil", title="IT Project Manager",
+        normalized_title="it project manager",
+        url="https://example.com/jobs/combined-1", city="tampa-fl",
+        location="Tampa, FL", description="", vertical="it", is_technical=True,
+    )
+    non_pm_it_job = Job(
+        source="test", company="Jabil", title="IT Support Specialist",
+        normalized_title="it support specialist",
+        url="https://example.com/jobs/combined-2", city="tampa-fl",
+        location="Tampa, FL", description="", vertical="it", is_technical=True,
+    )
+    db_session.add_all([it_job, non_pm_it_job])
+    db_session.commit()
+
+    rebuild_matches_for_user(user.id)
+    db_session.expire_all()
+    matched = {
+        m.job_id
+        for m in db_session.query(JobMatch).filter(JobMatch.user_id == user.id).all()
+    }
+    assert it_job.id in matched
+    assert non_pm_it_job.id not in matched

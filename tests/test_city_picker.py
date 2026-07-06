@@ -170,9 +170,11 @@ def test_title_choices_are_combined_one_per_track():
     from app.searches import valid_title_slug
 
     options = title_choices()
-    assert [o["vertical"] for o in options] == ["pm", "finance", "sales", "it", "hr"]
-    assert len(options) == 5
+    # IT project/program rides the PM option (combined), so four options.
+    assert [o["vertical"] for o in options] == ["pm", "finance", "sales", "hr"]
+    assert len(options) == 4
     # Legacy sub-track slugs must remain valid for existing saved searches.
     assert valid_title_slug("entry-finance-fpa")
     assert valid_title_slug("entry-sales-sdr-bdr")
     assert valid_title_slug("technical-program-manager")
+    assert valid_title_slug("it-project-program-manager")
