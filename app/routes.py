@@ -192,9 +192,8 @@ def sign_in():
         ensure_subscription(user, db)
         user.set_password(password)
         # One job title per account: new users start with a single PM track
-        # (all 6 metros so the board is populated immediately); they can
-        # switch it to any other title on /search. Only the admin account
-        # holds multiple tracks.
+        # (all 7 metros so the board is populated immediately); they can
+        # switch it to any other title on /search.
         db.add(SavedSearch(
             user_id=user.id,
             vertical="pm",
@@ -300,8 +299,8 @@ def login():
 
 VERTICAL_LABELS = {
     "pm": "Product/Program Manager",
-    "finance": "Entry Finance",
-    "sales": "Entry Sales",
+    "finance": "Finance",
+    "sales": "Sales",
     "it": "IT Project/Program Manager",
     "hr": "HR Coordinator+",
 }

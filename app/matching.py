@@ -7,20 +7,19 @@ EXCLUDE_TITLES = ["governance"]
 # Companies the user never wants to see on the dashboard, matched
 # case-insensitively against the normalized company name.
 EXCLUDE_COMPANIES = {"scale ai", "google", "celonis", "tjx"}
-# Title keywords that disqualify a finance role as entry-level
-FINANCE_SENIOR_NEGATIVE = (
-    "senior", "principal", "lead", "staff vp", "vp ", " vp",
-    "director", "head of", "chief", "managing director",
-    "vice president",
+# Management titles are never IC finance/sales roles — always excluded.
+FINANCE_MANAGEMENT_NEGATIVE = (
+    "staff vp", "vp ", " vp", "director", "head of", "chief",
+    "managing director", "vice president",
 )
-# Title keywords that disqualify a sales role as entry-level. "manager" stays
-# in (rules out plain "Sales Manager" / "Account Manager"); "engineer" is NOT
-# here because "Sales Engineer" / "Solutions Engineer" are valid entry roles.
-SALES_SENIOR_NEGATIVE = (
-    "senior", "principal", "lead", "staff vp", "vp ", " vp",
-    "director", "head of", "chief", "managing director",
-    "vice president", "manager", "managing",
+SALES_MANAGEMENT_NEGATIVE = (
+    "staff vp", "vp ", " vp", "director", "head of", "chief",
+    "managing director", "vice president", "manager", "managing",
 )
+# Seniority markers only disqualify when the user's experience selection is
+# entry-level (0-2). With more years selected, senior IC titles are in scope —
+# the role level follows the years-of-experience choice.
+IC_SENIORITY_TERMS = ("senior", "principal", "lead")
 from .parsing import ParsedExperience, parse_experience_years
 
 
@@ -52,15 +51,18 @@ def title_matches_superuser_scope(title: str) -> bool:
     return "product manage" in normalized or "program manage" in normalized
 
 
-def title_is_entry_level_finance(title: str) -> bool:
-    """Heuristic: title contains analyst/associate vocabulary and is NOT
-    flagged as senior/director-level."""
+def title_is_entry_level_finance(title: str, entry_only: bool = True) -> bool:
+    """Finance IC titles (analyst/associate vocabulary). Management is always
+    excluded; senior/principal/lead ICs are excluded only when ``entry_only``
+    (i.e. the user selected 0-2 years)."""
     normalized = normalize_text(title)
     if _title_excluded(normalized):
         return False
     if not is_corporate_role(normalized):
         return False
-    if any(neg in normalized for neg in FINANCE_SENIOR_NEGATIVE):
+    if any(neg in normalized for neg in FINANCE_MANAGEMENT_NEGATIVE):
+        return False
+    if entry_only and any(term in normalized for term in IC_SENIORITY_TERMS):
         return False
     finance_kws = TITLE_KEYWORDS.get("entry-finance-any", [])
     if any(kw in normalized for kw in finance_kws):
@@ -134,14 +136,16 @@ def title_is_it_pm(title: str) -> bool:
     return any(sig in normalized for sig in IT_TITLE_SIGNALS)
 
 
-def title_is_entry_level_sales(title: str) -> bool:
+def title_is_entry_level_sales(title: str, entry_only: bool = True) -> bool:
     """Heuristic mirror of title_is_entry_level_finance for sales roles."""
     normalized = normalize_text(title)
     if _title_excluded(normalized):
         return False
     if not is_corporate_role(normalized):
         return False
-    if any(neg in normalized for neg in SALES_SENIOR_NEGATIVE):
+    if any(neg in normalized for neg in SALES_MANAGEMENT_NEGATIVE):
+        return False
+    if entry_only and any(term in normalized for term in IC_SENIORITY_TERMS):
         return False
     sales_kws = TITLE_KEYWORDS.get("entry-sales-any", [])
     if any(kw in normalized for kw in sales_kws):
@@ -263,8 +267,10 @@ def match_job_for_user(
     parsed = parse_experience_years(title, description)
 
     if vertical == "finance":
-        # Finance: title heuristic + entry-level seniority; no salary floor
-        if not title_is_entry_level_finance(title):
+        # Finance: the role LEVEL follows the user's years-of-experience
+        # selection — senior IC titles are in scope past 0-2. No salary floor.
+        entry_only = (experience_bucket or "0-2") == "0-2"
+        if not title_is_entry_level_finance(title, entry_only=entry_only):
             return False
         if title_slug != "entry-finance-any" and not title_matches(title, title_slug):
             return False
@@ -288,9 +294,10 @@ def match_job_for_user(
         return title_is_it_pm(title)
 
     if vertical == "sales":
-        # Sales: same shape as finance — title heuristic + entry-level seniority,
-        # no salary floor, optional per-track keyword check.
-        if not title_is_entry_level_sales(title):
+        # Sales: same shape as finance — the level follows the experience
+        # selection, no salary floor, optional per-track keyword check.
+        entry_only = (experience_bucket or "0-2") == "0-2"
+        if not title_is_entry_level_sales(title, entry_only=entry_only):
             return False
         if title_slug != "entry-sales-any" and not title_matches(title, title_slug):
             return False

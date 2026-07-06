@@ -246,9 +246,12 @@ SALES_TITLE_KEYWORDS = (
 
 # Negative title keywords — skip these. Note "engineer" is intentionally NOT
 # here ("Sales Engineer" / "Solutions Engineer" are valid entry roles).
+# Management titles are always skipped. Seniority terms are NOT excluded —
+# all IC levels are collected; the app matches level to the user's
+# years-of-experience selection.
 NEGATIVE_TITLE_KEYWORDS = (
-    "senior", "principal", "lead", "staff", "director",
-    "vp", "vice president", "head of", "manager", "managing",
+    "director", "vp", "vice president", "head of", "chief",
+    "manager", "managing",
 )
 
 

@@ -176,3 +176,38 @@ def test_parse_experience_years_finds_minimum():
     parsed = parse_experience_years("Senior Product Manager", "8+ years of experience required.")
     assert parsed.min_years is not None
     assert parsed.min_years >= 8
+
+
+def test_finance_and_sales_level_follows_experience_selection(app):
+    """Senior IC titles are in scope once the user selects more than 0-2
+    years; they stay excluded for entry-level selections. Management is
+    always out."""
+    from app.matching import match_job_for_user
+
+    # 7-9 years: senior IC titles match (no parseable requirement given).
+    assert match_job_for_user(
+        "entry-finance-any", "7-9", "Senior Financial Analyst", "",
+        None, None, "u@example.com",
+    )
+    assert match_job_for_user(
+        "entry-sales-any", "7-9", "Senior Account Executive", "",
+        None, None, "u@example.com",
+    )
+    # 0-2 years: the same senior titles are excluded.
+    assert not match_job_for_user(
+        "entry-finance-any", "0-2", "Senior Financial Analyst", "",
+        None, None, "u@example.com",
+    )
+    assert not match_job_for_user(
+        "entry-sales-any", "0-2", "Senior Account Executive", "",
+        None, None, "u@example.com",
+    )
+    # Management never matches, regardless of the selection.
+    assert not match_job_for_user(
+        "entry-finance-any", "10+", "Director of Financial Analysis", "",
+        None, None, "u@example.com",
+    )
+    assert not match_job_for_user(
+        "entry-sales-any", "10+", "Sales Manager", "",
+        None, None, "u@example.com",
+    )
