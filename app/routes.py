@@ -49,7 +49,7 @@ from .payments import (
     stripe_configured,
     sync_checkout_result,
 )
-from .results import group_matches_by_city, load_db_matches, preview_matches
+from .results import group_matches_by_city, home_board_preview, load_db_matches, preview_matches
 from .applications import applications_for_user, record_application
 from .analytics import (
     build_application_analytics,
@@ -131,12 +131,21 @@ def ensure_subscription(user: User, db):
 @web.get("/")
 def home():
     user = current_user()
+    # Real jobs for the landing card — never let a data hiccup 500 the
+    # public homepage.
+    try:
+        board_count, board_preview = home_board_preview(limit=3)
+    except Exception:
+        logger.exception("Home board preview failed")
+        board_count, board_preview = 0, []
     return render_template(
         "home.html",
         user=user,
         title_options=title_choices(),
         experience_options=experience_choices(),
         free_cities=DEFAULT_CITIES,
+        board_count=board_count,
+        board_preview=board_preview,
     )
 
 

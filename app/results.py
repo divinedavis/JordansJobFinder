@@ -74,6 +74,40 @@ def _board_cutoff(vertical: str):
     ) - timedelta(days=days)
 
 
+def home_board_preview(limit: int = 3):
+    """Real PM jobs for the public landing card. Uses the dashboard's own
+    freshness window, falling back to 7 days so a quiet holiday weekend
+    doesn't leave the card empty. Returns (fresh_count, preview_rows)."""
+    db = get_db()
+    effective_date = case(
+        (Job.posted_at.isnot(None), Job.posted_at),
+        else_=Job.found_at,
+    )
+    rows = []
+    for days in (DEFAULT_BOARD_WINDOW_DAYS, 7):
+        cutoff = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+        ) - timedelta(days=days)
+        rows = db.execute(
+            select(Job)
+            .where(Job.vertical == "pm")
+            .where(effective_date >= cutoff)
+            .order_by(effective_date.desc())
+        ).scalars().all()
+        if rows:
+            break
+    preview = [
+        {
+            "company": job.company,
+            "title": job.title,
+            "display_city": CITY_LABELS.get(job.city, job.location or ""),
+            "posted_label": _posted_display(job.posted_label, job.found_at),
+        }
+        for job in rows[:limit]
+    ]
+    return len(rows), preview
+
+
 def load_db_matches(saved_search) -> list[dict]:
     if not saved_search:
         return []

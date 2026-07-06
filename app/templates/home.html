@@ -20,33 +20,24 @@
         <div class="hero-art-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <span class="match-company">Today's Board</span>
-            <strong style="font-family: 'Iowan Old Style', Georgia, serif; font-size: 1.6rem;">12</strong>
+            <strong style="font-family: 'Iowan Old Style', Georgia, serif; font-size: 1.6rem;">{{ board_count }}</strong>
           </div>
           <div style="display: grid; gap: 10px;">
+            {% for job in board_preview %}
             <div class="card" style="padding: 14px 16px;">
               <div style="display: flex; justify-content: space-between; gap: 10px;">
-                <span class="match-company">Stripe</span>
-                <span class="match-posted">1d ago</span>
+                <span class="match-company">{{ job.company }}</span>
+                <span class="match-posted">{{ job.posted_label }}</span>
               </div>
-              <div style="margin-top: 6px; font-weight: 600;">Senior Product Manager</div>
-              <div class="muted" style="margin-top: 4px; font-size: 13px;">New York, NY</div>
+              <div style="margin-top: 6px; font-weight: 600;">{{ job.title }}</div>
+              <div class="muted" style="margin-top: 4px; font-size: 13px;">{{ job.display_city }}</div>
             </div>
+            {% else %}
             <div class="card" style="padding: 14px 16px;">
-              <div style="display: flex; justify-content: space-between; gap: 10px;">
-                <span class="match-company">Netflix</span>
-                <span class="match-posted">2d ago</span>
-              </div>
-              <div style="margin-top: 6px; font-weight: 600;">Senior Program Manager</div>
-              <div class="muted" style="margin-top: 4px; font-size: 13px;">Atlanta, GA</div>
+              <div style="font-weight: 600;">Fresh roles land every morning.</div>
+              <div class="muted" style="margin-top: 4px; font-size: 13px;">The daily scrape runs at 9 AM ET — check back after.</div>
             </div>
-            <div class="card" style="padding: 14px 16px;">
-              <div style="display: flex; justify-content: space-between; gap: 10px;">
-                <span class="match-company">Airbnb</span>
-                <span class="match-posted">1d ago</span>
-              </div>
-              <div style="margin-top: 6px; font-weight: 600;">Sr. Program Manager</div>
-              <div class="muted" style="margin-top: 4px; font-size: 13px;">Miami, FL</div>
-            </div>
+            {% endfor %}
           </div>
         </div>
       </div>
@@ -63,9 +54,9 @@
         <p style="margin-top: 10px;">Company career pages scraped daily across Workday, Greenhouse, Lever, and custom ATS integrations.</p>
       </div>
       <div class="card">
-        <span class="stat-label">02 · Filters</span>
-        <div class="stat-value">Signal</div>
-        <p style="margin-top: 10px;">Role, seniority, city, salary floor, and tech focus — only the jobs that match your search.</p>
+        <span class="stat-label">02 · Community</span>
+        <div class="stat-value">Leaderboard</div>
+        <p style="margin-top: 10px;">See how your application pace stacks up against every other member — week, month, and year, right on your Analytics tab.</p>
       </div>
       <div class="card">
         <span class="stat-label">03 · Delivery</span>
