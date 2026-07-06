@@ -299,8 +299,8 @@ def login():
 
 VERTICAL_LABELS = {
     "pm": "Product/Program Manager",
-    "finance": "Finance",
-    "sales": "Sales",
+    "finance": "Corporate Finance",
+    "sales": "Corporate Sales",
     "it": "IT Project/Program Manager",
     "hr": "HR Coordinator+",
 }

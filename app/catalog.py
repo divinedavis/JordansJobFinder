@@ -25,8 +25,8 @@ TITLE_VERTICALS = {item["slug"]: item["vertical"] for item in TITLE_OPTIONS}
 # legacy saved searches with sub-track slugs keep working.
 SELECTABLE_TITLES = [
     {"slug": "technical-product-manager", "label": "Product / Program Manager", "vertical": "pm"},
-    {"slug": "entry-finance-any", "label": "Finance", "vertical": "finance"},
-    {"slug": "entry-sales-any", "label": "Sales", "vertical": "sales"},
+    {"slug": "entry-finance-any", "label": "Corporate Finance", "vertical": "finance"},
+    {"slug": "entry-sales-any", "label": "Corporate Sales", "vertical": "sales"},
     {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
 ]
