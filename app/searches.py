@@ -38,13 +38,22 @@ def requires_paid_city_override(selected_cities: list[str], user_email: Optional
     return selected_cities != default_cities()
 
 
-def validate_saved_search(title_slug: str, experience_bucket: str, cities: list[str]) -> SearchValidationResult:
+def validate_saved_search(
+    title_slug: str,
+    experience_bucket: str,
+    cities: list[str],
+    max_cities: int = 3,
+) -> SearchValidationResult:
     if not valid_title_slug(title_slug):
         return SearchValidationResult(False, "Choose a supported title from the list.")
     if not valid_experience_bucket(experience_bucket):
         return SearchValidationResult(False, "Choose a valid experience bucket.")
-    if len(cities) != current_app.config["PAID_CITY_LIMIT"]:
-        return SearchValidationResult(False, "Exactly three cities are required.")
+    # At least 3 cities keeps the board useful; the ceiling comes from the
+    # account's plan (3 free / 5 / 10 via the city-tier subscriptions).
+    if len(cities) < current_app.config["PAID_CITY_LIMIT"]:
+        return SearchValidationResult(False, "Pick at least three cities.")
+    if len(cities) > max_cities:
+        return SearchValidationResult(False, f"Your plan allows up to {max_cities} cities.")
     if len(set(city.lower() for city in cities)) != len(cities):
         return SearchValidationResult(False, "Cities must be unique.")
     if any(not valid_city(city) for city in cities):

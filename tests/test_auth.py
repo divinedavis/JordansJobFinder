@@ -99,9 +99,9 @@ def test_login_with_wrong_password_fails(client):
     assert "/login" in response.headers["Location"]
 
 
-def test_signup_seeds_saved_search_with_all_seven_metros(client, db_session):
-    """Single-title rule: new signups get exactly ONE track — the PM search
-    with all 7 metros pre-populated (no finance/sales seeding)."""
+def test_signup_seeds_saved_search_with_free_city_set(client, db_session):
+    """New signups get exactly ONE track — the PM search seeded with the free
+    3-city set (paid tiers raise the limit to 5 or 10)."""
     from app.models import SavedSearch, User
 
     response = client.post(
@@ -121,15 +121,7 @@ def test_signup_seeds_saved_search_with_all_seven_metros(client, db_session):
     assert len(searches) == 1
     pm_saved = searches[0]
     assert pm_saved.vertical == "pm"
-    assert set(pm_saved.cities) == {
-        "New York, NY",
-        "Atlanta, GA",
-        "Miami, FL",
-        "Dallas, TX",
-        "Houston, TX",
-        "Washington, DC",
-        "Los Angeles, CA",
-    }
+    assert pm_saved.cities == ["New York, NY", "Atlanta, GA", "Miami, FL"]
 
 
 def test_sign_out_clears_session(signed_in_client):

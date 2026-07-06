@@ -35,6 +35,9 @@ class Config:
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
     STRIPE_CITY_PLAN_PRICE_ID = os.getenv("STRIPE_CITY_PLAN_PRICE_ID", "")
     STRIPE_UNLOCK_PRICE_ID = os.getenv("STRIPE_UNLOCK_PRICE_ID", "")
+    # City-tier subscriptions: 5 cities ($9.99/mo) and 10 cities ($19.99/mo).
+    STRIPE_CITY5_PRICE_ID = os.getenv("STRIPE_CITY5_PRICE_ID", "")
+    STRIPE_CITY10_PRICE_ID = os.getenv("STRIPE_CITY10_PRICE_ID", "")
     APP_ENV = os.getenv("APP_ENV", "development")
     TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY", "")
     TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY", "")

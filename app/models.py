@@ -90,6 +90,9 @@ class Subscription(TimestampMixin, Base):
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     city_override_active: Mapped[bool] = mapped_column(Boolean, default=False)
     unlimited_changes_unlocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # How many cities the saved search may hold: 3 free, 5 ($9.99/mo) or
+    # 10 ($19.99/mo) via the Stripe city-tier subscriptions.
+    city_limit: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="free")
     current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 

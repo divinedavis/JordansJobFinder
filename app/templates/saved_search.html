@@ -7,7 +7,7 @@
     <span class="eyebrow">One Saved Search Per User</span>
     <h1>{{ "Update" if saved_search else "Create" }} your saved search.</h1>
     <p style="margin-top: 14px; max-width: 60ch;">
-      This is the core v1 search form: narrowed title catalog, experience buckets based on years explicitly mentioned, and exactly three cities.
+      Pick a title, your experience level, and 3&ndash;{{ city_limit }} cities on your current plan.
     </p>
 
     <form method="post" style="margin-top: 24px;">
@@ -38,8 +38,12 @@
       </select>
 
       <p class="muted" style="margin-bottom: 10px;">
-        Pick three cities anywhere in the US (population 50k+). Each card is
-        one pick: choose the state first, then the city.
+        Pick 3&ndash;{{ city_limit }} cities anywhere in the US (population 50k+).
+        Each card is one pick: choose the state first, then the city.
+        {% if city_limit == 3 %}
+          Need more? <a href="{{ url_for('web.billing') }}">Upgrade</a> to 5 cities
+          for $9.99/mo or 10 cities for $19.99/mo.
+        {% endif %}
       </p>
       <div class="grid three">
         {% for slot in city_slots %}
@@ -54,8 +58,8 @@
             {% endfor %}
           </select>
           <label for="city_{{ i }}" class="muted" style="font-size: 12px;">City</label>
-          <select id="city_{{ i }}" name="city_{{ i }}" data-role="city" required>
-            <option value="">Select a city</option>
+          <select id="city_{{ i }}" name="city_{{ i }}" data-role="city"{% if i <= 3 %} required{% endif %}>
+            <option value="">{{ "Select a city" if i <= 3 else "Optional city" }}</option>
             {% for abbr, name in state_options %}
               <optgroup label="{{ name }}" data-state="{{ abbr }}">
                 {% for c in cities_by_state[abbr] %}

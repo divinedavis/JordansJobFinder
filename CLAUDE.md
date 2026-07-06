@@ -279,11 +279,23 @@ route auth, nav links).
   per track (PM, Finance, Sales, IT, HR); legacy sub-track slugs stay valid.
 - Tests: `tests/test_city_picker.py`.
 
-## Billing (Scaffolded)
+## Billing — City Tiers (LIVE Stripe, 2026-07-06)
 
-- $2.99/mo city plan — replaces default 3 cities with custom ones
-- $9.99 one-time — unlimited saved search changes (free tier gets 2)
-- Stripe integration wired in code, needs real keys in .env
+- **3 cities free / 5 for $9.99/mo / 10 for $19.99/mo** — checkout kinds
+  `city-5` / `city-10` (payments.CITY_TIERS), live Stripe keys + price IDs in
+  .env (STRIPE_CITY5_PRICE_ID / STRIPE_CITY10_PRICE_ID; products created via
+  API). `subscriptions.city_limit` column drives the /search slot count and
+  validation ceiling (3..limit; owner account always 10). Webhook endpoint
+  consolidated to ONE at /stripe/webhook (3 stale duplicates deleted; fresh
+  whsec in .env). Upgrades cancel the previous Stripe sub in
+  `_fulfill_city_tier` (no double-billing); cancel/`customer.subscription.
+  deleted` resets to 3 and trims the search to its first 3 cities. Signup now
+  seeds the free 3-city set (NYC/ATL/MIA) instead of 7 metros; existing
+  non-admin PM searches were trimmed 2026-07-06. NOTE: `is_superuser_email`
+  is open to everyone, so billing gates use `is_admin_email` — the old
+  superuser gate silently blocked ALL checkouts. Legacy $2.99 city-plan and
+  $9.99 unlock code paths remain but are no longer offered in the UI.
+  Tests: tests/test_city_tiers.py.
 
 ## Key Config
 

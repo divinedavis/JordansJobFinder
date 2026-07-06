@@ -28,7 +28,7 @@ from .catalog import (
     title_choices,
 )
 from .db import get_db
-from .matching import choose_cities, city_from_slug, is_admin_email, is_superuser_email
+from .matching import city_from_slug, is_admin_email, is_superuser_email
 from .models import AppliedJob, BaseResume, Feedback, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
 from .models import utc_now
 from .resumes import (
@@ -126,6 +126,14 @@ def ensure_subscription(user: User, db):
     return subscription
 
 
+def city_limit_for(user, subscription) -> int:
+    """How many cities this account's saved search may hold: 3 free, 5 or 10
+    via the paid tiers. The owner account always gets the maximum."""
+    if is_admin_email(user.email):
+        return 10
+    return max(3, subscription.city_limit or 3)
+
+
 @web.get("/")
 def home():
     user = current_user()
@@ -192,22 +200,14 @@ def sign_in():
         ensure_subscription(user, db)
         user.set_password(password)
         # One job title per account: new users start with a single PM track
-        # (all 7 metros so the board is populated immediately); they can
-        # switch it to any other title on /search.
+        # seeded with the free 3-city set (the paid tiers raise the limit to
+        # 5 or 10); they can switch title/cities on /search.
         db.add(SavedSearch(
             user_id=user.id,
             vertical="pm",
             title_slug="technical-product-manager",
             experience_bucket="7-9",
-            cities=[
-                "New York, NY",
-                "Atlanta, GA",
-                "Miami, FL",
-                "Dallas, TX",
-                "Houston, TX",
-                "Washington, DC",
-                "Los Angeles, CA",
-            ],
+            cities=list(DEFAULT_CITIES),
             is_paid_city_override=False,
         ))
         db.commit()
@@ -406,12 +406,14 @@ def billing():
         flash("Stripe checkout was cancelled.", "warning")
         return redirect(url_for("web.billing"))
 
+    subscription = ensure_subscription(user, db)
     return render_template(
         "billing.html",
         user=user,
         stripe_configured=stripe_configured(),
         publishable_key=current_app.config["STRIPE_PUBLISHABLE_KEY"],
-        is_superuser=is_superuser_email(user.email),
+        is_billing_exempt=is_admin_email(user.email),
+        city_limit=city_limit_for(user, subscription),
     )
 
 
@@ -421,13 +423,15 @@ def billing_checkout(kind: str):
     if not user:
         return redirect(url_for("web.sign_in"))
 
-    if kind not in {"city-plan", "unlock-changes"}:
+    if kind not in {"city-plan", "unlock-changes", "city-5", "city-10"}:
         abort(404)
 
     db = get_db()
     user = db.get(User, user.id)
-    if is_superuser_email(user.email):
-        flash("Super-user access is already active on this account.", "success")
+    # Only the owner account is billing-exempt (is_superuser_email is open
+    # to every signed-in user, so it can't gate checkout).
+    if is_admin_email(user.email):
+        flash("The owner account already has the maximum city limit.", "success")
         return redirect(url_for("web.billing"))
     subscription = ensure_subscription(user, db)
     try:
@@ -448,8 +452,8 @@ def cancel_city_plan():
 
     db = get_db()
     user = db.get(User, user.id)
-    if is_superuser_email(user.email):
-        flash("Super-user access does not use a paid city plan.", "warning")
+    if is_admin_email(user.email):
+        flash("The owner account does not use a paid city plan.", "warning")
         return redirect(url_for("web.billing"))
     subscription = ensure_subscription(user, db)
     try:
@@ -458,12 +462,20 @@ def cancel_city_plan():
         logger.error("Billing error on cancel: %s", exc)
         flash("Billing is temporarily unavailable. Please try again later.", "error")
         return redirect(url_for("web.billing"))
+    # Reflect the downgrade immediately (the webhook is the backstop): back to
+    # the free 3-city limit, keeping the user's first three chosen cities.
+    subscription.city_limit = 3
     subscription.city_override_active = False
-    subscription.status = "free"
-    if user.saved_search:
-        revert_to_free_cities(user.saved_search)
+    subscription.status = "cancelled"
+    if user.saved_search and len(user.saved_search.cities or []) > 3:
+        user.saved_search.cities = list(user.saved_search.cities)[:3]
     db.commit()
-    flash("City plan cancelled. Your search has been reset to New York, Atlanta, and Miami.", "success")
+    try:
+        from .sync import rebuild_matches_for_user
+        rebuild_matches_for_user(user.id)
+    except Exception:
+        logger.exception("Match rebuild after downgrade failed user_id=%d", user.id)
+    flash("Plan cancelled. Your search keeps its first three cities.", "success")
     return redirect(url_for("web.billing"))
 
 
@@ -517,16 +529,15 @@ def saved_search():
             flash(f"Your dashboard now tracks {TITLE_LABELS.get(title_slug, title_slug)}.", "success")
             return redirect(url_for("web.dashboard", tab=vertical))
 
-        city_1 = request.form.get("city_1", "").strip()
-        city_2 = request.form.get("city_2", "").strip()
-        city_3 = request.form.get("city_3", "").strip()
-        selected_cities = choose_cities(
-            city_from_slug(city_1),
-            city_from_slug(city_2),
-            city_from_slug(city_3),
-        )
+        limit = city_limit_for(user, subscription)
+        raw_cities = [
+            request.form.get(f"city_{i}", "").strip() for i in range(1, limit + 1)
+        ]
+        selected_cities = [city_from_slug(value) for value in raw_cities if value]
 
-        validation = validate_saved_search(title_slug, experience_bucket, selected_cities)
+        validation = validate_saved_search(
+            title_slug, experience_bucket, selected_cities, max_cities=limit
+        )
         if not validation.ok:
             flash(validation.error, "error")
             return redirect(url_for("web.saved_search"))
@@ -566,12 +577,14 @@ def saved_search():
         return redirect(url_for("web.dashboard"))
 
     selected_search = user.saved_search
-    # Three state-then-city picker slots (any US city above 50k population).
+    # State-then-city picker slots (any US city above 50k population); the
+    # slot count follows the account's plan: 3 free, 5 or 10 paid.
+    limit = city_limit_for(user, subscription)
     selected = list(selected_search.cities) if selected_search else list(DEFAULT_CITIES)
-    selected += [""] * (3 - len(selected))
+    selected = selected[:limit] + [""] * max(0, limit - len(selected))
     city_slots = [
         {"value": selected[i], "state": split_label(selected[i])[1]}
-        for i in range(3)
+        for i in range(limit)
     ]
     return render_template(
         "saved_search.html",
@@ -581,6 +594,7 @@ def saved_search():
         experience_options=experience_choices(),
         free_cities=DEFAULT_CITIES,
         city_slots=city_slots,
+        city_limit=limit,
         state_options=state_choices(),
         cities_by_state=cities_by_state(),
         can_use_custom_cities=subscription.city_override_active or is_superuser_email(user.email),
