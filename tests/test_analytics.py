@@ -308,8 +308,9 @@ def test_research_page_renders(signed_in_client):
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert "Market Research" in body
-    # Tabs mirror the dashboard verticals.
-    assert "?tab=finance" in body
+    # Tabs mirror the user's own verticals (single PM track after signup).
+    assert "?tab=pm" in body
+    assert "?tab=finance" not in body
 
 
 def test_research_shows_seeded_market_value(signed_in_client, db_session):

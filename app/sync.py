@@ -8,7 +8,7 @@ from sqlalchemy import select
 from .applications import prune_old_applications
 from .db import get_db
 from .ingest import normalized_shared_jobs
-from .matching import match_job_for_user
+from .matching import location_matches_city, match_job_for_user
 from .models import (
     BaseResume,
     DailyRun,
@@ -50,7 +50,13 @@ def _search_matches_job(search, job, user_email) -> bool:
     allowed_cities = {c for c in (search.cities or []) if c}
     city_display = CITY_DISPLAY.get(job.city, job.location or "")
     if city_display not in allowed_cities and (job.location or "") not in allowed_cities:
-        return False
+        # Cities beyond the built-in metros (state-grouped picker): match the
+        # raw location text against each selected "City, ST" label.
+        if not any(
+            location_matches_city(job.location or "", label)
+            for label in allowed_cities
+        ):
+            return False
     return match_job_for_user(
         search.title_slug,
         search.experience_bucket,

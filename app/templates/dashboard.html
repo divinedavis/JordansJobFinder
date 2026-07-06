@@ -27,6 +27,7 @@
           class="tab-pill{% if slug == active_tab %} active{% endif %}"
         >{{ tab_labels[slug] }}</a>
       {% endfor %}
+      <a class="tab-pill add" href="{{ url_for('web.saved_search') }}" title="Change your job title or cities">Edit search</a>
       {% for track in addable_tracks %}
         <form method="post" action="{{ url_for('web.saved_search') }}" style="display: inline-flex;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

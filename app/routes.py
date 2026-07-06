@@ -21,12 +21,9 @@ from flask import send_file
 
 from .catalog import (
     DEFAULT_CITIES,
-    FINANCE_DEFAULT_CITIES,
-    SALES_DEFAULT_CITIES,
     TITLE_LABELS,
     TITLE_VERTICALS,
     VERTICAL_DEFAULT_CITIES,
-    city_choices,
     experience_choices,
     title_choices,
 )
@@ -64,6 +61,7 @@ from .searches import (
     valid_title_slug,
     validate_saved_search,
 )
+from .uscities import cities_by_state, split_label, state_choices
 from .security import (
     account_locked,
     clear_failed_logins,
@@ -193,9 +191,10 @@ def sign_in():
         db.refresh(user)
         ensure_subscription(user, db)
         user.set_password(password)
-        # Open access: seed every new user with all 6 metros so they land on a
-        # populated board immediately. title_slug + experience_bucket are
-        # required by the schema but ignored by the superuser matching branch.
+        # One job title per account: new users start with a single PM track
+        # (all 6 metros so the board is populated immediately); they can
+        # switch it to any other title on /search. Only the admin account
+        # holds multiple tracks.
         db.add(SavedSearch(
             user_id=user.id,
             vertical="pm",
@@ -210,22 +209,6 @@ def sign_in():
                 "Washington, DC",
                 "Los Angeles, CA",
             ],
-            is_paid_city_override=False,
-        ))
-        db.add(SavedSearch(
-            user_id=user.id,
-            vertical="finance",
-            title_slug="entry-finance-any",
-            experience_bucket="0-2",
-            cities=list(FINANCE_DEFAULT_CITIES),
-            is_paid_city_override=False,
-        ))
-        db.add(SavedSearch(
-            user_id=user.id,
-            vertical="sales",
-            title_slug="entry-sales-any",
-            experience_bucket="0-2",
-            cities=list(SALES_DEFAULT_CITIES),
             is_paid_city_override=False,
         ))
         db.commit()
@@ -505,6 +488,18 @@ def saved_search():
         # 3-city picker below is PM-specific) and its tab appears on the
         # dashboard immediately.
         vertical = TITLE_VERTICALS.get(title_slug, "pm")
+
+        # One job title per account: choosing a title REPLACES any other
+        # track a regular user has. Only the admin account may hold several
+        # tracks at once.
+        def _enforce_single_title():
+            if is_admin_email(user.email):
+                return
+            db.query(SavedSearch).filter(
+                SavedSearch.user_id == user.id,
+                SavedSearch.vertical != vertical,
+            ).delete(synchronize_session=False)
+
         if vertical != "pm":
             if not valid_title_slug(title_slug) or not valid_experience_bucket(experience_bucket):
                 flash("Choose a supported title and experience level.", "error")
@@ -517,13 +512,14 @@ def saved_search():
             search.experience_bucket = experience_bucket
             search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])
             search.is_paid_city_override = False
+            _enforce_single_title()
             db.commit()
             try:
                 from .sync import rebuild_matches_for_user
                 rebuild_matches_for_user(user.id)
             except Exception:
                 logger.exception("Match rebuild after track add failed user_id=%d", user.id)
-            flash(f"{TITLE_LABELS.get(title_slug, title_slug)} added to your dashboard.", "success")
+            flash(f"Your dashboard now tracks {TITLE_LABELS.get(title_slug, title_slug)}.", "success")
             return redirect(url_for("web.dashboard", tab=vertical))
 
         city_1 = request.form.get("city_1", "").strip()
@@ -564,19 +560,34 @@ def saved_search():
         search.experience_bucket = experience_bucket
         search.cities = list(selected_cities)
         search.is_paid_city_override = is_paid_city_override
+        _enforce_single_title()
         db.commit()
+        try:
+            from .sync import rebuild_matches_for_user
+            rebuild_matches_for_user(user.id)
+        except Exception:
+            logger.exception("Match rebuild after search edit failed user_id=%d", user.id)
         flash("Saved search updated.", "success")
         return redirect(url_for("web.dashboard"))
 
     selected_search = user.saved_search
+    # Three state-then-city picker slots (any US city above 50k population).
+    selected = list(selected_search.cities) if selected_search else list(DEFAULT_CITIES)
+    selected += [""] * (3 - len(selected))
+    city_slots = [
+        {"value": selected[i], "state": split_label(selected[i])[1]}
+        for i in range(3)
+    ]
     return render_template(
         "saved_search.html",
         user=user,
         saved_search=selected_search,
         title_options=title_choices(),
-        city_options=city_choices(),
         experience_options=experience_choices(),
         free_cities=DEFAULT_CITIES,
+        city_slots=city_slots,
+        state_options=state_choices(),
+        cities_by_state=cities_by_state(),
         can_use_custom_cities=subscription.city_override_active or is_superuser_email(user.email),
         is_superuser=is_superuser_email(user.email),
     )

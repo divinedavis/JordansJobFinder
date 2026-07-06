@@ -205,6 +205,30 @@ def choose_cities(city_1: str, city_2: str, city_3: str) -> list[str]:
     return [city for city in [city_1, city_2, city_3] if city]
 
 
+def location_matches_city(location: str, label: str) -> bool:
+    """Whether a raw ATS location string is in the city named by 'City, ST'.
+
+    Used for cities beyond the built-in metros: the job's location text must
+    contain the city name AND a state signal (abbreviation or full name), so
+    'Springfield, IL' doesn't claim a Springfield-MA posting.
+    """
+    from .uscities import STATE_NAMES, split_label
+
+    loc = normalize_text(location)
+    if not loc:
+        return False
+    city, st = split_label(label)
+    if not st or city.lower() not in loc:
+        return False
+    st_lower = st.lower()
+    state_name = STATE_NAMES.get(st, "").lower()
+    return (
+        f", {st_lower}" in loc
+        or f" {st_lower} " in f"{loc} "
+        or (state_name and state_name in loc)
+    )
+
+
 def city_from_slug(city_slug: str) -> str:
     return CITY_LABELS.get(city_slug, city_slug)
 

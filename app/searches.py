@@ -22,7 +22,10 @@ def valid_experience_bucket(bucket: str) -> bool:
 
 
 def valid_city(city: str) -> bool:
-    return city in CITY_LABELS.values()
+    # Any US city above 50k population (state-grouped picker), plus the
+    # legacy metro labels some existing searches still carry.
+    from .uscities import valid_city_labels
+    return city in valid_city_labels() or city in CITY_LABELS.values()
 
 
 def default_cities() -> list[str]:

@@ -6,7 +6,7 @@ from .applications import applied_urls_for_user
 from .catalog import TITLE_LABELS
 from .db import get_db
 from .ingest import normalized_shared_jobs
-from .matching import choose_cities, match_job_for_user
+from .matching import choose_cities, location_matches_city, match_job_for_user
 from .models import BaseResume, Job, JobMatch, TailoredResume
 
 
@@ -183,7 +183,11 @@ def preview_matches(saved_search) -> list[dict]:
             continue
         city_label = _display_city(job)
         if city_label and city_label not in cities and job.get("location") not in cities:
-            continue
+            if not any(
+                location_matches_city(job.get("location") or "", label)
+                for label in cities
+            ):
+                continue
         if not match_job_for_user(
             saved_search.title_slug,
             saved_search.experience_bucket,

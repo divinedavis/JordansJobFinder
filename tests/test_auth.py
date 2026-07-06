@@ -100,7 +100,8 @@ def test_login_with_wrong_password_fails(client):
 
 
 def test_signup_seeds_saved_search_with_all_seven_metros(client, db_session):
-    """Open access: new signups land with all 7 PM metros pre-populated."""
+    """Single-title rule: new signups get exactly ONE track — the PM search
+    with all 7 metros pre-populated (no finance/sales seeding)."""
     from app.models import SavedSearch, User
 
     response = client.post(
@@ -114,9 +115,12 @@ def test_signup_seeds_saved_search_with_all_seven_metros(client, db_session):
     assert response.status_code == 302
 
     user = db_session.query(User).filter(User.email == "newcomer@example.com").one()
-    pm_saved = db_session.query(SavedSearch).filter(
-        SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
-    ).one()
+    searches = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id
+    ).all()
+    assert len(searches) == 1
+    pm_saved = searches[0]
+    assert pm_saved.vertical == "pm"
     assert set(pm_saved.cities) == {
         "New York, NY",
         "Atlanta, GA",
@@ -126,17 +130,6 @@ def test_signup_seeds_saved_search_with_all_seven_metros(client, db_session):
         "Washington, DC",
         "Los Angeles, CA",
     }
-    finance_saved = db_session.query(SavedSearch).filter(
-        SavedSearch.user_id == user.id, SavedSearch.vertical == "finance"
-    ).one()
-    assert "Philadelphia, PA" in finance_saved.cities
-    assert "Baltimore, MD" in finance_saved.cities
-    sales_saved = db_session.query(SavedSearch).filter(
-        SavedSearch.user_id == user.id, SavedSearch.vertical == "sales"
-    ).one()
-    assert sales_saved.title_slug == "entry-sales-any"
-    assert "New York, NY" in sales_saved.cities
-    assert "Philadelphia, PA" in sales_saved.cities
 
 
 def test_sign_out_clears_session(signed_in_client):

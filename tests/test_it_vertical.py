@@ -112,9 +112,10 @@ def test_it_user_sees_only_it_tab(signed_in_client, db_session):
 
 def test_default_user_does_not_see_it_tab(signed_in_client):
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
-    assert "?tab=finance" in body
-    assert "?tab=sales" in body
+    # Single-title rule: signup seeds only the PM track now.
+    assert "?tab=pm" in body
     assert "?tab=it" not in body
+    assert "?tab=finance" not in body
 
 
 def test_research_tabs_follow_user_verticals(signed_in_client, db_session):

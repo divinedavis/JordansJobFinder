@@ -254,6 +254,28 @@ route auth, nav links).
   private vulnerability reporting enabled; weekly pip bumps via .github/dependabot.yml.
 - Tests guarding all of this: `tests/test_security.py`.
 
+## City Picker + One-Title Rule (2026-07-06)
+
+- **Any US city over 50k population** is selectable for the PM search's three
+  cities: `/search` shows state-first cascading pickers (CSS-only-safe:
+  `static/js/citypicker.js` is self-hosted; no-JS fallback = optgroup-per-state
+  selects). Dataset vendored at `app/static/data/us_cities_50k.json` (Census
+  sub-est2023, 801 cities; name cleanups: Boise City→Boise, Urban
+  Honolulu→Honolulu, Ventura; VT/WV have no 50k+ place). Loader/validators in
+  `app/uscities.py`; canonical label is "City, ST".
+- **Matching beyond the metros**: `matching.location_matches_city` (city name
+  + state signal in the raw location) is consulted by sync + preview when the
+  label isn't a built-in metro. The PM multi-list scrapers keep non-metro
+  postings tagged `city="extra"` (salary-optional) when the location matches
+  any label on someone's PM search (`load_active_extra_cities()` reads the DB
+  at scrape start) — so newly picked cities start filling on the next scrape.
+- **One job title per account** (admin divinejdavis exempt): signup seeds ONLY
+  the PM track; choosing any title on /search REPLACES a regular user's other
+  tracks (`_enforce_single_title`), while the admin accumulates tabs. Existing
+  non-admin multi-track users were trimmed to one on 2026-07-06. Dashboard has
+  an "Edit search" pill linking to /search.
+- Tests: `tests/test_city_picker.py`.
+
 ## Billing (Scaffolded)
 
 - $2.99/mo city plan — replaces default 3 cities with custom ones

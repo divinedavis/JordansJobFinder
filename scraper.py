@@ -105,7 +105,9 @@ AMAZON_LOCATIONS = {
 MIN_SALARY   = 180_000
 # Salary minimum is enforced for NYC only — every other city is salary-optional
 # (many postings outside NYC list no salary, and most non-NYC states don't mandate it).
-SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc", "la"}
+# "extra" = a user-selected city beyond the built-in metros (state-grouped
+# picker); those markets rarely publish salaries, so they're salary-optional.
+SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc", "la", "extra"}
 VALID_POST_DAYS = 2
 TECH_THRESHOLD  = 3
 TECH_SIGNALS = [
@@ -859,6 +861,84 @@ def infer_pm_city(text):
     return None
 
 
+# City labels ("Boise, ID") that users picked in the state-grouped selector,
+# beyond the built-in metros. Loaded from the app DB at run start; multi-metro
+# postings in these cities are kept with city="extra" and matched app-side
+# against the raw location string.
+ACTIVE_EXTRA_CITIES: list = []
+
+_STATE_NAMES_LOWER = {
+    "al": "alabama", "ak": "alaska", "az": "arizona", "ar": "arkansas",
+    "ca": "california", "co": "colorado", "ct": "connecticut", "de": "delaware",
+    "dc": "district of columbia", "fl": "florida", "ga": "georgia",
+    "hi": "hawaii", "id": "idaho", "il": "illinois", "in": "indiana",
+    "ia": "iowa", "ks": "kansas", "ky": "kentucky", "la": "louisiana",
+    "me": "maine", "md": "maryland", "ma": "massachusetts", "mi": "michigan",
+    "mn": "minnesota", "ms": "mississippi", "mo": "missouri", "mt": "montana",
+    "ne": "nebraska", "nv": "nevada", "nh": "new hampshire", "nj": "new jersey",
+    "nm": "new mexico", "ny": "new york", "nc": "north carolina",
+    "nd": "north dakota", "oh": "ohio", "ok": "oklahoma", "or": "oregon",
+    "pa": "pennsylvania", "ri": "rhode island", "sc": "south carolina",
+    "sd": "south dakota", "tn": "tennessee", "tx": "texas", "ut": "utah",
+    "vt": "vermont", "va": "virginia", "wa": "washington",
+    "wv": "west virginia", "wi": "wisconsin", "wy": "wyoming",
+}
+
+
+def load_active_extra_cities():
+    """Distinct PM-search city labels beyond the built-in metro labels."""
+    import sqlite3
+    labels = set()
+    db_path = Path(__file__).resolve().parent / "jordansjobfinder.db"
+    if not db_path.exists():
+        return []
+    try:
+        conn = sqlite3.connect(str(db_path))
+        for (cities_json,) in conn.execute(
+            "SELECT cities FROM saved_searches WHERE vertical='pm'"
+        ):
+            for label in json.loads(cities_json or "[]"):
+                labels.add(label)
+        conn.close()
+    except Exception as exc:
+        log(f"  active-extra-cities load failed: {exc}")
+        return []
+    return sorted(labels - set(CITY_LABELS.values()))
+
+
+def location_matches_extra(location):
+    """Whether a raw location string sits in any user-selected extra city.
+    City name AND a state signal must both appear (mirrors
+    app/matching.location_matches_city)."""
+    loc = (location or "").lower()
+    if not loc:
+        return False
+    for label in ACTIVE_EXTRA_CITIES:
+        if ", " not in label:
+            continue
+        city, st = label.rsplit(", ", 1)
+        st_lower = st.lower()
+        if city.lower() not in loc:
+            continue
+        if (
+            f", {st_lower}" in loc
+            or f" {st_lower} " in f"{loc} "
+            or _STATE_NAMES_LOWER.get(st_lower, chr(0)) in loc
+        ):
+            return True
+    return False
+
+
+def infer_pm_city_or_extra(text):
+    """Metro slug, "extra" for a user-selected city, or None."""
+    city = infer_pm_city(text)
+    if city:
+        return city
+    if ACTIVE_EXTRA_CITIES and location_matches_extra(text):
+        return "extra"
+    return None
+
+
 def is_recent_rfc(pub_date_str):
     try:
         pub_dt = parsedate_to_datetime(pub_date_str)
@@ -1430,7 +1510,7 @@ def scrape_greenhouse_multi(name, token):
 
         if not is_target_role(title):
             continue
-        city = infer_pm_city(location or content[:600])
+        city = infer_pm_city_or_extra(location or content[:600])
         if not city or not level_ok(title, city):
             continue
         if updated and not is_recent_iso(updated):
@@ -1466,7 +1546,7 @@ def scrape_lever_multi(name, token):
 
         if not is_target_role(title):
             continue
-        city = infer_pm_city(location or desc_text[:600])
+        city = infer_pm_city_or_extra(location or desc_text[:600])
         if not city or not level_ok(title, city):
             continue
         try:
@@ -1519,7 +1599,7 @@ def scrape_workday_multi(name, tenant, wd_ver, site):
 
                 if not is_target_role(title):
                     continue
-                city = infer_pm_city(location or title)
+                city = infer_pm_city_or_extra(location or title)
                 if not city or not level_ok(title, city):
                     continue
 
@@ -1926,6 +2006,13 @@ def main():
     seen     = load_seen()
     new_jobs = []
     shared_jobs = []
+
+    # Cities users picked beyond the built-in metros — multi-list postings in
+    # these markets are kept (tagged city="extra") instead of dropped.
+    global ACTIVE_EXTRA_CITIES
+    ACTIVE_EXTRA_CITIES = load_active_extra_cities()
+    if ACTIVE_EXTRA_CITIES:
+        log(f"Active extra cities: {', '.join(ACTIVE_EXTRA_CITIES)}")
 
     # ── Phase 1: No-browser scrapers ──────────────────────────────────────────
     all_candidates = []
