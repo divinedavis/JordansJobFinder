@@ -143,7 +143,8 @@ def test_choosing_new_title_replaces_track_for_regular_user(signed_in_client, db
     assert verticals == ["hr"], "regular users hold exactly one track"
 
 
-def test_admin_keeps_multiple_tracks(client, db_session):
+def test_admin_is_also_limited_to_one_track(client, db_session):
+    """Everyone shows one job selection at a time — the admin included."""
     from app.models import SavedSearch, User
 
     # conftest sets SUPERUSER_EMAIL=superuser@example.com — the admin account.
@@ -155,8 +156,23 @@ def test_admin_keeps_multiple_tracks(client, db_session):
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     user = db_session.query(User).filter(User.email == "superuser@example.com").one()
-    verticals = sorted(
+    verticals = [
         s.vertical
         for s in db_session.query(SavedSearch).filter(SavedSearch.user_id == user.id)
-    )
-    assert verticals == ["hr", "pm"], "admin may hold several tracks"
+    ]
+    assert verticals == ["hr"]
+
+
+def test_title_choices_are_combined_one_per_track():
+    """Similar titles are merged: the picker offers exactly one option per
+    track (no four finance flavors), while legacy sub-track slugs stay valid."""
+    from app.catalog import title_choices
+    from app.searches import valid_title_slug
+
+    options = title_choices()
+    assert [o["vertical"] for o in options] == ["pm", "finance", "sales", "it", "hr"]
+    assert len(options) == 5
+    # Legacy sub-track slugs must remain valid for existing saved searches.
+    assert valid_title_slug("entry-finance-fpa")
+    assert valid_title_slug("entry-sales-sdr-bdr")
+    assert valid_title_slug("technical-program-manager")

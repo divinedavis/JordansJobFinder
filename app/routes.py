@@ -315,9 +315,8 @@ def user_verticals(user) -> list[str]:
     return tabs or ["pm"]
 
 
-# Tracks a user can add themselves with one click from the tab row. Only the
-# opt-in tracks are offered (finance/sales are seeded at signup and some users
-# intentionally have them removed — don't resurface those as buttons).
+# Tracks a user can switch to with one click from the tab row (accounts hold
+# exactly one track at a time, so this is a switch, not an addition).
 ADDABLE_TRACKS = [
     {"vertical": "hr", "title_slug": "hr-coordinator", "experience_bucket": "7-9"},
 ]
@@ -490,11 +489,8 @@ def saved_search():
         vertical = TITLE_VERTICALS.get(title_slug, "pm")
 
         # One job title per account: choosing a title REPLACES any other
-        # track a regular user has. Only the admin account may hold several
-        # tracks at once.
+        # track — every dashboard shows exactly one job selection at a time.
         def _enforce_single_title():
-            if is_admin_email(user.email):
-                return
             db.query(SavedSearch).filter(
                 SavedSearch.user_id == user.id,
                 SavedSearch.vertical != vertical,

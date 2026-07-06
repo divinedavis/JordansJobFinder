@@ -37,22 +37,23 @@
         {% endfor %}
       </select>
 
-      <p class="muted" style="margin-bottom: 4px;">
-        Pick three cities anywhere in the US (population 50k+): choose the
-        state first, then the city.
+      <p class="muted" style="margin-bottom: 10px;">
+        Pick three cities anywhere in the US (population 50k+). Each card is
+        one pick: choose the state first, then the city.
       </p>
       <div class="grid three">
         {% for slot in city_slots %}
         {% set i = loop.index %}
-        <div data-city-pair>
-          <label for="state_{{ i }}">City {{ i }} — State</label>
+        <div data-city-pair class="card" style="padding: 16px;">
+          <h3 style="margin-bottom: 10px;">City {{ i }}</h3>
+          <label for="state_{{ i }}" class="muted" style="font-size: 12px;">State</label>
           <select id="state_{{ i }}" data-role="state" aria-label="State for city {{ i }}">
             <option value="">All states</option>
             {% for abbr, name in state_options %}
               <option value="{{ abbr }}" {% if slot.state == abbr %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
           </select>
-          <label for="city_{{ i }}">City {{ i }}</label>
+          <label for="city_{{ i }}" class="muted" style="font-size: 12px;">City</label>
           <select id="city_{{ i }}" name="city_{{ i }}" data-role="city" required>
             <option value="">Select a city</option>
             {% for abbr, name in state_options %}

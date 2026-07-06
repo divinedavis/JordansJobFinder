@@ -269,11 +269,14 @@ route auth, nav links).
   postings tagged `city="extra"` (salary-optional) when the location matches
   any label on someone's PM search (`load_active_extra_cities()` reads the DB
   at scrape start) — so newly picked cities start filling on the next scrape.
-- **One job title per account** (admin divinejdavis exempt): signup seeds ONLY
-  the PM track; choosing any title on /search REPLACES a regular user's other
-  tracks (`_enforce_single_title`), while the admin accumulates tabs. Existing
-  non-admin multi-track users were trimmed to one on 2026-07-06. Dashboard has
-  an "Edit search" pill linking to /search.
+- **One job title per account — EVERYONE, admin included** (exemption removed
+  same day at owner request: "only show one job selection at a time"): signup
+  seeds ONLY the PM track; choosing any title on /search REPLACES the other
+  tracks (`_enforce_single_title`). All existing users incl. divinejdavis were
+  trimmed to one track on 2026-07-06. Dashboard tab row = one tab + a
+  "Switch to HR Coordinator+" pill + an "Edit search" pill. The /search title
+  dropdown offers `SELECTABLE_TITLES` — similar titles combined, ONE option
+  per track (PM, Finance, Sales, IT, HR); legacy sub-track slugs stay valid.
 - Tests: `tests/test_city_picker.py`.
 
 ## Billing (Scaffolded)

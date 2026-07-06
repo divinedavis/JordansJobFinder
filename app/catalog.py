@@ -20,6 +20,17 @@ TITLE_OPTIONS = [
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
 TITLE_VERTICALS = {item["slug"]: item["vertical"] for item in TITLE_OPTIONS}
 
+# What users can actually pick: similar titles are combined into one option
+# per track. The full TITLE_OPTIONS list above stays for validation/labels so
+# legacy saved searches with sub-track slugs keep working.
+SELECTABLE_TITLES = [
+    {"slug": "technical-product-manager", "label": "Product / Program Manager", "vertical": "pm"},
+    {"slug": "entry-finance-any", "label": "Finance (entry level)", "vertical": "finance"},
+    {"slug": "entry-sales-any", "label": "Sales (entry level)", "vertical": "sales"},
+    {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
+    {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
+]
+
 TITLE_KEYWORDS = {
     "technical-product-manager": ["product manager", "product management"],
     "technical-program-manager": ["program manager", "program management"],
@@ -157,7 +168,7 @@ SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
 
 
 def title_choices():
-    return TITLE_OPTIONS
+    return SELECTABLE_TITLES
 
 
 def experience_choices():
