@@ -314,21 +314,6 @@ def user_verticals(user) -> list[str]:
     return tabs or ["pm"]
 
 
-# Tracks a user can switch to with one click from the tab row (accounts hold
-# exactly one track at a time, so this is a switch, not an addition).
-ADDABLE_TRACKS = [
-    {"vertical": "hr", "title_slug": "hr-coordinator", "experience_bucket": "7-9"},
-]
-
-
-def addable_tracks_for(user) -> list[dict]:
-    return [
-        {**track, "label": VERTICAL_LABELS[track["vertical"]]}
-        for track in ADDABLE_TRACKS
-        if not user.saved_search_for(track["vertical"])
-    ]
-
-
 @web.get("/dashboard")
 def dashboard():
     user = require_user()
@@ -355,7 +340,6 @@ def dashboard():
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,
         tab_order=tabs,
-        addable_tracks=addable_tracks_for(user),
     )
 
 

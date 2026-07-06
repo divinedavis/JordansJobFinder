@@ -138,16 +138,16 @@ def test_hr_search_matches_hr_jobs_in_pa(signed_in_client, db_session):
     assert director.id not in matched
 
 
-def test_dashboard_offers_hr_switch_pill_until_switched(signed_in_client):
-    """The tab row shows a one-click 'Switch to HR Coordinator+' pill; after
-    switching, the pill is replaced by the (single) HR tab."""
+def test_dashboard_has_no_hardcoded_track_switch_pill(signed_in_client):
+    """The tab row exposes a single 'Edit search' link — the only way to change
+    tracks — with no track-specific 'Switch to ...' pill singling out HR."""
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
-    assert "Switch to HR Coordinator+" in body
-    assert "?tab=hr" not in body
+    assert "Edit search" in body
+    assert "Switch to" not in body
 
+    # Switching to HR still works via the search form (the Edit search path).
     signed_in_client.post("/search", data={
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
-    assert "Switch to HR Coordinator+" not in body
     assert "?tab=hr" in body

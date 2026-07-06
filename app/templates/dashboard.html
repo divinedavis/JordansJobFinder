@@ -28,14 +28,6 @@
         >{{ tab_labels[slug] }}</a>
       {% endfor %}
       <a class="tab-pill add" href="{{ url_for('web.saved_search') }}" title="Change your job title or cities">Edit search</a>
-      {% for track in addable_tracks %}
-        <form method="post" action="{{ url_for('web.saved_search') }}" style="display: inline-flex;">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="title_slug" value="{{ track.title_slug }}">
-          <input type="hidden" name="experience_bucket" value="{{ track.experience_bucket }}">
-          <button type="submit" class="tab-pill add" title="Switch your dashboard to this track">Switch to {{ track.label }}</button>
-        </form>
-      {% endfor %}
     </nav>
   </section>
 
