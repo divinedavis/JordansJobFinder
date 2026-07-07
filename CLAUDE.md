@@ -52,6 +52,26 @@ version+site brute-probed; Greenhouse/Lever token). The same verified set is
 appended to the finance + sales vertical lists (which already infer city). See
 `tests/test_scraper_multi.py` for the inference + list-integrity guards.
 
+### Charleston SC coverage + NYC $1B floor (2026-07-07)
+
+Charleston SC is selectable (census picker). Five Charleston-area employers
+added to `WORKDAY_MULTI` so their Charleston postings surface via the
+extra-city inference when a user selects "Charleston, SC": MUSC (musc/1/MUSC —
+the anchor, ~21 program-manager roles), Boeing (converted from 3 per-city
+entries to one multi — 787 plant), Ingevity (HQ), SouthState Bank, Benefitfocus/
+Voya (godirect/voya_jobs, HQ). All verified HTTP 200 from the droplet. Blackbaud
+(Charleston-HQ) wanted but its Workday landing 406s (WAF) so its site name is
+unverifiable — left out. Note: extra-city matching is city-name+state, so
+"Charleston, SC" catches Charleston + North Charleston but not Ladson/Summerville
+(those are separately selectable).
+
+NYC list trimmed to **$1B+ revenue only**: removed 22 sub-$1B companies (mostly
+private prop-trading shops with <$1B trading revenue + mid-size startups):
+Airtable, AQR, Brex, Capstone, Discord, ExodusPoint, Five Rings, Gemini, GitLab,
+Jump Trading, Justworks, Lone Pine, Magnetar, Marqeta, Marshall Wace, PDT
+Partners, Plaid, Schonfeld, Squarepoint, Tower Research, Waymo, WorldQuant.
+Tests: `tests/test_scraper_charleston.py`.
+
 ### Fortune 1000 Houston coverage (2026-07-04)
 
 All reachable Fortune 1000 Houston-HQ employers are in the PM scraper: 10 new

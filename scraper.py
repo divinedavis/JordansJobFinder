@@ -198,7 +198,6 @@ WORKDAY_COMPANIES = [
     ("Spotify",          "spotify",       5,   "External",                "nyc"),
     ("ByteDance",        "bytedance",     5,   "External",                "nyc"),
     ("Workday Inc",      "workday",       5,   "workday",                 "nyc"),
-    ("Plaid",            "plaid",         5,   "External",                "nyc"),
     # ── Enterprise · NYC + Atlanta (new) ───────────────────────────────────────
     ("IBM",              "ibm",           5,   "External",                "nyc"),
     ("Accenture",        "accenture",     5,   "AccentureCareers",        "nyc"),
@@ -358,9 +357,8 @@ WORKDAY_COMPANIES = [
     ("Johnson Controls ATL","jci",         5,   "JCI",                     "atlanta"),
     ("Johnson Controls HOU","jci",         5,   "JCI",                     "houston"),
     ("Johnson Controls DAL","jci",         5,   "JCI",                     "dallas"),
-    ("Boeing",           "boeing",         1,   "EXTERNAL_CAREERS",        "dc"),
-    ("Boeing DAL",       "boeing",         1,   "EXTERNAL_CAREERS",        "dallas"),
-    ("Boeing HOU",       "boeing",         1,   "EXTERNAL_CAREERS",        "houston"),
+    # Boeing moved to WORKDAY_MULTI (2026-07-07) — one fetch covers DC/Dallas/
+    # Houston plus its Charleston 787 plant via the per-posting metro inference.
     ("Marsh McLennan",   "mmc",            1,   "MMC",                     "nyc"),
     ("Marsh McLennan ATL","mmc",           1,   "MMC",                     "atlanta"),
     ("Marsh McLennan DAL","mmc",           1,   "MMC",                     "dallas"),
@@ -406,7 +404,6 @@ GREENHOUSE_COMPANIES = [
     ("KKR",           "kkrcareers",    "nyc"),
     ("Bridgewater",   "bridgewater89", "nyc"),
     ("Point72",       "point72",       "nyc"),
-    ("AQR Capital",   "aqr",           "nyc"),
     # Tech · NYC
     ("MongoDB",       "mongodb",       "nyc"),
     ("Datadog",       "datadog",       "nyc"),
@@ -421,25 +418,12 @@ GREENHOUSE_COMPANIES = [
     ("Cox Enterprises GH", "coxenterprises", "atlanta"),
     # Finance · NYC (new)
     ("Robinhood",     "robinhood",     "nyc"),
-    ("Lone Pine Cap", "lonepinecapital","nyc"),
     # ── Hedge funds / quant · NYC (probed live from droplet 2026-06-18) ────────
-    ("ExodusPoint",        "exoduspoint",                "nyc"),
-    ("Marshall Wace",      "marshallwace",               "nyc"),
-    ("Schonfeld",          "schonfeld",                  "nyc"),
     ("IMC Trading",        "imc",                        "nyc"),
-    ("Tower Research",     "towerresearchcapital",       "nyc"),
-    ("PDT Partners",       "pdtpartners",                "nyc"),
-    ("WorldQuant",         "worldquant",                 "nyc"),
-    ("Magnetar Capital",   "magnetar",                   "nyc"),
-    ("Capstone",           "capstoneinvestmentadvisors", "nyc"),
     ("Man Group",          "mangroup",                   "nyc"),
-    ("Five Rings",         "fiveringsllc",               "nyc"),
-    ("Squarepoint",        "squarepointcapital",         "nyc"),
     # Tech · NYC (new)
     ("Stripe",        "stripe",        "nyc"),
     ("Adyen",         "adyen",         "nyc"),
-    ("Brex",          "brex",          "nyc"),
-    ("Marqeta",       "marqeta",       "nyc"),
     ("Lyft",          "lyft",          "nyc"),
     ("SoFi",          "sofi",          "nyc"),
     ("LinkedIn",      "linkedin",      "nyc"),
@@ -484,16 +468,12 @@ GREENHOUSE_COMPANIES = [
     ("Instacart",        "instacart",      "nyc"),
     ("Instacart DAL",    "instacart",      "dallas"),
     ("Figma",            "figma",          "nyc"),
-    ("Discord",          "discord",        "nyc"),
     ("Affirm",           "affirm",         "nyc"),
     ("Reddit",           "reddit",         "nyc"),
-    ("Justworks",        "justworks",      "nyc"),
-    ("Jump Trading",     "jumptrading",    "nyc"),
     ("Box",              "boxinc",         "nyc"),
     ("Box DAL",          "boxinc",         "dallas"),
     ("Elastic",          "elastic",        "nyc"),
     ("Elastic DC",       "elastic",        "dc"),
-    ("GitLab",           "gitlab",         "nyc"),
     ("GitLab DAL",       "gitlab",         "dallas"),
     ("GitLab DC",        "gitlab",         "dc"),
     ("Databricks",       "databricks",     "nyc"),
@@ -504,16 +484,13 @@ GREENHOUSE_COMPANIES = [
     ("Databricks DC",    "databricks",     "dc"),
     ("Flexport",         "flexport",       "nyc"),
     ("Flexport DAL",     "flexport",       "dallas"),
-    ("Airtable",         "airtable",       "nyc"),
     ("Block",            "block",          "nyc"),
     ("Block ATL",        "block",          "atlanta"),
     ("Block MIA",        "block",          "miami"),
-    ("Gemini",           "gemini",         "nyc"),
     ("Gemini MIA",       "gemini",         "miami"),
     ("Samsara",          "samsara",        "nyc"),
     ("Samsara ATL",      "samsara",        "atlanta"),
     ("Samsara DAL",      "samsara",        "dallas"),
-    ("Waymo",            "waymo",          "nyc"),
     ("Waymo ATL",        "waymo",          "atlanta"),
     ("Waymo MIA",        "waymo",          "miami"),
     ("Waymo DAL",        "waymo",          "dallas"),
@@ -720,6 +697,16 @@ WORKDAY_MULTI = [
     ("Walmart", "walmart", 5, "External"),
     ("Williams", "williams", 5, "External"),
     ("Xcel Energy", "xcelenergy", 1, "External"),
+
+    # ── Charleston SC employers (verified HTTP 200 from droplet 2026-07-07) ──
+    # Charleston-HQ or major-site companies. Multi-listed so their Charleston
+    # postings surface via the extra-city inference when a user selects
+    # "Charleston, SC"; their postings in other metros surface too.
+    ("Boeing", "boeing", 1, "EXTERNAL_CAREERS"),               # 787 plant, N. Charleston
+    ("MUSC", "musc", 1, "MUSC"),                               # Medical Univ of SC (HQ)
+    ("Ingevity", "ingevity", 1, "Ingevity"),                  # specialty chemicals (HQ)
+    ("SouthState Bank", "southstatebank", 5, "External"),      # SC-heavy bank
+    ("Benefitfocus", "godirect", 5, "voya_jobs"),             # Voya/Benefitfocus (HQ, Daniel Island)
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
