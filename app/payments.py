@@ -19,12 +19,32 @@ class BillingConfigurationError(RuntimeError):
     pass
 
 
-# City-tier subscriptions: checkout `kind` -> (city limit, config key, label).
+# Subscription tiers: checkout `kind` -> city limit + config key + label.
+# Each tier also carries an AI-resume quota (see RESUME_QUOTA below).
 CITY_TIERS = {
-    "city-5": {"limit": 5, "price_key": "STRIPE_CITY5_PRICE_ID", "label": "5 cities — $9.99/mo"},
-    "city-10": {"limit": 10, "price_key": "STRIPE_CITY10_PRICE_ID", "label": "10 cities — $19.99/mo"},
+    "city-5": {"limit": 5, "price_key": "STRIPE_CITY5_PRICE_ID", "label": "5 cities + 25 resumes/mo — $4.99/mo"},
+    "city-10": {"limit": 10, "price_key": "STRIPE_CITY10_PRICE_ID", "label": "10 cities + unlimited resumes — $19.99/mo"},
 }
 FREE_CITY_LIMIT = 3
+
+# AI resume-creation quota per plan, keyed by city_limit.
+#   3  (free)     -> 10 creations LIFETIME (resume_period_start ignored)
+#   5  ($4.99/mo) -> 25 creations per month
+#   10 ($19.99/mo)-> unlimited
+# None means unlimited. is_lifetime[limit] says whether the cap never resets.
+RESUME_QUOTA = {3: 10, 5: 25, 10: None}
+RESUME_LIFETIME = {3: True, 5: False, 10: False}
+
+
+def resume_quota_for(city_limit: int):
+    """(allowed:int|None, is_lifetime:bool) for a plan. None allowed = unlimited."""
+    limit = city_limit if city_limit in RESUME_QUOTA else 3
+    return RESUME_QUOTA[limit], RESUME_LIFETIME[limit]
+
+
+def _now_naive():
+    """Naive UTC now — the resume/lock columns are naive DateTime (SQLite)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def stripe_configured() -> bool:
@@ -111,6 +131,16 @@ def create_checkout_session(user: User, subscription: Subscription, kind: str) -
     raise BillingConfigurationError("Unknown checkout type.")
 
 
+def create_billing_portal_session(customer_id: str, return_url: str) -> str:
+    """Stripe customer billing portal — lets the user update payment method,
+    switch plan, or cancel. Returns the portal URL to redirect to."""
+    _configure_stripe()
+    session = stripe.billing_portal.Session.create(
+        customer=customer_id, return_url=return_url
+    )
+    return session["url"]
+
+
 def fetch_checkout_session(session_id: str):
     _configure_stripe()
     return stripe.checkout.Session.retrieve(session_id)
@@ -190,8 +220,13 @@ def _fulfill_city_tier(db, subscription: Subscription, kind: str, new_stripe_sub
     subscription.status = "active"
     if new_stripe_sub_id:
         subscription.stripe_subscription_id = new_stripe_sub_id
+    # Upgrading starts a fresh resume period (new monthly quota) and unlocks
+    # the saved search so the user can immediately use the extra city slots.
+    subscription.resume_credits_used = 0
+    subscription.resume_period_start = _now_naive()
+    subscription.search_locked_until = None
     db.commit()
-    return f"Your search can now hold {tier['limit']} cities."
+    return f"Your plan now includes {tier['limit']} cities."
 
 
 def cancel_subscription(subscription_id: Optional[str]) -> None:
@@ -255,3 +290,37 @@ def handle_webhook_event(event) -> None:
         subscription.status = "cancelled"
         subscription.current_period_end = datetime.now(timezone.utc)
         db.commit()
+
+
+def resume_quota_state(subscription, city_limit: int) -> dict:
+    """Current AI-resume quota for a subscription, applying the monthly reset
+    for paid tiers. Returns {allowed, used, remaining, unlimited, is_lifetime}.
+    Mutates+commits the row if a monthly period has rolled over."""
+    allowed, is_lifetime = resume_quota_for(city_limit)
+    if allowed is None:
+        return {"allowed": None, "used": subscription.resume_credits_used or 0,
+                "remaining": None, "unlimited": True, "is_lifetime": False}
+    used = subscription.resume_credits_used or 0
+    if not is_lifetime:
+        # Monthly reset: roll the window if 30+ days have passed.
+        start = subscription.resume_period_start
+        if start is None or (_now_naive() - start).days >= 30:
+            subscription.resume_credits_used = 0
+            subscription.resume_period_start = _now_naive()
+            get_db().commit()
+            used = 0
+    return {"allowed": allowed, "used": used, "remaining": max(0, allowed - used),
+            "unlimited": False, "is_lifetime": is_lifetime}
+
+
+def consume_resume_credit(subscription, city_limit: int) -> bool:
+    """Try to spend one AI-resume creation. Returns True if allowed (and
+    increments the counter), False if the user is out of quota."""
+    state = resume_quota_state(subscription, city_limit)
+    if state["unlimited"]:
+        return True
+    if state["remaining"] <= 0:
+        return False
+    subscription.resume_credits_used = (subscription.resume_credits_used or 0) + 1
+    get_db().commit()
+    return True

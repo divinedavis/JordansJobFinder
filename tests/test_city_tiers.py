@@ -154,7 +154,7 @@ def test_webhook_subscription_deleted_resets_to_free(signed_in_client, db_sessio
 
 def test_billing_page_shows_tiers(signed_in_client):
     body = signed_in_client.get("/billing").get_data(as_text=True)
-    assert "$9.99/mo" in body
+    assert "$4.99/mo" in body
     assert "$19.99/mo" in body
     assert "billing/checkout/city-5" in body
     assert "billing/checkout/city-10" in body

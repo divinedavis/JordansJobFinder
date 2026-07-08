@@ -95,9 +95,9 @@ def test_selecting_hr_title_adds_hr_tab_with_pa_cities(signed_in_client, db_sess
         SavedSearch.user_id == user.id, SavedSearch.vertical == "hr"
     ).one()
     assert search.title_slug == "hr-coordinator"
-    assert search.cities == [
-        "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
-    ]
+    # Free plan caps cities at 3, so HR's 4-metro default is trimmed to the
+    # first three (cities are a paid feature now).
+    assert search.cities == ["York, PA", "Lancaster, PA", "Philadelphia, PA"]
 
     body = signed_in_client.get("/dashboard?tab=hr").get_data(as_text=True)
     assert "HR coordinator and generalist roles" in body
@@ -142,7 +142,8 @@ def test_dashboard_has_no_hardcoded_track_switch_pill(signed_in_client):
     """The tab row exposes a single 'Edit search' link — the only way to change
     tracks — with no track-specific 'Switch to ...' pill singling out HR."""
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
-    assert "Edit search" in body
+    # Edit search moved to the Profile hub; the dashboard tab row has neither
+    # an inline edit link nor a track-specific "Switch to ..." pill.
     assert "Switch to" not in body
 
     # Switching to HR still works via the search form (the Edit search path).

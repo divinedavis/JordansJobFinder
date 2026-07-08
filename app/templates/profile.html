@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Profile | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Profile</span>
+    <h1>Your account.</h1>
+    <p style="margin-top: 14px; max-width: 62ch;">
+      Signed in as <strong>{{ user.email }}</strong>. Manage your saved search,
+      resume, plan, and subscription here.
+    </p>
+  </section>
+
+  <!-- Plan + credits -->
+  <section class="panel">
+    <div class="match-header"><div>
+      <p class="match-kicker">Plan</p>
+      <h3 class="match-title">
+        {% if is_billing_exempt %}Owner{% elif city_limit == 10 %}Pro{% elif city_limit == 5 %}Plus{% else %}Free{% endif %}
+      </h3>
+    </div></div>
+    <div class="list" style="margin-top: 12px;">
+      <div class="list-item"><span>Cities</span><strong>{{ city_limit }}</strong></div>
+      <div class="list-item">
+        <span>AI resume creations</span>
+        <strong>
+          {% if resume.unlimited %}Unlimited{% else %}{{ resume.remaining }} left
+          {%- if resume.is_lifetime %} (lifetime){% else %} this month{% endif %}{% endif %}
+        </strong>
+      </div>
+    </div>
+    <div class="button-row" style="margin-top: 16px;">
+      {% if not is_billing_exempt %}
+        <a class="button" href="{{ url_for('web.billing') }}">
+          {% if city_limit == 3 %}Upgrade{% else %}Change plan{% endif %}
+        </a>
+        {% if has_stripe_customer %}
+        <form method="post" action="{{ url_for('web.billing_portal') }}" style="display: inline-flex;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button secondary" type="submit">Manage subscription</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
+    {% if has_stripe_customer %}
+    <p class="muted" style="margin-top: 10px;">
+      "Manage subscription" opens the Stripe portal to update your card, switch, or cancel.
+    </p>
+    {% endif %}
+  </section>
+
+  <!-- Saved search -->
+  <section class="panel">
+    <div class="match-header"><div>
+      <p class="match-kicker">Job search</p>
+      <h3 class="match-title">Title, experience &amp; cities</h3>
+    </div></div>
+    {% if is_locked %}
+      <p class="muted" style="margin-top: 10px;">
+        Locked until <strong>{{ locked_until.strftime('%b %-d, %Y') }}</strong>.
+        Searches lock for 30 days after saving.
+      </p>
+    {% endif %}
+    <div class="button-row" style="margin-top: 14px;">
+      <a class="button {% if is_locked %}secondary{% endif %}" href="{{ url_for('web.saved_search') }}">Edit search</a>
+    </div>
+  </section>
+
+  <!-- Resume -->
+  <section class="panel">
+    <div class="match-header"><div>
+      <p class="match-kicker">Resume</p>
+      <h3 class="match-title">Your base resume</h3>
+    </div></div>
+    {% if base_resume %}
+      <div class="list" style="margin-top: 12px;">
+        <div class="list-item"><span>Filename</span><strong>{{ base_resume.filename }}</strong></div>
+        <div class="list-item"><span>Uploaded</span><strong>{{ base_resume.updated_at.strftime('%b %-d, %Y') }}</strong></div>
+      </div>
+      <div class="button-row" style="margin-top: 14px;">
+        <a class="button secondary" href="{{ url_for('web.resume_download_base') }}">Download base resume</a>
+      </div>
+    {% else %}
+      <p style="margin-top: 10px;">No resume on file yet — upload one to get AI-tailored versions on your matches.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('web.resume_upload') }}" enctype="multipart/form-data" style="margin-top: 16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="resume">Upload {% if base_resume %}a new {% endif %}PDF or DOCX (5 MB max)</label>
+      <input id="resume" name="resume" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+      <div class="button-row" style="margin-top: 12px;">
+        <button class="button" type="submit">Upload resume</button>
+      </div>
+    </form>
+    {% if base_resume %}
+      <p class="muted" style="margin-top: 12px;">
+        Uploading a new file replaces your current resume and clears any tailored versions.
+      </p>
+    {% endif %}
+  </section>
+{% endblock %}

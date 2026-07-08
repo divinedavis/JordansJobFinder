@@ -10,10 +10,23 @@
       Pick a title, your experience level, and 3&ndash;{{ city_limit }} cities on your current plan.
     </p>
 
-    <form method="post" style="margin-top: 24px;">
+    {% if is_locked %}
+      <div class="flash error" style="margin-top: 16px;">
+        Your search is locked until <strong>{{ locked_until.strftime('%b %-d, %Y') }}</strong>.
+        Searches lock for 30 days after saving. Want to change it sooner or add more cities?
+        <a href="{{ url_for('web.billing') }}">Upgrade your plan</a> to unlock it now.
+      </div>
+    {% else %}
+      <p class="muted" style="margin-top: 12px; max-width: 60ch;">
+        Heads up: once you save, your search <strong>locks for 30 days</strong>
+        (title, experience, and cities). It unlocks monthly — or upgrade anytime to change it sooner.
+      </p>
+    {% endif %}
+
+    <form method="post" style="margin-top: 24px;"{% if is_locked %} onsubmit="return false"{% endif %}>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="title_slug">Job Title</label>
-      <select id="title_slug" name="title_slug" required>
+      <select id="title_slug" name="title_slug" required {% if is_locked %}disabled{% endif %}>
         <option value="">Select a title</option>
         {% for option in title_options %}
           <option value="{{ option.slug }}" {% if saved_search and saved_search.title_slug == option.slug %}selected{% endif %}>
@@ -21,14 +34,9 @@
           </option>
         {% endfor %}
       </select>
-      {% if is_superuser %}
-      <p class="muted" style="margin-top: -6px; margin-bottom: 12px;">
-        Your super-user account automatically sees both product manager and program manager roles that require 8+ years of experience.
-      </p>
-      {% endif %}
 
       <label for="experience_bucket">Experience Filter</label>
-      <select id="experience_bucket" name="experience_bucket" required>
+      <select id="experience_bucket" name="experience_bucket" required {% if is_locked %}disabled{% endif %}>
         <option value="">Select an experience bucket</option>
         {% for option in experience_options %}
           <option value="{{ option.slug }}" {% if saved_search and saved_search.experience_bucket == option.slug %}selected{% endif %}>
@@ -42,7 +50,7 @@
         Each card is one pick: choose the state first, then the city.
         {% if city_limit == 3 %}
           Need more? <a href="{{ url_for('web.billing') }}">Upgrade</a> to 5 cities
-          for $9.99/mo or 10 cities for $19.99/mo.
+          for $4.99/mo or 10 cities for $19.99/mo.
         {% endif %}
       </p>
       <div class="grid three">
@@ -51,14 +59,14 @@
         <div data-city-pair class="card" style="padding: 16px;">
           <h3 style="margin-bottom: 10px;">City {{ i }}</h3>
           <label for="state_{{ i }}" class="muted" style="font-size: 12px;">State</label>
-          <select id="state_{{ i }}" data-role="state" aria-label="State for city {{ i }}">
+          <select id="state_{{ i }}" data-role="state" aria-label="State for city {{ i }}"{% if is_locked %} disabled{% endif %}>
             <option value="">All states</option>
             {% for abbr, name in state_options %}
               <option value="{{ abbr }}" {% if slot.state == abbr %}selected{% endif %}>{{ name }}</option>
             {% endfor %}
           </select>
           <label for="city_{{ i }}" class="muted" style="font-size: 12px;">City</label>
-          <select id="city_{{ i }}" name="city_{{ i }}" data-role="city"{% if i <= 3 %} required{% endif %}>
+          <select id="city_{{ i }}" name="city_{{ i }}" data-role="city"{% if i <= 3 %} required{% endif %}{% if is_locked %} disabled{% endif %}>
             <option value="">{{ "Select a city" if i <= 3 else "Optional city" }}</option>
             {% for abbr, name in state_options %}
               <optgroup label="{{ name }}" data-state="{{ abbr }}">
@@ -73,19 +81,13 @@
       </div>
       <script src="{{ url_for('static', filename='js/citypicker.js') }}" defer></script>
 
-      <p class="muted">
-        {% if is_superuser %}
-          Your super-user account can choose any supported cities without billing limits.
-        {% elif can_use_custom_cities %}
-          Custom city replacement is active on this account.
-        {% else %}
-          Custom city replacement requires the $2.99 monthly city plan. Without that plan, keep the default cities unchanged.
-        {% endif %}
-      </p>
-
       <div class="button-row">
-        <button class="button" type="submit">Save Search</button>
-        <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Dashboard</a>
+        {% if is_locked %}
+          <a class="button" href="{{ url_for('web.billing') }}">Upgrade to unlock</a>
+        {% else %}
+          <button class="button" type="submit">Save Search</button>
+        {% endif %}
+        <a class="button secondary" href="{{ url_for('web.profile') }}">Back to Profile</a>
       </div>
     </form>
   </section>

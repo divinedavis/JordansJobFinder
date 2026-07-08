@@ -31,11 +31,11 @@ def test_new_signup_does_not_see_no_saved_search_panel(signed_in_client):
     assert "No saved search yet" not in body
 
 
-def test_nav_includes_resume_link(signed_in_client):
+def test_nav_includes_profile_link(signed_in_client):
     response = signed_in_client.get("/dashboard")
     body = response.get_data(as_text=True)
-    assert "/resume" in body
-    assert ">Resume</a>" in body
+    assert "/profile" in body
+    assert ">Profile</a>" in body
 
 
 def test_nav_has_mobile_hamburger(signed_in_client):

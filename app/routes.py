@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+from datetime import timedelta
 
 from flask import (
     Blueprint,
@@ -41,8 +42,11 @@ from .payments import (
     BillingConfigurationError,
     cancel_subscription,
     construct_webhook_event,
+    consume_resume_credit,
+    create_billing_portal_session,
     create_checkout_session,
     handle_webhook_event,
+    resume_quota_state,
     stripe_configured,
     sync_checkout_result,
 )
@@ -54,8 +58,6 @@ from .analytics import (
     build_market_research,
 )
 from .searches import (
-    can_change_search,
-    requires_paid_city_override,
     revert_to_free_cities,
     valid_experience_bucket,
     valid_title_slug,
@@ -132,6 +134,22 @@ def city_limit_for(user, subscription) -> int:
     if is_admin_email(user.email):
         return 10
     return max(3, subscription.city_limit or 3)
+
+
+SEARCH_LOCK_DAYS = 30
+
+
+def _lock_search(subscription) -> None:
+    """Freeze the saved search for 30 days from now (caller commits)."""
+    subscription.search_locked_until = utc_now().replace(tzinfo=None) + timedelta(days=SEARCH_LOCK_DAYS)
+
+
+def search_locked(user, subscription) -> bool:
+    """Whether the saved search is currently frozen. The owner is never locked."""
+    if is_admin_email(user.email):
+        return False
+    until = subscription.search_locked_until
+    return until is not None and until > utc_now().replace(tzinfo=None)
 
 
 @web.get("/")
@@ -391,13 +409,16 @@ def billing():
         return redirect(url_for("web.billing"))
 
     subscription = ensure_subscription(user, db)
+    limit = city_limit_for(user, subscription)
+    resume = resume_quota_state(subscription, limit)
     return render_template(
         "billing.html",
         user=user,
         stripe_configured=stripe_configured(),
         publishable_key=current_app.config["STRIPE_PUBLISHABLE_KEY"],
         is_billing_exempt=is_admin_email(user.email),
-        city_limit=city_limit_for(user, subscription),
+        city_limit=limit,
+        resume=resume,
     )
 
 
@@ -474,13 +495,23 @@ def saved_search():
     subscription = ensure_subscription(user, db)
 
     if request.method == "POST":
+        # Search lock: after the first save the whole search (title, experience,
+        # cities) is frozen for 30 days. Upgrading a tier clears the lock.
+        if search_locked(user, subscription):
+            flash(
+                f"Your search is locked until {subscription.search_locked_until:%b %-d, %Y}. "
+                "Upgrade your plan to change it sooner.",
+                "error",
+            )
+            return redirect(url_for("web.saved_search"))
+
         title_slug = request.form.get("title_slug", "").strip()
         experience_bucket = request.form.get("experience_bucket", "").strip()
+        limit = city_limit_for(user, subscription)
 
         # Non-PM titles (finance/sales/IT/HR) select a whole track: the
-        # vertical's search is created/updated with its pinned city set (the
-        # 3-city picker below is PM-specific) and its tab appears on the
-        # dashboard immediately.
+        # vertical's search is created/updated with its pinned city set,
+        # capped to the account's plan limit (cities are a paid feature).
         vertical = TITLE_VERTICALS.get(title_slug, "pm")
 
         # One job title per account: choosing a title REPLACES any other
@@ -501,19 +532,19 @@ def saved_search():
                 db.add(search)
             search.title_slug = title_slug
             search.experience_bucket = experience_bucket
-            search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])
+            search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])[:limit]
             search.is_paid_city_override = False
             _enforce_single_title()
+            _lock_search(subscription)
             db.commit()
             try:
                 from .sync import rebuild_matches_for_user
                 rebuild_matches_for_user(user.id)
             except Exception:
                 logger.exception("Match rebuild after track add failed user_id=%d", user.id)
-            flash(f"Your dashboard now tracks {TITLE_LABELS.get(title_slug, title_slug)}.", "success")
+            flash(f"Your dashboard now tracks {TITLE_LABELS.get(title_slug, title_slug)}. Cities locked for 30 days.", "success")
             return redirect(url_for("web.dashboard", tab=vertical))
 
-        limit = city_limit_for(user, subscription)
         raw_cities = [
             request.form.get(f"city_{i}", "").strip() for i in range(1, limit + 1)
         ]
@@ -526,14 +557,6 @@ def saved_search():
             flash(validation.error, "error")
             return redirect(url_for("web.saved_search"))
 
-        if user.saved_search and not can_change_search(
-            user.saved_search.change_count,
-            subscription.unlimited_changes_unlocked,
-            user.email,
-        ):
-                flash("You have used your free search changes. Unlock unlimited changes to continue.", "error")
-                return redirect(url_for("web.dashboard"))
-
         if user.saved_search:
             search = user.saved_search
             search.change_count += 1
@@ -541,23 +564,19 @@ def saved_search():
             search = SavedSearch(user_id=user.id, vertical="pm")
             db.add(search)
 
-        is_paid_city_override = requires_paid_city_override(selected_cities, user.email)
-        if is_paid_city_override and not subscription.city_override_active:
-            flash("Custom cities require the $2.99 monthly city plan.", "error")
-            return redirect(url_for("web.saved_search"))
-
         search.title_slug = title_slug
         search.experience_bucket = experience_bucket
         search.cities = list(selected_cities)
-        search.is_paid_city_override = is_paid_city_override
+        search.is_paid_city_override = len(selected_cities) > 3
         _enforce_single_title()
+        _lock_search(subscription)
         db.commit()
         try:
             from .sync import rebuild_matches_for_user
             rebuild_matches_for_user(user.id)
         except Exception:
             logger.exception("Match rebuild after search edit failed user_id=%d", user.id)
-        flash("Saved search updated.", "success")
+        flash("Saved search updated. Your cities are locked for 30 days.", "success")
         return redirect(url_for("web.dashboard"))
 
     selected_search = user.saved_search
@@ -583,6 +602,8 @@ def saved_search():
         cities_by_state=cities_by_state(),
         can_use_custom_cities=subscription.city_override_active or is_superuser_email(user.email),
         is_superuser=is_superuser_email(user.email),
+        is_locked=search_locked(user, subscription),
+        locked_until=subscription.search_locked_until,
     )
 
 
@@ -612,6 +633,56 @@ def delete_account():
     return redirect(url_for("web.home"))
 
 
+@web.get("/profile")
+def profile():
+    """Account hub: plan + AI-resume credits, saved-search editing, resume
+    upload, and Stripe subscription management — all in one place."""
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    user = db.get(User, user.id)
+    subscription = ensure_subscription(user, db)
+    limit = city_limit_for(user, subscription)
+    return render_template(
+        "profile.html",
+        user=user,
+        base_resume=user.base_resume,
+        subscription=subscription,
+        city_limit=limit,
+        resume=resume_quota_state(subscription, limit),
+        is_billing_exempt=is_admin_email(user.email),
+        is_locked=search_locked(user, subscription),
+        locked_until=subscription.search_locked_until,
+        has_stripe_customer=bool(subscription.stripe_customer_id),
+    )
+
+
+@web.post("/billing/portal")
+def billing_portal():
+    """Open the Stripe customer billing portal so the user can update their
+    card, switch, or cancel their subscription."""
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    user = db.get(User, user.id)
+    subscription = ensure_subscription(user, db)
+    if not subscription.stripe_customer_id:
+        flash("You don't have a subscription to manage yet.", "warning")
+        return redirect(url_for("web.profile"))
+    try:
+        portal_url = create_billing_portal_session(
+            subscription.stripe_customer_id,
+            current_app.config["BASE_URL"] + url_for("web.profile"),
+        )
+    except BillingConfigurationError as exc:
+        logger.error("Billing portal error: %s", exc)
+        flash("Subscription management is temporarily unavailable.", "error")
+        return redirect(url_for("web.profile"))
+    return redirect(portal_url)
+
+
 @web.post("/sign-out")
 def sign_out():
     session.clear()
@@ -621,12 +692,8 @@ def sign_out():
 
 @web.get("/resume")
 def resume_page():
-    user = require_user()
-    if not user:
-        return redirect(url_for("web.sign_in"))
-    db = get_db()
-    user = db.get(User, user.id)
-    return render_template("resume.html", user=user, base_resume=user.base_resume)
+    # Resume management now lives in the Profile hub.
+    return redirect(url_for("web.profile"))
 
 
 @web.post("/resume/upload")
@@ -722,9 +789,20 @@ def resume_download_tailored(job_id: int):
         TailoredResume.user_id == user.id,
         TailoredResume.job_id == job_id,
     ).one_or_none()
-    if not tailored or not tailored.pdf_path or not os.path.exists(tailored.pdf_path):
-        # Not pre-built by the nightly sync — generate it on demand so a user who
-        # just signed up / uploaded a resume still gets a tailored PDF instantly.
+    already_built = bool(tailored and tailored.pdf_path and os.path.exists(tailored.pdf_path))
+    if not already_built:
+        # Creating a NEW tailored resume spends one AI-resume credit
+        # (free = 10 lifetime, $4.99 = 25/mo, $19.99 = unlimited). Re-downloading
+        # an already-built PDF is free.
+        subscription = ensure_subscription(user, db)
+        if not consume_resume_credit(subscription, city_limit_for(user, subscription)):
+            flash(
+                "You've used all your AI resume creations. Upgrade to $4.99/mo for "
+                "25 a month, or $19.99/mo for unlimited.",
+                "error",
+            )
+            return redirect(url_for("web.billing"))
+        # Not pre-built — generate it on demand.
         base = user.base_resume if user else None
         if not base:
             abort(404)

@@ -53,17 +53,21 @@ def _make_pdf_bytes(text: str) -> bytes:
     return buf.getvalue()
 
 
-def test_resume_page_renders_for_logged_in_user(signed_in_client):
+def test_resume_management_lives_in_profile(signed_in_client):
+    # Resume management moved into the Profile hub; /resume redirects there.
     response = signed_in_client.get("/resume")
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "Your base resume" in body
+    assert response.status_code == 302
+    assert "/profile" in response.headers["Location"]
+    profile = signed_in_client.get("/profile")
+    assert profile.status_code == 200
+    assert "base resume" in profile.get_data(as_text=True).lower()
 
 
-def test_resume_page_redirects_when_unauthenticated(client):
+def test_resume_redirects_to_profile(client):
+    # /resume always redirects to /profile (which itself gates on auth).
     response = client.get("/resume")
     assert response.status_code == 302
-    assert "/sign-in" in response.headers["Location"]
+    assert "/profile" in response.headers["Location"]
 
 
 def test_resume_upload_accepts_docx(signed_in_client, db_session, app):

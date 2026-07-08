@@ -299,6 +299,34 @@ route auth, nav links).
   per track (PM, Finance, Sales, IT, HR); legacy sub-track slugs stay valid.
 - Tests: `tests/test_city_picker.py`.
 
+## Plans, Resume Quota, Search Lock, Profile (2026-07-08)
+
+Repriced + restructured tiers (LIVE Stripe):
+- **Free**: 3 cities, 10 AI-resume creations LIFETIME.
+- **Plus $4.99/mo** (checkout `city-5`, was $9.99): 5 cities + 25 resumes/month.
+- **Pro $19.99/mo** (`city-10`): 10 cities + unlimited resumes.
+Quota table in payments.RESUME_QUOTA keyed by city_limit; consume_resume_credit
+spends one on each NEW on-demand tailoring (re-downloads free). Monthly reset
+via resume_period_start for paid; free never resets. **Nightly bulk
+tailored-resume pre-gen is DISABLED** (it handed free users unlimited resumes) —
+all tailoring is on-demand + quota-gated.
+
+**City cap bug fix**: non-PM tracks (finance/sales/IT/HR) seeded FIXED city
+sets (finance=11) ignoring the plan limit, so a free user picking Corporate
+Finance saw 11 cities. Now every track caps to city_limit_for(user); existing
+over-limit searches trimmed in prod; admin + Frank comped to city_limit=10.
+
+**30-day search lock**: saving freezes the whole search (title+experience+
+cities) for 30 days (subscriptions.search_locked_until); the /search form
+disables + rejects while locked; upgrading a tier clears the lock. Owner never
+locked.
+
+**Profile hub** (`/profile`, profile.html): plan + resume credits, Edit search,
+resume upload (moved from /resume, which now redirects here), and **Manage
+subscription** → Stripe billing portal (create_billing_portal_session; portal
+config bpc_… created). Nav "Resume" replaced by "Profile"; dashboard "Edit
+search" pill removed. Tests: tests/test_plans.py.
+
 ## Billing — City Tiers (LIVE Stripe, 2026-07-06)
 
 - **3 cities free / 5 for $9.99/mo / 10 for $19.99/mo** — checkout kinds

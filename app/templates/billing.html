@@ -1,54 +1,62 @@
 {% extends "base.html" %}
 
-{% block title %}Billing | Jordan's Job Finder{% endblock %}
+{% block title %}Plans | Jordan's Job Finder{% endblock %}
 
 {% block content %}
   <section class="panel">
     <span class="eyebrow">Plans</span>
-    <h1>More cities, more matches.</h1>
+    <h1>More cities. More tailored resumes.</h1>
     <p style="margin-top: 14px; max-width: 62ch;">
-      Every account tracks 3 cities for free. Upgrade to watch more markets at
-      once — payments are processed securely by Stripe, cancel anytime.
+      Free covers 3 cities and 10 AI-tailored resumes. Upgrade for more markets
+      and more resume creations — payments run securely through Stripe, cancel
+      anytime.
     </p>
     {% if is_billing_exempt %}
     <p class="muted" style="margin-top: 12px;">
-      This is the owner account — the maximum city limit is included.
+      This is the owner account — the maximum plan is included.
     </p>
+    {% elif not resume.unlimited %}
+    <p class="muted" style="margin-top: 12px;">
+      AI resume creations used: <strong>{{ resume.used }}</strong> of
+      {{ resume.allowed }}{% if resume.is_lifetime %} (lifetime){% else %} this month{% endif %}.
+    </p>
+    {% else %}
+    <p class="muted" style="margin-top: 12px;">AI resume creations: <strong>Unlimited</strong>.</p>
     {% endif %}
   </section>
 
   <section class="grid three">
     <article class="card">
       <span class="stat-label">Free</span>
-      <strong class="stat-value" style="font-size: 1.6rem;">3 cities</strong>
-      <p style="margin-top: 12px;">Pick any three US cities (population 50k+) for your saved search.</p>
+      <strong class="stat-value" style="font-size: 1.5rem;">$0</strong>
+      <p style="margin-top: 12px;"><strong>3 cities</strong><br>10 AI resume creations (lifetime)</p>
       {% if city_limit == 3 and not is_billing_exempt %}
       <p class="muted" style="margin-top: 10px;"><strong>Current plan</strong></p>
       {% endif %}
     </article>
     <article class="card">
-      <span class="stat-label">5 Cities</span>
-      <strong class="stat-value" style="font-size: 1.6rem;">$9.99/mo</strong>
-      <p style="margin-top: 12px;">Watch five markets at once — two extra city slots on your search.</p>
+      <span class="stat-label">Plus</span>
+      <strong class="stat-value" style="font-size: 1.5rem;">$4.99/mo</strong>
+      <p style="margin-top: 12px;"><strong>5 cities</strong><br>25 AI resume creations / month</p>
       {% if city_limit == 5 and not is_billing_exempt %}
       <p class="muted" style="margin-top: 10px;"><strong>Current plan</strong></p>
       {% elif not is_billing_exempt %}
       <form method="post" action="{{ url_for('web.billing_checkout', kind='city-5') }}" style="margin-top: 12px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button" type="submit">Get 5 cities</button>
+        <button class="button" type="submit">Get Plus</button>
       </form>
       {% endif %}
     </article>
     <article class="card">
-      <span class="stat-label">10 Cities</span>
-      <strong class="stat-value" style="font-size: 1.6rem;">$19.99/mo</strong>
-      <p style="margin-top: 12px;">Full coverage — ten city slots for a wide, multi-market search.</p>
+      <span class="stat-label">Pro</span>
+      <strong class="stat-value" style="font-size: 1.5rem;">$19.99/mo</strong>
+      <p style="margin-top: 12px;"><strong>10 cities</strong><br>Unlimited AI resume creations</p>
       {% if city_limit == 10 and not is_billing_exempt %}
       <p class="muted" style="margin-top: 10px;"><strong>Current plan</strong></p>
       {% elif not is_billing_exempt %}
       <form method="post" action="{{ url_for('web.billing_checkout', kind='city-10') }}" style="margin-top: 12px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button" type="submit">Get 10 cities</button>
+        <button class="button" type="submit">Get Pro</button>
       </form>
       {% endif %}
     </article>
@@ -60,6 +68,13 @@
       <div class="list-item">
         <span>City limit</span>
         <strong>{{ city_limit }} cities{% if is_billing_exempt %} (owner){% endif %}</strong>
+      </div>
+      <div class="list-item">
+        <span>AI resume creations</span>
+        <strong>
+          {% if resume.unlimited %}Unlimited{% else %}{{ resume.remaining }} left
+          {%- if resume.is_lifetime %} (lifetime){% else %} this month{% endif %}{% endif %}
+        </strong>
       </div>
       <div class="list-item">
         <span>Status</span>
@@ -74,7 +89,7 @@
     <div class="button-row">
       <form method="post" action="{{ url_for('web.cancel_city_plan') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button secondary" type="submit">Cancel plan (back to 3 cities)</button>
+        <button class="button secondary" type="submit">Cancel plan (back to Free)</button>
       </form>
     </div>
     {% endif %}

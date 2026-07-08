@@ -277,7 +277,11 @@ def run_daily_sync(run_key: Optional[str] = None) -> dict:
     try:
         synced_jobs = upsert_shared_jobs()
         matched_jobs = rebuild_matches()
-        tailored = generate_tailored_resumes()
+        # Tailored resumes are NOT pre-generated in bulk anymore — each one is
+        # created on demand and counts against the user's AI-resume quota
+        # (free 10 lifetime / $4.99 25-mo / $19.99 unlimited). Pre-generating
+        # would hand free users unlimited resumes for free.
+        tailored = 0
         # Cleanup expired/used magic link tokens
         db.query(MagicLinkToken).filter(
             (MagicLinkToken.expires_at < datetime.now(timezone.utc))

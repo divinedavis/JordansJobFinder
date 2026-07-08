@@ -44,7 +44,14 @@ def test_search_redirects_when_unauthenticated(client):
     assert response.status_code in (200, 302)
 
 
-def test_resume_redirects_when_unauthenticated(client):
+def test_resume_redirects_to_profile(client):
+    # Resume management now lives under /profile.
     response = client.get("/resume")
+    assert response.status_code == 302
+    assert "/profile" in response.headers["Location"]
+
+
+def test_profile_redirects_when_unauthenticated(client):
+    response = client.get("/profile")
     assert response.status_code == 302
     assert "/sign-in" in response.headers["Location"]

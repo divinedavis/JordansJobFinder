@@ -90,11 +90,19 @@ class Subscription(TimestampMixin, Base):
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     city_override_active: Mapped[bool] = mapped_column(Boolean, default=False)
     unlimited_changes_unlocked: Mapped[bool] = mapped_column(Boolean, default=False)
-    # How many cities the saved search may hold: 3 free, 5 ($9.99/mo) or
+    # How many cities the saved search may hold: 3 free, 5 ($4.99/mo) or
     # 10 ($19.99/mo) via the Stripe city-tier subscriptions.
     city_limit: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     status: Mapped[str] = mapped_column(String(64), default="free")
     current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # AI resume-creation quota. Free = 10 lifetime; $4.99 = 25/month;
+    # $19.99 = unlimited. resume_period_start anchors the monthly reset for
+    # paid tiers (free never resets — the 10 are lifetime).
+    resume_credits_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    resume_period_start: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Saved search is frozen (title, experience, and cities) until this time —
+    # set 30 days out on each save; cleared when the user upgrades a tier.
+    search_locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="subscription")
 
