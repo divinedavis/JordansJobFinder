@@ -97,6 +97,30 @@ def title_is_hr(title: str) -> bool:
     return any(kw in normalized for kw in HR_ROLE_KEYWORDS)
 
 
+# Supply chain management track: any role in the supply-chain / logistics /
+# procurement function. Kept in sync with scraper_scm.py::SCM_KEYWORDS.
+SCM_KEYWORDS = (
+    "supply chain", "logistics", "procurement", "sourcing", "purchasing",
+    "materials manager", "materials management", "demand planning",
+    "supply planning", "inventory", "distribution", "warehouse",
+    "fulfillment", "s&op", "buyer", "commodity manager", "category manager",
+    "supply chain planner", "operations planner", "logistics coordinator",
+)
+SCM_NEGATIVE_KEYWORDS = ("intern", "internship")
+
+
+def title_is_scm(title: str) -> bool:
+    """Supply-chain / logistics / procurement roles (analyst through manager)."""
+    normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
+    if not is_corporate_role(normalized):
+        return False
+    if any(neg in normalized for neg in SCM_NEGATIVE_KEYWORDS):
+        return False
+    return any(kw in normalized for kw in SCM_KEYWORDS)
+
+
 # IT project/program manager track. The title must be a project- or
 # program-management role AND carry an IT/technology signal — otherwise a
 # "Project Manager" at an oil company (construction, facilities, …) leaks in.
@@ -292,6 +316,12 @@ def match_job_for_user(
         # this track serves a 10+ years user who qualifies for every level,
         # so a "5+ years required" posting must not be filtered out.
         return title_is_it_pm(title)
+
+    if vertical == "scm":
+        # Supply chain management: title heuristic only (function match). No
+        # salary floor or experience exclusion — the $1B+-employer and
+        # South-Carolina-location constraints are applied by the scraper.
+        return title_is_scm(title)
 
     if vertical == "sales":
         # Sales: same shape as finance — the level follows the experience

@@ -336,8 +336,9 @@ VERTICAL_LABELS = {
     "sales": "Corporate Sales",
     "it": "IT Project/Program Manager",
     "hr": "HR Coordinator+",
+    "scm": "Supply Chain (SC)",
 }
-VERTICAL_ORDER = ["pm", "finance", "sales", "it", "hr"]
+VERTICAL_ORDER = ["pm", "finance", "sales", "it", "hr", "scm"]
 
 
 def user_verticals(user) -> list[str]:

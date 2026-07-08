@@ -128,6 +128,21 @@ the verticals a user has a SavedSearch for. Frank has ONLY the `it` search
 IT tab; everyone else keeps pm/finance/sales and never sees the IT tab.
 Tests: `tests/test_it_vertical.py`.
 
+## Supply Chain Management Vertical (scraper_scm.py, 2026-07-08)
+
+Sixth vertical (`vertical="scm"`), user-selectable ("Supply Chain Management
+(SC · $1B+)"): supply-chain / logistics / procurement / sourcing roles
+(analyst through manager, `matching.title_is_scm`) at the $1B+ employer union
+(reused from scraper_it) plus verified Charleston employers (Boeing, Ingevity,
+SouthState), scoped to **South Carolina's major metros**: charleston-sc
+(Lowcountry), columbia-sc (Midlands), greenville-sc (Upstate incl.
+Spartanburg), rock-hill-sc (York County) — `SCM_DEFAULT_CITIES`, free plan
+caps to the first 3. No salary/experience filter (the $1B+ + SC-location
+constraints do the filtering). 7-day board window (results.BOARD_WINDOW_DAYS).
+Runs in the 9 AM cron after scraper_hr.py; writes shared_jobs_scm.json. SC
+city slugs added to catalog/sync/results/analytics label maps. Tests:
+`tests/test_scm_vertical.py`.
+
 ## HR Coordinator Vertical (scraper_hr.py)
 
 Fifth vertical (`vertical="hr"`), user-selectable: picking "HR Coordinator /

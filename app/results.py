@@ -27,6 +27,10 @@ CITY_LABELS = {
     "orlando-fl": "Orlando, FL",
     "jacksonville-fl": "Jacksonville, FL",
     "florida-other": "Florida (other)",
+    "charleston-sc": "Charleston, SC",
+    "columbia-sc": "Columbia, SC",
+    "greenville-sc": "Greenville, SC",
+    "rock-hill-sc": "Rock Hill, SC",
 }
 
 
@@ -63,7 +67,7 @@ def group_matches_by_city(matches: list[dict]) -> dict:
 # Board freshness window per vertical. IT project/program roles in the PA/FL
 # metros post far less often than the national tracks — a 2-day window leaves
 # that board nearly empty, so it keeps a week.
-BOARD_WINDOW_DAYS = {"it": 7, "hr": 7}
+BOARD_WINDOW_DAYS = {"it": 7, "hr": 7, "scm": 7}
 DEFAULT_BOARD_WINDOW_DAYS = 2
 
 

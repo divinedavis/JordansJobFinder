@@ -37,6 +37,10 @@ CITY_LABELS = {
     "orlando-fl": "Orlando, FL",
     "jacksonville-fl": "Jacksonville, FL",
     "florida-other": "Florida (other)",
+    "charleston-sc": "Charleston, SC",
+    "columbia-sc": "Columbia, SC",
+    "greenville-sc": "Greenville, SC",
+    "rock-hill-sc": "Rock Hill, SC",
 }
 _LABEL_TO_SLUG = {label: slug for slug, label in CITY_LABELS.items()}
 
@@ -46,6 +50,7 @@ VERTICAL_LABELS = {
     "sales": "Corporate Sales",
     "it": "IT Project/Program Manager",
     "hr": "HR Coordinator+",
+    "scm": "Supply Chain (SC)",
 }
 
 # Drop obviously-bogus salaries before averaging (scraper occasionally pulls a

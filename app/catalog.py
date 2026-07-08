@@ -15,6 +15,7 @@ TITLE_OPTIONS = [
     {"slug": "entry-sales-inside-sales", "label": "Inside Sales / Sales Representative", "vertical": "sales"},
     {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
+    {"slug": "supply-chain-mgmt", "label": "Supply Chain Management", "vertical": "scm"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
@@ -30,6 +31,7 @@ SELECTABLE_TITLES = [
     {"slug": "entry-finance-any", "label": "Corporate Finance", "vertical": "finance"},
     {"slug": "entry-sales-any", "label": "Corporate Sales", "vertical": "sales"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
+    {"slug": "supply-chain-mgmt", "label": "Supply Chain Management (SC · $1B+)", "vertical": "scm"},
 ]
 
 TITLE_KEYWORDS = {
@@ -106,6 +108,17 @@ TITLE_KEYWORDS["hr-coordinator"] = [
     "hr specialist", "human resources specialist",
 ]
 
+# Supply chain management: any role in the supply-chain / logistics /
+# procurement function (analyst through manager). Kept in sync with
+# scraper_scm.py::SCM_KEYWORDS.
+TITLE_KEYWORDS["supply-chain-mgmt"] = [
+    "supply chain", "logistics", "procurement", "sourcing", "purchasing",
+    "materials manager", "materials management", "demand planning",
+    "supply planning", "inventory", "distribution", "warehouse",
+    "fulfillment", "s&op", "buyer", "commodity manager", "category manager",
+    "supply chain planner", "operations planner", "logistics coordinator",
+]
+
 EXPERIENCE_BUCKETS = [
     {"slug": "0-2", "label": "0-2 years"},
     {"slug": "3-6", "label": "3-6 years"},
@@ -136,6 +149,10 @@ CITY_OPTIONS = [
     {"slug": "orlando-fl", "label": "Orlando, FL"},
     {"slug": "jacksonville-fl", "label": "Jacksonville, FL"},
     {"slug": "florida-other", "label": "Florida (other)"},
+    {"slug": "charleston-sc", "label": "Charleston, SC"},
+    {"slug": "columbia-sc", "label": "Columbia, SC"},
+    {"slug": "greenville-sc", "label": "Greenville, SC"},
+    {"slug": "rock-hill-sc", "label": "Rock Hill, SC"},
 ]
 FINANCE_DEFAULT_CITIES = [
     "New York, NY", "Atlanta, GA", "Miami, FL",
@@ -157,12 +174,19 @@ IT_DEFAULT_CITIES = [
 HR_DEFAULT_CITIES = [
     "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
 ]
+# Supply chain management track: South Carolina's major metros (Lowcountry,
+# Midlands, Upstate, and the York-County/Charlotte side). Free plan caps to
+# the first 3 (Charleston, Columbia, Greenville).
+SCM_DEFAULT_CITIES = [
+    "Charleston, SC", "Columbia, SC", "Greenville, SC", "Rock Hill, SC",
+]
 # Vertical -> fixed default city set used when a non-PM title is selected.
 VERTICAL_DEFAULT_CITIES = {
     "finance": FINANCE_DEFAULT_CITIES,
     "sales": SALES_DEFAULT_CITIES,
     "it": IT_DEFAULT_CITIES,
     "hr": HR_DEFAULT_CITIES,
+    "scm": SCM_DEFAULT_CITIES,
 }
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")

@@ -40,6 +40,10 @@ CITY_DISPLAY = {
     "orlando-fl": "Orlando, FL",
     "jacksonville-fl": "Jacksonville, FL",
     "florida-other": "Florida (other)",
+    "charleston-sc": "Charleston, SC",
+    "columbia-sc": "Columbia, SC",
+    "greenville-sc": "Greenville, SC",
+    "rock-hill-sc": "Rock Hill, SC",
 }
 
 
