@@ -28,7 +28,7 @@ def test_non_pm_track_caps_cities_to_free_limit(signed_in_client, db_session):
     the finance track's full 11-metro default (this was the dashboard >3 bug)."""
     from app.models import SavedSearch, User
 
-    signed_in_client.post("/search", data={
+    signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "entry-finance-any", "experience_bucket": "0-2",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
@@ -46,7 +46,7 @@ def test_saving_locks_search_for_30_days(signed_in_client, db_session):
 
     from app.models import Subscription, User
 
-    signed_in_client.post("/search", data={
+    signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "technical-product-manager", "experience_bucket": "7-9",
         "city_1": "New York, NY", "city_2": "Atlanta, GA", "city_3": "Miami, FL",
     })
@@ -57,7 +57,7 @@ def test_saving_locks_search_for_30_days(signed_in_client, db_session):
     assert 28 <= days <= 30
 
     # A second save while locked is rejected.
-    resp = signed_in_client.post("/search", data={
+    resp = signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "technical-product-manager", "experience_bucket": "10+",
         "city_1": "Dallas, TX", "city_2": "Houston, TX", "city_3": "Boise, ID",
     }, follow_redirects=True)
@@ -119,3 +119,25 @@ def test_profile_shows_plan_resume_and_search(signed_in_client):
     assert "Edit search" in body
     assert "base resume" in body.lower()
     assert "resume creations" in body.lower()
+
+
+def test_save_requires_lock_acknowledgment(signed_in_client, db_session):
+    """Saving without ticking the 30-day-lock acknowledgment is rejected, and
+    nothing is locked."""
+    from app.models import Subscription, User
+
+    resp = signed_in_client.post("/search", data={
+        "title_slug": "technical-product-manager", "experience_bucket": "7-9",
+        "city_1": "New York, NY", "city_2": "Atlanta, GA", "city_3": "Miami, FL",
+        # no ack_lock
+    }, follow_redirects=True)
+    assert "confirm you understand" in resp.get_data(as_text=True).lower()
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    sub = db_session.query(Subscription).filter(Subscription.user_id == user.id).one_or_none()
+    assert sub is None or sub.search_locked_until is None
+
+
+def test_search_form_shows_lock_acknowledgment(signed_in_client):
+    body = signed_in_client.get("/search").get_data(as_text=True)
+    assert 'name="ack_lock"' in body
+    assert "locks for 30 days" in body.lower() or "lock my job title" in body.lower()

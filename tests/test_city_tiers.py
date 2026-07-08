@@ -61,7 +61,7 @@ def test_five_city_plan_gets_five_slots_and_saves_five(signed_in_client, db_sess
     assert 'name="city_5"' in body
     assert 'name="city_6"' not in body
 
-    resp = signed_in_client.post("/search", data={
+    resp = signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "technical-product-manager",
         "experience_bucket": "7-9",
         "city_1": "New York, NY",
@@ -82,7 +82,7 @@ def test_five_city_plan_gets_five_slots_and_saves_five(signed_in_client, db_sess
 def test_free_user_cannot_save_beyond_three(signed_in_client, db_session):
     from app.models import SavedSearch, User
 
-    signed_in_client.post("/search", data={
+    signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "technical-product-manager",
         "experience_bucket": "7-9",
         "city_1": "New York, NY",

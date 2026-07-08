@@ -81,11 +81,20 @@
       </div>
       <script src="{{ url_for('static', filename='js/citypicker.js') }}" defer></script>
 
+      {% if not is_locked %}
+      <label style="display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; font-weight: 500;">
+        <input type="checkbox" name="ack_lock" value="1" required style="margin-top: 4px; width: auto;">
+        <span>I understand that saving will <strong>lock my job title, experience, and
+        cities for 30 days</strong>. I can't change them until the lock expires
+        (unless I upgrade my plan).</span>
+      </label>
+      {% endif %}
+
       <div class="button-row">
         {% if is_locked %}
           <a class="button" href="{{ url_for('web.billing') }}">Upgrade to unlock</a>
         {% else %}
-          <button class="button" type="submit">Save Search</button>
+          <button class="button" type="submit">Confirm &amp; save (locks for 30 days)</button>
         {% endif %}
         <a class="button secondary" href="{{ url_for('web.profile') }}">Back to Profile</a>
       </div>

@@ -505,6 +505,14 @@ def saved_search():
             )
             return redirect(url_for("web.saved_search"))
 
+        # The user must explicitly acknowledge the 30-day lock before saving.
+        if not request.form.get("ack_lock"):
+            flash(
+                "Please confirm you understand your search locks for 30 days before saving.",
+                "error",
+            )
+            return redirect(url_for("web.saved_search"))
+
         title_slug = request.form.get("title_slug", "").strip()
         experience_bucket = request.form.get("experience_bucket", "").strip()
         limit = city_limit_for(user, subscription)

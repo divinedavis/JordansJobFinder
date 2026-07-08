@@ -95,7 +95,7 @@ def test_search_page_renders_state_first_picker(signed_in_client):
 def test_saving_three_custom_cities(signed_in_client, db_session):
     from app.models import SavedSearch, User
 
-    resp = signed_in_client.post("/search", data={
+    resp = signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "technical-product-manager",
         "experience_bucket": "7-9",
         "city_1": "Boise, ID",
@@ -132,7 +132,7 @@ def test_signup_seeds_a_single_track(client, db_session):
 def test_choosing_new_title_replaces_track_for_regular_user(signed_in_client, db_session):
     from app.models import SavedSearch, User
 
-    signed_in_client.post("/search", data={
+    signed_in_client.post("/search", data={"ack_lock": "1", 
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
@@ -152,7 +152,7 @@ def test_admin_is_also_limited_to_one_track(client, db_session):
         "email": "superuser@example.com", "password": "password123",
         "confirm_password": "password123",
     })
-    client.post("/search", data={
+    client.post("/search", data={"ack_lock": "1", 
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     user = db_session.query(User).filter(User.email == "superuser@example.com").one()
