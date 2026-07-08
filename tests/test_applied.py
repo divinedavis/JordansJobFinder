@@ -9,7 +9,7 @@ def _seed_user_search_job(db_session):
     from app.models import Job, SavedSearch, User
 
     user = User(email="applied@example.com")
-    user.set_password("password123")
+    user.set_password("Str0ng-Pass-9x")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)

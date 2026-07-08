@@ -27,8 +27,8 @@ def test_signup_builds_matches_immediately(client, db_session):
         "/sign-in",
         data={
             "email": "newbie@example.com",
-            "password": "password123",
-            "confirm_password": "password123",
+            "password": "Str0ng-Pass-9x",
+            "confirm_password": "Str0ng-Pass-9x",
         },
     )
     assert response.status_code == 302
@@ -71,7 +71,7 @@ def test_signup_rejects_password_mismatch(client):
         "/sign-in",
         data={
             "email": "a@b.com",
-            "password": "password123",
+            "password": "Str0ng-Pass-9x",
             "confirm_password": "different1",
         },
     )
@@ -84,8 +84,8 @@ def test_login_with_wrong_password_fails(client):
         "/sign-in",
         data={
             "email": "bob@example.com",
-            "password": "password123",
-            "confirm_password": "password123",
+            "password": "Str0ng-Pass-9x",
+            "confirm_password": "Str0ng-Pass-9x",
         },
     )
     # New session for the login attempt.
@@ -108,8 +108,8 @@ def test_signup_seeds_saved_search_with_free_city_set(client, db_session):
         "/sign-in",
         data={
             "email": "newcomer@example.com",
-            "password": "password123",
-            "confirm_password": "password123",
+            "password": "Str0ng-Pass-9x",
+            "confirm_password": "Str0ng-Pass-9x",
         },
     )
     assert response.status_code == 302

@@ -118,8 +118,8 @@ def test_signup_seeds_a_single_track(client, db_session):
     from app.models import SavedSearch, User
 
     client.post("/sign-in", data={
-        "email": "solo@example.com", "password": "password123",
-        "confirm_password": "password123",
+        "email": "solo@example.com", "password": "Str0ng-Pass-9x",
+        "confirm_password": "Str0ng-Pass-9x",
     })
     user = db_session.query(User).filter(User.email == "solo@example.com").one()
     searches = db_session.query(SavedSearch).filter(
@@ -149,8 +149,8 @@ def test_admin_is_also_limited_to_one_track(client, db_session):
 
     # conftest sets SUPERUSER_EMAIL=superuser@example.com — the admin account.
     client.post("/sign-in", data={
-        "email": "superuser@example.com", "password": "password123",
-        "confirm_password": "password123",
+        "email": "superuser@example.com", "password": "Str0ng-Pass-9x",
+        "confirm_password": "Str0ng-Pass-9x",
     })
     client.post("/search", data={"ack_lock": "1", 
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",

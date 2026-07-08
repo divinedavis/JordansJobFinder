@@ -183,7 +183,7 @@ def test_sync_skips_tailored_resumes_without_api_key(app, db_session, tmp_path):
     from app.sync import generate_tailored_resumes
 
     user = User(email="resumetest@example.com")
-    user.set_password("password123")
+    user.set_password("Str0ng-Pass-9x")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -236,7 +236,7 @@ def test_sync_generates_tailored_resume_with_mocked_anthropic(app, db_session, m
     from app.sync import generate_tailored_resumes
 
     user = User(email="mocked@example.com")
-    user.set_password("password123")
+    user.set_password("Str0ng-Pass-9x")
     db_session.add(user); db_session.commit(); db_session.refresh(user)
     db_session.add(SavedSearch(
         user_id=user.id, vertical="pm",

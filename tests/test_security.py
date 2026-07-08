@@ -7,7 +7,7 @@ import zipfile
 import pytest
 
 
-def _make_user(db_session, email="lock@example.com", password="password123"):
+def _make_user(db_session, email="lock@example.com", password="Str0ng-Pass-9x"):
     from app.models import User
 
     user = User(email=email)
@@ -39,7 +39,7 @@ def test_lockout_after_repeated_failed_logins(client, db_session):
     # Even the CORRECT password is rejected while the window runs.
     resp = client.post(
         "/login",
-        data={"email": email, "password": "password123"},
+        data={"email": email, "password": "Str0ng-Pass-9x"},
         follow_redirects=True,
     )
     assert "Too many failed attempts" in resp.get_data(as_text=True)
@@ -58,7 +58,7 @@ def test_lockout_expires_and_success_resets_counters(client, db_session):
     user.locked_until = datetime.utcnow() - timedelta(minutes=1)  # already over
     db_session.commit()
 
-    resp = client.post("/login", data={"email": email, "password": "password123"})
+    resp = client.post("/login", data={"email": email, "password": "Str0ng-Pass-9x"})
     assert resp.status_code == 302
     assert "/dashboard" in resp.headers["Location"]
 
@@ -66,6 +66,69 @@ def test_lockout_expires_and_success_resets_counters(client, db_session):
     user = db_session.get(User, uid)
     assert user.failed_login_count == 0
     assert user.locked_until is None
+
+
+def test_lockout_escalates_and_keeps_counter(db_session):
+    """Crossing the threshold again must lengthen the window, and the counter
+    must NOT reset — otherwise waiting out one window buys a fresh batch of
+    guesses forever."""
+    from types import SimpleNamespace
+
+    from app.security import LOCKOUT_THRESHOLD, register_failed_login
+
+    u = SimpleNamespace(failed_login_count=0, locked_until=None)
+    for _ in range(LOCKOUT_THRESHOLD):
+        register_failed_login(u)
+    first_lock = u.locked_until
+    assert first_lock is not None
+    assert u.failed_login_count == LOCKOUT_THRESHOLD  # not zeroed
+
+    register_failed_login(u)  # one more failure
+    assert u.failed_login_count == LOCKOUT_THRESHOLD + 1
+    assert u.locked_until > first_lock  # escalated to a longer window
+
+
+def test_missing_account_login_runs_dummy_hash(monkeypatch):
+    """A login for a non-existent email must still spend hashing time so the
+    response can't be timed to enumerate registered addresses."""
+    import app.security as security
+
+    called = {"n": 0}
+    real = security.check_password_hash
+    monkeypatch.setattr(
+        security, "check_password_hash",
+        lambda h, p: called.__setitem__("n", called["n"] + 1) or real(h, p),
+    )
+    security.dummy_password_check("whatever")
+    assert called["n"] == 1
+
+
+# ── Password policy ───────────────────────────────────────────────────────────
+
+
+def test_password_policy_rejects_common_and_email_derived():
+    from app.security import password_rejection_reason
+
+    assert password_rejection_reason("password123", "a@b.com")   # common
+    assert password_rejection_reason("aaaaaaaa", "a@b.com")      # low variety
+    assert password_rejection_reason("jordanZ9x", "jordan@example.com")  # email in pw
+    assert password_rejection_reason("Str0ng&Varied!", "a@b.com") is None
+
+
+def test_signup_rejects_common_password(client, db_session):
+    from app.models import User
+
+    resp = client.post(
+        "/sign-in",
+        data={
+            "email": "weakpw@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+        },
+        follow_redirects=True,
+    )
+    assert "too common" in resp.get_data(as_text=True)
+    assert db_session.query(User).filter(User.email == "weakpw@example.com").one_or_none() is None
 
 
 # ── Upload content validation ─────────────────────────────────────────────────
@@ -96,6 +159,70 @@ def test_docx_decompression_bomb_rejected(app):
         )
     with pytest.raises(ResumeError, match="expands too large"):
         extract_text(buf.getvalue(), "docx")
+
+
+def test_docx_xml_entity_declaration_rejected(app):
+    """A DOCX whose XML declares a DTD/entity (billion-laughs / XXE) must be
+    rejected before python-docx/lxml parses it."""
+    from app.resumes import ResumeError, extract_text
+
+    buf = io.BytesIO()
+    payload = (
+        b'<?xml version="1.0"?>'
+        b'<!DOCTYPE lolz [<!ENTITY lol "lol">]>'
+        b"<doc>&lol;</doc>"
+    )
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", payload)
+    with pytest.raises(ResumeError, match="disallowed XML"):
+        extract_text(buf.getvalue(), "docx")
+
+
+# ── LLM structured-output validation ──────────────────────────────────────────
+
+
+def test_sanitize_structured_coerces_and_bounds():
+    from app.resumes import _sanitize_structured
+
+    dirty = {
+        "name": 123,  # wrong type
+        "summary": "ok",
+        "experience": [
+            {"company": "C", "title": "T", "dates": "D", "bullets": ["b1", 5, "b2"]},
+            "not-a-dict",
+        ],
+        "evil_key": "should be dropped",
+        "competencies": [{"label": "L", "items": "I"}],
+        "education": [{"degree": "Deg", "school": "Sch"}],
+        "tools": "x",
+    }
+    clean = _sanitize_structured(dirty)
+    assert set(clean.keys()) == {
+        "name", "contact_line_1", "contact_line_2", "summary",
+        "experience", "competencies", "education", "tools",
+    }
+    assert clean["name"] == ""           # non-str coerced
+    assert len(clean["experience"]) == 1  # non-dict entry dropped
+    assert clean["experience"][0]["bullets"] == ["b1", "b2"]  # non-str bullet dropped
+
+
+# ── Resume-credit atomic spend ────────────────────────────────────────────────
+
+
+def test_resume_credit_consume_respects_cap(app, db_session):
+    from app.models import Subscription, User
+    from app.payments import consume_resume_credit
+
+    user = _make_user(db_session, email="credits@example.com")
+    sub = Subscription(user_id=user.id, city_limit=3)  # free = 10 lifetime
+    db_session.add(sub)
+    db_session.commit()
+    db_session.refresh(sub)
+
+    granted = sum(1 for _ in range(15) if consume_resume_credit(sub, 3))
+    assert granted == 10  # never exceeds the free lifetime cap
+    db_session.expire_all()
+    assert db_session.get(Subscription, sub.id).resume_credits_used == 10
 
 
 # ── LLM prompt-input caps ─────────────────────────────────────────────────────

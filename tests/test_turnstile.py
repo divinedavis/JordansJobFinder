@@ -8,7 +8,7 @@ silently waving the request through.
 import app.security as security
 
 
-def _signup_payload(email="botcheck@example.com", password="password123"):
+def _signup_payload(email="botcheck@example.com", password="Str0ng-Pass-9x"):
     return {
         "email": email,
         "password": password,
@@ -68,8 +68,8 @@ def test_login_rejected_when_secret_set_and_token_invalid(client, app, monkeypat
         "/sign-in",
         data={
             "email": "real@example.com",
-            "password": "password123",
-            "confirm_password": "password123",
+            "password": "Str0ng-Pass-9x",
+            "confirm_password": "Str0ng-Pass-9x",
         },
     )
     assert signup.status_code == 302
@@ -86,7 +86,7 @@ def test_login_rejected_when_secret_set_and_token_invalid(client, app, monkeypat
         "/login",
         data={
             "email": "real@example.com",
-            "password": "password123",
+            "password": "Str0ng-Pass-9x",
             "cf-turnstile-response": "tampered",
         },
     )

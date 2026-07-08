@@ -109,6 +109,12 @@ class ResumeError(Exception):
 
 def _ensure_dir(path: str) -> None:
     Path(path).mkdir(parents=True, exist_ok=True)
+    # Resumes are PII — keep the storage dir owner-only so other local accounts
+    # can't read it. (Full at-rest encryption belongs at the disk/backup layer.)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
 
 
 def detect_kind(filename: str, content_type: str) -> str:
@@ -167,10 +173,22 @@ def _extract_docx_text(raw_bytes: bytes) -> str:
     try:
         with zipfile.ZipFile(io.BytesIO(raw_bytes)) as zf:
             total = sum(info.file_size for info in zf.infolist())
+            if total > MAX_DOCX_UNCOMPRESSED_BYTES:
+                raise ResumeError("That DOCX expands too large to process.")
+            # Guard against XML entity-expansion (billion-laughs) / XXE before
+            # python-docx hands the parts to lxml: a DOCX is a zip of XML, and a
+            # tiny file can declare recursive entities or an external DTD. lxml
+            # would expand/fetch them; reject any part carrying a DOCTYPE or
+            # ENTITY declaration (legitimate OOXML never uses them).
+            for info in zf.infolist():
+                name = info.filename.lower()
+                if not (name.endswith(".xml") or name.endswith(".rels")):
+                    continue
+                head = zf.read(info.filename)[:16_384].lower()
+                if b"<!doctype" in head or b"<!entity" in head:
+                    raise ResumeError("That DOCX contains disallowed XML declarations.")
     except zipfile.BadZipFile as exc:
         raise ResumeError("That file isn't a valid DOCX.") from exc
-    if total > MAX_DOCX_UNCOMPRESSED_BYTES:
-        raise ResumeError("That DOCX expands too large to process.")
 
     doc = Document(io.BytesIO(raw_bytes))
     parts = [p.text for p in doc.paragraphs if p.text]
@@ -243,6 +261,11 @@ def save_base_resume(user_id: int, filename: str, raw_bytes: bytes, kind: str) -
     out_path = os.path.join(upload_dir, f"user-{user_id}-{safe_name}")
     with open(out_path, "wb") as fh:
         fh.write(raw_bytes)
+    # Owner-only: the uploaded resume is PII.
+    try:
+        os.chmod(out_path, 0o600)
+    except OSError:
+        pass
     return out_path
 
 
@@ -298,6 +321,64 @@ def tailor_resume_structured(
             return None
     logger.error("Anthropic returned non-JSON resume: no '{' found in output")
     return None
+
+
+# ── Structured-output validation ─────────────────────────────────────────────
+# The tailoring model is fed an untrusted, scraped job description. Even with the
+# in-prompt injection guard, never trust the SHAPE of what comes back: coerce it
+# to exactly the schema the renderer expects, dropping unknown keys and bounding
+# every field/list. This keeps a manipulated or malformed response from reaching
+# reportlab with unexpected types or unbounded content.
+_MAX_STR = 2_000
+_MAX_EXPERIENCE = 15
+_MAX_BULLETS = 12
+_MAX_COMPETENCIES = 12
+_MAX_EDUCATION = 10
+
+
+def _s(value) -> str:
+    return value.strip()[:_MAX_STR] if isinstance(value, str) else ""
+
+
+def _sanitize_structured(data: dict) -> dict:
+    """Coerce a resume dict (AI- or heuristic-produced) to the exact schema the
+    renderer expects. Unknown keys dropped; types coerced; lists bounded."""
+    if not isinstance(data, dict):
+        return {}
+    experience = []
+    for role in (data.get("experience") or [])[:_MAX_EXPERIENCE]:
+        if not isinstance(role, dict):
+            continue
+        bullets = [
+            _s(b) for b in (role.get("bullets") or [])[:_MAX_BULLETS]
+            if isinstance(b, str) and b.strip()
+        ]
+        experience.append({
+            "company": _s(role.get("company")),
+            "title": _s(role.get("title")),
+            "dates": _s(role.get("dates")),
+            "bullets": bullets,
+        })
+    competencies = [
+        {"label": _s(c.get("label")), "items": _s(c.get("items"))}
+        for c in (data.get("competencies") or [])[:_MAX_COMPETENCIES]
+        if isinstance(c, dict)
+    ]
+    education = [
+        {"degree": _s(e.get("degree")), "school": _s(e.get("school"))}
+        for e in (data.get("education") or [])[:_MAX_EDUCATION]
+        if isinstance(e, dict)
+    ]
+    return {
+        "name": _s(data.get("name")),
+        "contact_line_1": _s(data.get("contact_line_1")),
+        "contact_line_2": _s(data.get("contact_line_2")),
+        "summary": _s(data.get("summary")),
+        "experience": experience,
+        "competencies": competencies,
+        "education": education,
+        "tools": _s(data.get("tools")),
+    }
 
 
 # ── PDF rendering ────────────────────────────────────────────────────────────
@@ -527,7 +608,7 @@ def generate_tailored_resume(
         if not structured:
             return None
     out_path = tailored_pdf_path(user.id, job.id)
-    render_resume_pdf(structured, out_path, title=f"{job.company} — Tailored Resume")
+    render_resume_pdf(_sanitize_structured(structured), out_path, title=f"{job.company} — Tailored Resume")
     return out_path
 
 

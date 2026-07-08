@@ -71,7 +71,7 @@ def db_session(app):
     return get_db()
 
 
-def _signup(client, email="user@example.com", password="password123"):
+def _signup(client, email="user@example.com", password="Str0ng-Pass-9x"):
     return client.post(
         "/sign-in",
         data={

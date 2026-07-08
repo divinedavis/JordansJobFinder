@@ -67,8 +67,10 @@ from .uscities import cities_by_state, split_label, state_choices
 from .security import (
     account_locked,
     clear_failed_logins,
+    dummy_password_check,
     enforce_turnstile,
     hash_identifier,
+    password_rejection_reason,
     register_failed_login,
 )
 
@@ -211,6 +213,14 @@ def sign_in():
             flash("Unable to create account. If this is your email, try signing in.", "error")
             return redirect(url_for("web.sign_in"))
 
+        # Reject weak/guessable passwords only once we're actually about to
+        # create the account (after the mismatch + existing-email checks, so
+        # those clearer messages win first).
+        weak_reason = password_rejection_reason(password, email)
+        if weak_reason:
+            flash(weak_reason, "error")
+            return redirect(url_for("web.sign_in"))
+
         user = User(email=email)
         db.add(user)
         db.commit()
@@ -284,6 +294,11 @@ def login():
             if user is not None:
                 register_failed_login(user)
                 db.commit()
+            else:
+                # No such account: still spend a password-verification's worth
+                # of time so the response can't be timed to tell registered
+                # emails from unregistered ones (user enumeration).
+                dummy_password_check(password)
             # Hash the submitted email — failed attempts must not log PII.
             logger.warning(
                 "Failed login attempt email_hash=%s ip=%s",
@@ -608,7 +623,10 @@ def saved_search():
         city_limit=limit,
         state_options=state_choices(),
         cities_by_state=cities_by_state(),
-        can_use_custom_cities=subscription.city_override_active or is_superuser_email(user.email),
+        # NOTE: gate on is_admin_email (the single owner), NOT is_superuser_email
+        # — the latter returns True for every signed-in user (open job scope), so
+        # using it here would hand the paid custom-city feature to everyone.
+        can_use_custom_cities=subscription.city_override_active or is_admin_email(user.email),
         is_superuser=is_superuser_email(user.email),
         is_locked=search_locked(user, subscription),
         locked_until=subscription.search_locked_until,
@@ -882,7 +900,7 @@ def analytics():
         sa_select(User.id, User.email, AppliedJob.applied_at)
         .outerjoin(AppliedJob, AppliedJob.user_id == User.id)
     ).all()
-    leaderboard = build_application_leaderboard(leaderboard_rows)
+    leaderboard = build_application_leaderboard(leaderboard_rows, current_user_id=user.id)
     return render_template(
         "analytics.html",
         user=user,

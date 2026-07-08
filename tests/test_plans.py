@@ -9,7 +9,7 @@ def _sub(db_session, email="quota@example.com"):
     user = db_session.query(User).filter(User.email == email).one_or_none()
     if user is None:
         user = User(email=email)
-        user.set_password("password123")
+        user.set_password("Str0ng-Pass-9x")
         db_session.add(user)
         db_session.commit()
     sub = db_session.query(Subscription).filter(Subscription.user_id == user.id).one_or_none()

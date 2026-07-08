@@ -122,9 +122,11 @@ def test_application_leaderboard_counts_and_includes_zero_users():
         # newbie: outer-join row, never applied — must still be listed.
         (3, "newbie@example.com", None),
     ]
-    board = build_application_leaderboard(rows, now=now)
+    board = build_application_leaderboard(rows, now=now, current_user_id=2)
 
-    assert [e["name"] for e in board] == ["jordan", "divine", "newbie"]
+    # Privacy: only the viewer (divine, id=2) sees their own name; everyone
+    # else is anonymized. Ranks + counts are unaffected.
+    assert [e["name"] for e in board] == ["Member", "divine", "Member"]
     assert [e["rank"] for e in board] == [1, 2, 3]
 
     jordan, divine, newbie = board
@@ -138,7 +140,7 @@ def test_analytics_page_shows_leaderboard_with_zero_apply_users(signed_in_client
 
     # A second user who has never applied must still appear on the board.
     other = User(email="slacker@example.com")
-    other.set_password("password123")
+    other.set_password("Str0ng-Pass-9x")
     db_session.add(other)
     db_session.commit()
 
@@ -146,8 +148,10 @@ def test_analytics_page_shows_leaderboard_with_zero_apply_users(signed_in_client
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     assert "Application leaderboard" in body
-    assert "slacker" in body  # display name = email local part
-    assert "slacker@example.com" not in body  # full addresses stay private
+    # Privacy: other members are anonymized — no email or local part rendered.
+    assert "slacker" not in body
+    assert "slacker@example.com" not in body
+    assert "Member" in body  # other users show as anonymous "Member"
     assert "(you)" in body  # signed-in user highlighted
 
 
@@ -218,7 +222,7 @@ def test_market_research_includes_applied_salary_per_market(app, db_session):
 
     _seed_pm_jobs(db_session)
     user = User(email="applied-research@example.com")
-    user.set_password("password123")
+    user.set_password("Str0ng-Pass-9x")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
@@ -260,7 +264,7 @@ def test_market_research_no_applications_no_applied_overall(app, db_session):
 
     _seed_pm_jobs(db_session)
     user = User(email="noapps@example.com")
-    user.set_password("password123")
+    user.set_password("Str0ng-Pass-9x")
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)

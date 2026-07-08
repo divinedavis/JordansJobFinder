@@ -4,6 +4,7 @@ from typing import Optional
 
 import stripe
 from flask import current_app, url_for
+from sqlalchemy import update
 
 from .db import get_db
 from .models import Subscription, User
@@ -316,11 +317,25 @@ def resume_quota_state(subscription, city_limit: int) -> dict:
 def consume_resume_credit(subscription, city_limit: int) -> bool:
     """Try to spend one AI-resume creation. Returns True if allowed (and
     increments the counter), False if the user is out of quota."""
-    state = resume_quota_state(subscription, city_limit)
+    state = resume_quota_state(subscription, city_limit)  # applies monthly reset
     if state["unlimited"]:
         return True
-    if state["remaining"] <= 0:
-        return False
-    subscription.resume_credits_used = (subscription.resume_credits_used or 0) + 1
-    get_db().commit()
-    return True
+    allowed = state["allowed"]
+    db = get_db()
+    # Atomic spend: a single guarded UPDATE increments the counter only while
+    # the row is still under the cap. This closes the check-then-increment race
+    # where two concurrent tailored-download requests could both read
+    # remaining>0 in Python and each spend a credit, overshooting the quota.
+    result = db.execute(
+        update(Subscription)
+        .where(
+            Subscription.id == subscription.id,
+            Subscription.resume_credits_used < allowed,
+        )
+        .values(resume_credits_used=Subscription.resume_credits_used + 1)
+    )
+    db.commit()
+    if result.rowcount == 1:
+        db.refresh(subscription)
+        return True
+    return False

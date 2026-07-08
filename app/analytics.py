@@ -218,7 +218,7 @@ def _display_name(email) -> str:
     return (email or "").split("@")[0] or "user"
 
 
-def build_application_leaderboard(rows, now=None):
+def build_application_leaderboard(rows, now=None, current_user_id=None):
     """Per-user application counts for the leaderboard on the Analytics tab.
 
     ``rows`` is ``(user_id, email, applied_at-or-None)`` — one row per
@@ -226,16 +226,23 @@ def build_application_leaderboard(rows, now=None):
     applications (produced by an outer join). That way EVERY user appears on
     the board, even with a zero week / month / year. ``now`` is injectable
     for tests. Sorted by total descending, then name.
+
+    Privacy: only the viewer (``current_user_id``) sees their own name; every
+    other member is shown anonymously as "Member". Otherwise the board would
+    disclose every user's identity (email local part) and activity to anyone
+    signed in.
     """
     now = _naive(now) or datetime.now(timezone.utc).replace(tzinfo=None)
     cur_monday = _monday(now)
     users = {}
     for user_id, email, applied_at in rows:
+        is_self = current_user_id is not None and user_id == current_user_id
         entry = users.setdefault(
             user_id,
             {
                 "user_id": user_id,
-                "name": _display_name(email),
+                # Never render other members' email-derived names.
+                "name": _display_name(email) if is_self else "Member",
                 "total": 0,
                 "this_week": 0,
                 "this_month": 0,
