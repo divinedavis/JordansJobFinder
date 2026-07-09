@@ -314,6 +314,19 @@ route auth, nav links).
   per track (PM, Finance, Sales, IT, HR); legacy sub-track slugs stay valid.
 - Tests: `tests/test_city_picker.py`.
 
+## AI Interview Prep — Pro only (2026-07-09)
+
+A **Pro ($19.99)**-gated feature: on any match card an "Interview Prep" button
+links to `/interview/<job_id>`. For Pro users it generates (once, then cached
+in the `interview_plans` table) a tailored ~2-week prep plan via Anthropic
+(`app/interview.py::generate_interview_plan` → `sanitize_plan`): role summary,
+likely questions by category, a 14-day day-by-day study schedule with minutes/
+day, and day-of tips. Non-Pro users see an upgrade CTA (button shown to
+everyone as an upsell; the POST + gate live in `routes.interview_plan`, gate =
+`routes.is_pro` → city_limit>=10 or admin). Prompt caps job desc to 8K / resume
+to 12K and treats the scraped posting as untrusted data. Tests:
+`tests/test_interview.py`.
+
 ## Plans, Resume Quota, Search Lock, Profile (2026-07-08)
 
 Repriced + restructured tiers (LIVE Stripe):

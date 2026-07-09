@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -30,7 +31,7 @@ from .catalog import (
 )
 from .db import get_db
 from .matching import city_from_slug, is_admin_email, is_superuser_email
-from .models import AppliedJob, BaseResume, Feedback, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
+from .models import AppliedJob, BaseResume, Feedback, InterviewPlan, Job, JobMatch, SavedSearch, Subscription, TailoredResume, User
 from .models import utc_now
 from .resumes import (
     ResumeError,
@@ -136,6 +137,14 @@ def city_limit_for(user, subscription) -> int:
     if is_admin_email(user.email):
         return 10
     return max(3, subscription.city_limit or 3)
+
+
+def is_pro(user, subscription) -> bool:
+    """Pro ($19.99) tier — 10 cities — or the owner account. Gates the AI
+    interview-prep feature."""
+    if is_admin_email(user.email):
+        return True
+    return (subscription.city_limit or 3) >= 10
 
 
 SEARCH_LOCK_DAYS = 30
@@ -794,6 +803,52 @@ def resume_download_base():
         user.base_resume.file_path,
         as_attachment=True,
         download_name=user.base_resume.filename or "resume",
+    )
+
+
+@web.route("/interview/<int:job_id>", methods=["GET", "POST"])
+def interview_plan(job_id: int):
+    """AI interview-prep plan for a job (Pro only). GET shows the stored plan
+    or a generate CTA; POST generates it (once) and stores it."""
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+    db = get_db()
+    user = db.get(User, user.id)
+    job = db.get(Job, job_id)
+    if not job:
+        abort(404)
+    subscription = ensure_subscription(user, db)
+    pro = is_pro(user, subscription)
+
+    existing = db.query(InterviewPlan).filter(
+        InterviewPlan.user_id == user.id, InterviewPlan.job_id == job_id
+    ).one_or_none()
+
+    if request.method == "POST":
+        if not pro:
+            flash("AI interview prep is a Pro feature. Upgrade to $19.99/mo to unlock it.", "error")
+            return redirect(url_for("web.billing"))
+        if existing is None:
+            from .interview import generate_interview_plan
+            resume_text = user.base_resume.extracted_text if user.base_resume else ""
+            plan = generate_interview_plan(job, resume_text)
+            if not plan:
+                flash("Couldn't build the interview plan right now. Please try again.", "error")
+                return redirect(url_for("web.interview_plan", job_id=job_id))
+            existing = InterviewPlan(user_id=user.id, job_id=job_id, content_json=json.dumps(plan))
+            db.add(existing)
+            db.commit()
+        return redirect(url_for("web.interview_plan", job_id=job_id))
+
+    plan = json.loads(existing.content_json) if existing else None
+    return render_template(
+        "interview.html",
+        user=user,
+        job=job,
+        plan=plan,
+        is_pro=pro,
+        generated_at=existing.generated_at if existing else None,
     )
 
 

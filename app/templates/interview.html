@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Interview Prep | Jordan's Job Finder{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <span class="eyebrow">Interview Prep · Pro</span>
+    <h1>{{ job.title }}</h1>
+    <p style="margin-top: 8px;" class="muted">{{ job.company }}{% if job.location %} · {{ job.location }}{% endif %}</p>
+
+    {% if plan %}
+      <p style="margin-top: 14px; max-width: 64ch;">{{ plan.role_summary }}</p>
+      {% if generated_at %}
+      <p class="muted" style="margin-top: 6px; font-size: 13px;">Generated {{ generated_at.strftime('%b %-d, %Y') }} · 2-week plan.</p>
+      {% endif %}
+      <div class="button-row" style="margin-top: 14px;">
+        <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Dashboard</a>
+      </div>
+    {% elif is_pro %}
+      <p style="margin-top: 14px; max-width: 64ch;">
+        Generate a 2-week interview prep plan tailored to this company and role —
+        likely questions, a day-by-day study schedule, and day-of tips.
+      </p>
+      <form method="post" style="margin-top: 14px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit">Build my interview plan</button>
+      </form>
+    {% else %}
+      <p style="margin-top: 14px; max-width: 64ch;">
+        AI interview prep — tailored questions plus a 2-week study schedule for
+        this exact role — is a <strong>Pro</strong> feature.
+      </p>
+      <div class="button-row" style="margin-top: 14px;">
+        <a class="button" href="{{ url_for('web.billing') }}">Upgrade to Pro ($19.99/mo)</a>
+        <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Dashboard</a>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if plan %}
+    {% if plan.question_groups %}
+    <section class="panel">
+      <div class="match-header"><div>
+        <p class="match-kicker">Likely questions</p>
+        <h3 class="match-title">What they'll probably ask</h3>
+      </div></div>
+      {% for group in plan.question_groups %}
+        <h3 style="margin-top: 16px;">{{ group.category }}</h3>
+        <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7;">
+          {% for q in group.questions %}<li>{{ q }}</li>{% endfor %}
+        </ul>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if plan.schedule %}
+    <section class="panel">
+      <div class="match-header"><div>
+        <p class="match-kicker">2-week study schedule</p>
+        <h3 class="match-title">Day by day, up to the interview</h3>
+      </div></div>
+      <div class="list" style="margin-top: 12px;">
+        {% for row in plan.schedule %}
+          <div class="list-item" style="align-items: start; gap: 12px;">
+            <strong style="white-space: nowrap;">Day {{ row.day }}</strong>
+            <div style="flex: 1;">
+              <span class="muted">{{ row.minutes }} min</span>
+              <div style="margin-top: 2px;">{{ row.focus }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% if plan.day_of_tips %}
+    <section class="panel">
+      <div class="match-header"><div>
+        <p class="match-kicker">Day of</p>
+        <h3 class="match-title">Interview-day tips</h3>
+      </div></div>
+      <ul style="margin-top: 12px; padding-left: 20px; line-height: 1.7;">
+        {% for tip in plan.day_of_tips %}<li>{{ tip }}</li>{% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  {% endif %}
+{% endblock %}

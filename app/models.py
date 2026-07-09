@@ -212,6 +212,19 @@ class TailoredResume(Base):
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class InterviewPlan(Base):
+    """AI-generated interview prep plan for a (user, job) — a Pro feature.
+    Stored so re-viewing doesn't re-spend an Anthropic call."""
+    __tablename__ = "interview_plans"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_interview_user_job"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    content_json: Mapped[str] = mapped_column(Text)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class AppliedJob(Base):
     """Durable, per-user record of an application (a Tailored Resume download).
 
