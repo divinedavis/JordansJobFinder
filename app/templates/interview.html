@@ -21,10 +21,11 @@
         Generate a 2-week interview prep plan tailored to this company and role —
         likely questions, a day-by-day study schedule, and day-of tips.
       </p>
-      <form method="post" style="margin-top: 14px;">
+      <form method="post" style="margin-top: 14px;" data-interview-form>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button" type="submit">Build my interview plan</button>
       </form>
+      <script src="{{ url_for('static', filename='js/interview.js') }}" defer></script>
     {% else %}
       <p style="margin-top: 14px; max-width: 64ch;">
         AI interview prep — tailored questions plus a 2-week study schedule for
