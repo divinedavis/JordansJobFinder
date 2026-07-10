@@ -6,7 +6,7 @@ from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS, TITLE_VERTICA
 EXCLUDE_TITLES = ["governance"]
 # Companies the user never wants to see on the dashboard, matched
 # case-insensitively against the normalized company name.
-EXCLUDE_COMPANIES = {"scale ai", "google", "celonis", "tjx"}
+EXCLUDE_COMPANIES = {"scale ai", "google", "celonis", "tjx", "pagerduty", "etsy", "broadridge"}
 # Management titles are never IC finance/sales roles — always excluded.
 FINANCE_MANAGEMENT_NEGATIVE = (
     "staff vp", "vp ", " vp", "director", "head of", "chief",

@@ -185,7 +185,6 @@ SALES_GREENHOUSE_COMPANIES = [
     ("Nubank", "nubank"),
     ("Nuro", "nuro"),
     ("Oura", "oura"),
-    ("PagerDuty", "pagerduty"),
     ("Planet Labs", "planetlabs"),
     ("Postman", "postman"),
     ("Recursion", "recursionpharmaceuticals"),

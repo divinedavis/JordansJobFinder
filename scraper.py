@@ -158,7 +158,6 @@ WORKDAY_COMPANIES = [
     # ── Tech · NYC ─────────────────────────────────────────────────────────────
     ("Netflix",          "netflix",       1,   "Netflix",                 "nyc"),
     ("Salesforce",       "salesforce",    12,  "External_Career_Site",    "nyc"),
-    ("Etsy",             "etsy",          5,   "Etsy_Careers",            "nyc"),
     ("Snap",             "snapchat",      1,   "snap",                    "nyc"),
     # ── Finance · Atlanta ──────────────────────────────────────────────────────
     ("Equifax",          "equifax",       1,   "equifax",                 "atlanta"),
@@ -395,7 +394,6 @@ WORKDAY_COMPANIES = [
     ("FIS",              "fis",            5,   "SearchJobs",              "miami"),
     ("FIS ATL",          "fis",            5,   "SearchJobs",              "atlanta"),
     ("FIS DAL",          "fis",            5,   "SearchJobs",              "dallas"),
-    ("Broadridge",       "broadridge",     5,   "Careers",                 "nyc"),
 ]
 
 # (name, greenhouse_token, city)
@@ -604,7 +602,6 @@ GREENHOUSE_MULTI = [
     ("Nubank", "nubank"),
     ("Nuro", "nuro"),
     ("Oura", "oura"),
-    ("PagerDuty", "pagerduty"),
     ("Planet Labs", "planetlabs"),
     ("Postman", "postman"),
     ("Recursion", "recursionpharmaceuticals"),

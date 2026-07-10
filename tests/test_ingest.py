@@ -67,6 +67,9 @@ def test_blocked_company_is_dropped_from_ingest(monkeypatch):
         {"company": "celonis", "title": "Program Manager", "url": "https://x/6"},
         {"company": "TJX", "title": "Program Manager", "url": "https://x/8"},
         {"company": "tjx", "title": "Product Manager", "url": "https://x/9"},
+        {"company": "PagerDuty", "title": "Product Manager", "url": "https://x/10"},
+        {"company": "Etsy", "title": "Program Manager", "url": "https://x/11"},
+        {"company": "Broadridge", "title": "Product Manager", "url": "https://x/12"},
         {"company": "Postman", "title": "Product Manager", "url": "https://x/7"},
     ])
     monkeypatch.setattr(ingest, "load_finance_jobs", lambda: [])
