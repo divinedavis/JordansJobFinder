@@ -8,13 +8,13 @@
     var btn = form.querySelector('button[type="submit"]');
     if (btn) {
       btn.disabled = true;
-      btn.textContent = "Building your plan…";
+      btn.textContent = "Building your prep…";
     }
     var note = document.createElement("p");
     note.className = "muted";
     note.style.marginTop = "12px";
     note.textContent =
-      "Hang tight — your AI interview plan is generating. This can take up to a minute. Please don't refresh or leave the page.";
+      "Hang tight — your interview prep is generating. This can take up to a minute. Please don't refresh or leave the page.";
     form.appendChild(note);
   });
 })();

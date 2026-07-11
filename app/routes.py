@@ -54,6 +54,8 @@ from .payments import (
 from .results import group_matches_by_city, home_board_preview, load_db_matches, preview_matches
 from .applications import applications_for_user, record_application
 from .analytics import (
+    CITY_LABELS,
+    _salary_points_for,
     build_application_analytics,
     build_application_leaderboard,
     build_market_research,
@@ -825,23 +827,48 @@ def interview_plan(job_id: int):
         InterviewPlan.user_id == user.id, InterviewPlan.job_id == job_id
     ).one_or_none()
 
+    def _current_shape(row) -> bool:
+        # Plans stored before the 2026-07 restructure (14-day schedule format)
+        # lack these sections — treat them as absent so they regenerate.
+        try:
+            return "company_background" in json.loads(row.content_json)
+        except (TypeError, ValueError):
+            return False
+
     if request.method == "POST":
         if not pro:
             flash("AI interview prep is a Pro feature. Upgrade to $19.99/mo to unlock it.", "error")
             return redirect(url_for("web.billing"))
-        if existing is None:
+        if existing is None or not _current_shape(existing):
             from .interview import generate_interview_plan
             resume_text = user.base_resume.extracted_text if user.base_resume else ""
-            plan = generate_interview_plan(job, resume_text)
+            # Real salaries from the same market (city + vertical) ground the
+            # salary-expectation band; the saved search's experience bucket is
+            # the fallback when the resume doesn't reveal years of experience.
+            market_jobs = db.query(Job).filter(
+                Job.city == job.city, Job.vertical == job.vertical
+            ).all()
+            search = db.query(SavedSearch).filter(SavedSearch.user_id == user.id).first()
+            plan = generate_interview_plan(
+                job,
+                resume_text,
+                market_points=_salary_points_for(market_jobs),
+                market_label=CITY_LABELS.get(job.city, job.location or job.city),
+                fallback_bucket=search.experience_bucket if search else None,
+            )
             if not plan:
                 flash("Couldn't build the interview plan right now. Please try again.", "error")
                 return redirect(url_for("web.interview_plan", job_id=job_id))
-            existing = InterviewPlan(user_id=user.id, job_id=job_id, content_json=json.dumps(plan))
-            db.add(existing)
+            if existing is None:
+                existing = InterviewPlan(user_id=user.id, job_id=job_id, content_json=json.dumps(plan))
+                db.add(existing)
+            else:
+                existing.content_json = json.dumps(plan)
+                existing.generated_at = utc_now()
             db.commit()
         return redirect(url_for("web.interview_plan", job_id=job_id))
 
-    plan = json.loads(existing.content_json) if existing else None
+    plan = json.loads(existing.content_json) if existing and _current_shape(existing) else None
     return render_template(
         "interview.html",
         user=user,

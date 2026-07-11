@@ -11,25 +11,27 @@
     {% if plan %}
       <p style="margin-top: 14px; max-width: 64ch;">{{ plan.role_summary }}</p>
       {% if generated_at %}
-      <p class="muted" style="margin-top: 6px; font-size: 13px;">Generated {{ generated_at.strftime('%b %-d, %Y') }} · 2-week plan.</p>
+      <p class="muted" style="margin-top: 6px; font-size: 13px;">Generated {{ generated_at.strftime('%b %-d, %Y') }}.</p>
       {% endif %}
       <div class="button-row" style="margin-top: 14px;">
         <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Dashboard</a>
       </div>
     {% elif is_pro %}
       <p style="margin-top: 14px; max-width: 64ch;">
-        Generate a 2-week interview prep plan tailored to this company and role —
-        likely questions, a day-by-day study schedule, and day-of tips.
+        Build your prep package for this interview — a background brief on
+        {{ job.company }}, the questions you should ask your interviewer, and
+        what salary to expect given your experience and this market.
       </p>
       <form method="post" style="margin-top: 14px;" data-interview-form>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button" type="submit">Build my interview plan</button>
+        <button class="button" type="submit">Build my interview prep</button>
       </form>
       <script src="{{ url_for('static', filename='js/interview.js') }}" defer></script>
     {% else %}
       <p style="margin-top: 14px; max-width: 64ch;">
-        AI interview prep — tailored questions plus a 2-week study schedule for
-        this exact role — is a <strong>Pro</strong> feature.
+        AI interview prep — a company background brief, the questions you
+        should ask, and salary expectations for this exact role — is a
+        <strong>Pro</strong> feature.
       </p>
       <div class="button-row" style="margin-top: 14px;">
         <a class="button" href="{{ url_for('web.billing') }}">Upgrade to Pro ($19.99/mo)</a>
@@ -39,13 +41,30 @@
   </section>
 
   {% if plan %}
-    {% if plan.question_groups %}
+    {% if plan.company_background and (plan.company_background.overview or plan.company_background.facts) %}
     <section class="panel">
       <div class="match-header"><div>
-        <p class="match-kicker">Likely questions</p>
-        <h3 class="match-title">What they'll probably ask</h3>
+        <p class="match-kicker">Company background</p>
+        <h3 class="match-title">Know {{ job.company }} before you walk in</h3>
       </div></div>
-      {% for group in plan.question_groups %}
+      {% if plan.company_background.overview %}
+        <p style="margin-top: 12px; max-width: 70ch; line-height: 1.7;">{{ plan.company_background.overview }}</p>
+      {% endif %}
+      {% if plan.company_background.facts %}
+        <ul style="margin-top: 12px; padding-left: 20px; line-height: 1.7;">
+          {% for fact in plan.company_background.facts %}<li>{{ fact }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    {% if plan.questions_to_ask %}
+    <section class="panel">
+      <div class="match-header"><div>
+        <p class="match-kicker">Questions to ask</p>
+        <h3 class="match-title">What you should ask them</h3>
+      </div></div>
+      {% for group in plan.questions_to_ask %}
         <h3 style="margin-top: 16px;">{{ group.category }}</h3>
         <ul style="margin-top: 8px; padding-left: 20px; line-height: 1.7;">
           {% for q in group.questions %}<li>{{ q }}</li>{% endfor %}
@@ -54,35 +73,34 @@
     </section>
     {% endif %}
 
-    {% if plan.schedule %}
+    {% if plan.salary %}
     <section class="panel">
       <div class="match-header"><div>
-        <p class="match-kicker">2-week study schedule</p>
-        <h3 class="match-title">Day by day, up to the interview</h3>
+        <p class="match-kicker">Salary expectations</p>
+        <h3 class="match-title">What you should ask for</h3>
       </div></div>
-      <div class="list" style="margin-top: 12px;">
-        {% for row in plan.schedule %}
-          <div class="list-item" style="align-items: start; gap: 12px;">
-            <strong style="white-space: nowrap;">Day {{ row.day }}</strong>
-            <div style="flex: 1;">
-              <span class="muted">{{ row.minutes }} min</span>
-              <div style="margin-top: 2px;">{{ row.focus }}</div>
-            </div>
-          </div>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {% if plan.day_of_tips %}
-    <section class="panel">
-      <div class="match-header"><div>
-        <p class="match-kicker">Day of</p>
-        <h3 class="match-title">Interview-day tips</h3>
-      </div></div>
-      <ul style="margin-top: 12px; padding-left: 20px; line-height: 1.7;">
-        {% for tip in plan.day_of_tips %}<li>{{ tip }}</li>{% endfor %}
-      </ul>
+      <p style="margin-top: 14px; font-size: 28px; font-weight: 700;">
+        {{ plan.salary.ask_low_fmt }} – {{ plan.salary.ask_high_fmt }}
+      </p>
+      <p class="muted" style="margin-top: 4px;">Target: {{ plan.salary.target_fmt }} base</p>
+      <p class="muted" style="margin-top: 10px; max-width: 64ch; font-size: 14px;">
+        {% if plan.salary.basis == "market" %}
+          Based on {{ plan.salary.market_count }} real postings in
+          {{ plan.salary.market_label }}{% if plan.salary.experience_label %},
+          positioned for your {{ plan.salary.experience_label }} of experience{% endif %}.
+        {% elif plan.salary.basis == "posting" %}
+          Based on the salary range posted with this job.
+        {% else %}
+          AI estimate for this role and market — not enough posted salaries in
+          {{ plan.salary.market_label }} yet to benchmark against.
+        {% endif %}
+      </p>
+      {% if plan.salary.posted_label %}
+        <p class="muted" style="margin-top: 8px; font-size: 14px;">This posting lists: {{ plan.salary.posted_label }}</p>
+      {% endif %}
+      {% if plan.salary.note %}
+        <p style="margin-top: 12px; max-width: 64ch; line-height: 1.7;">{{ plan.salary.note }}</p>
+      {% endif %}
     </section>
     {% endif %}
   {% endif %}

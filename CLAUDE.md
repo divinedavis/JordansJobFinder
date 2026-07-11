@@ -314,18 +314,33 @@ route auth, nav links).
   per track (PM, Finance, Sales, IT, HR); legacy sub-track slugs stay valid.
 - Tests: `tests/test_city_picker.py`.
 
-## AI Interview Prep — Pro only (2026-07-09)
+## AI Interview Prep — Pro only (restructured 2026-07-10)
 
 A **Pro ($19.99)**-gated feature: on any match card an "Interview Prep" button
 links to `/interview/<job_id>`. For Pro users it generates (once, then cached
-in the `interview_plans` table) a tailored ~2-week prep plan via Anthropic
-(`app/interview.py::generate_interview_plan` → `sanitize_plan`): role summary,
-likely questions by category, a 14-day day-by-day study schedule with minutes/
-day, and day-of tips. Non-Pro users see an upgrade CTA (button shown to
-everyone as an upsell; the POST + gate live in `routes.interview_plan`, gate =
-`routes.is_pro` → city_limit>=10 or admin). Prompt caps job desc to 8K / resume
-to 12K and treats the scraped posting as untrusted data. Tests:
-`tests/test_interview.py`.
+in the `interview_plans` table) a prep package via Anthropic
+(`app/interview.py::generate_interview_plan` → `sanitize_plan`) with three
+sections:
+
+1. **Company background** — factual overview + facts to know walking in (the
+   prompt forbids inventing facts about unrecognized companies).
+2. **Questions to ask** — questions the CANDIDATE asks the interviewer, grouped
+   (role / team / company).
+3. **Salary expectations** — deterministic (`build_salary_expectation`), NOT
+   model numbers when data exists. Preference: (a) **market** — percentile band
+   over real scraped salaries in the job's city+vertical, positioned by the
+   candidate's years of experience (model infers years from the resume →
+   `bucket_for_years` → analytics.EXPERIENCE_BANDS; fallback = saved-search
+   bucket); (b) **posting** — the job's own salary range; (c) **model** — the
+   LLM estimate. Market basis needs ≥3 sane points.
+
+Plans stored in the pre-2026-07-10 shape (14-day schedule) are detected by the
+missing `company_background` key, render the generate CTA again, and are
+replaced in place on the next POST. Non-Pro users see an upgrade CTA (button
+shown to everyone as an upsell; the POST + gate live in
+`routes.interview_plan`, gate = `routes.is_pro` → city_limit>=10 or admin).
+Prompt caps job desc to 8K / resume to 12K and treats the scraped posting as
+untrusted data. Tests: `tests/test_interview.py`.
 
 ## Plans, Resume Quota, Search Lock, Profile (2026-07-08)
 
