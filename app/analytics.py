@@ -51,6 +51,7 @@ VERTICAL_LABELS = {
     "it": "IT Project/Program Manager",
     "hr": "HR Coordinator+",
     "scm": "Supply Chain (SC)",
+    "project": "Project Management (SC)",
 }
 
 # Drop obviously-bogus salaries before averaging (scraper occasionally pulls a

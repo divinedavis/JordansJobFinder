@@ -121,6 +121,29 @@ def title_is_scm(title: str) -> bool:
     return any(kw in normalized for kw in SCM_KEYWORDS)
 
 
+# Project Management track: project-management roles across any industry
+# (construction, IT, ops, healthcare, …). Unlike the IT track, no technology
+# signal is required — a plain "Project Manager" qualifies. Kept in sync with
+# scraper_project.py::PROJECT_KEYWORDS.
+PROJECT_KEYWORDS = (
+    "project manager", "project management", "project coordinator",
+    "project lead", "project analyst", "project specialist",
+    "project director", "project administrator", "pmo",
+    "program manager", "program management",
+)
+PROJECT_NEGATIVE_KEYWORDS = ("intern", "internship")
+
+
+def title_is_project(title: str) -> bool:
+    """Project-management roles (coordinator through director), any industry."""
+    normalized = normalize_text(title)
+    if not is_corporate_role(normalized):
+        return False
+    if any(neg in normalized for neg in PROJECT_NEGATIVE_KEYWORDS):
+        return False
+    return any(kw in normalized for kw in PROJECT_KEYWORDS)
+
+
 # IT project/program manager track. The title must be a project- or
 # program-management role AND carry an IT/technology signal — otherwise a
 # "Project Manager" at an oil company (construction, facilities, …) leaks in.
@@ -323,6 +346,12 @@ def match_job_for_user(
         # salary floor or experience exclusion — the $1B+-employer and
         # South-Carolina-location constraints are applied by the scraper.
         return title_is_scm(title)
+
+    if vertical == "project":
+        # Project management: title heuristic only. No salary floor or
+        # experience exclusion — same reasoning as SCM (the $1B+-employer and
+        # location constraints are applied by the scraper).
+        return title_is_project(title)
 
     if vertical == "sales":
         # Sales: same shape as finance — the level follows the experience

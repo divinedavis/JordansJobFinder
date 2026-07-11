@@ -16,6 +16,7 @@ TITLE_OPTIONS = [
     {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
     {"slug": "supply-chain-mgmt", "label": "Supply Chain Management", "vertical": "scm"},
+    {"slug": "project-management", "label": "Project Management", "vertical": "project"},
 ]
 
 TITLE_LABELS = {item["slug"]: item["label"] for item in TITLE_OPTIONS}
@@ -32,6 +33,7 @@ SELECTABLE_TITLES = [
     {"slug": "entry-sales-any", "label": "Corporate Sales", "vertical": "sales"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
     {"slug": "supply-chain-mgmt", "label": "Supply Chain Management (SC · $1B+)", "vertical": "scm"},
+    {"slug": "project-management", "label": "Project Management (SC · $1B+)", "vertical": "project"},
 ]
 
 TITLE_KEYWORDS = {
@@ -119,6 +121,15 @@ TITLE_KEYWORDS["supply-chain-mgmt"] = [
     "supply chain planner", "operations planner", "logistics coordinator",
 ]
 
+# Project management: project-management roles across any industry. Kept in
+# sync with app/matching.py::PROJECT_KEYWORDS and scraper_project.py.
+TITLE_KEYWORDS["project-management"] = [
+    "project manager", "project management", "project coordinator",
+    "project lead", "project analyst", "project specialist",
+    "project director", "project administrator", "pmo",
+    "program manager", "program management",
+]
+
 EXPERIENCE_BUCKETS = [
     {"slug": "0-2", "label": "0-2 years"},
     {"slug": "3-6", "label": "3-6 years"},
@@ -180,6 +191,9 @@ HR_DEFAULT_CITIES = [
 SCM_DEFAULT_CITIES = [
     "Charleston, SC", "Columbia, SC", "Greenville, SC", "Rock Hill, SC",
 ]
+# Project management track: same four SC metros as SCM (pilot state). Free plan
+# caps to the first 3.
+PROJECT_DEFAULT_CITIES = list(SCM_DEFAULT_CITIES)
 # Vertical -> fixed default city set used when a non-PM title is selected.
 VERTICAL_DEFAULT_CITIES = {
     "finance": FINANCE_DEFAULT_CITIES,
@@ -187,6 +201,7 @@ VERTICAL_DEFAULT_CITIES = {
     "it": IT_DEFAULT_CITIES,
     "hr": HR_DEFAULT_CITIES,
     "scm": SCM_DEFAULT_CITIES,
+    "project": PROJECT_DEFAULT_CITIES,
 }
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")

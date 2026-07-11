@@ -46,9 +46,6 @@ CRITICAL RULES:
   history). If you don't recognize the company, describe what the posting
   itself reveals and say the candidate should research further — do not invent
   facts.
-- Questions to ask are questions the CANDIDATE asks the INTERVIEWER — sharp,
-  specific to this company and role, and not answerable by a glance at the
-  job posting.
 - years_experience is the candidate's total professional years of experience,
   inferred from the resume's work history. Use null if no resume is provided.
 - salary_estimate is your own estimate of a fair base-salary range in USD for
@@ -62,17 +59,11 @@ Output ONLY a JSON object with EXACTLY this shape — no markdown, no commentary
     "overview": "2-4 sentences: what the company does, how it makes money, where this role fits.",
     "facts": ["Concise fact a candidate should know walking in.", "..."]
   }},
-  "questions_to_ask": [
-    {{"category": "About the role", "questions": ["...", "..."]}},
-    {{"category": "About the team", "questions": ["...", "..."]}},
-    {{"category": "About the company", "questions": ["...", "..."]}}
-  ],
   "years_experience": 7,
   "salary_estimate": {{"low": 150000, "high": 180000, "note": "1-2 sentences on how to position the ask in the negotiation."}}
 }}
 
-Provide EXACTLY 2 facts and EXACTLY 2 questions per category — pick only the
-highest-impact ones.
+Provide EXACTLY 2 facts — pick only the highest-impact ones.
 
 === JOB POSTING ===
 Company: {company}
@@ -131,13 +122,6 @@ def sanitize_plan(data: dict) -> dict:
     data = data if isinstance(data, dict) else {}
     background = data.get("company_background")
     background = background if isinstance(background, dict) else {}
-    groups = []
-    for g in (data.get("questions_to_ask") or [])[:6]:
-        if isinstance(g, dict):
-            groups.append({
-                "category": _clean_str(g.get("category"), 60),
-                "questions": _clean_str_list(g.get("questions"), 2),
-            })
     estimate = data.get("salary_estimate")
     estimate = estimate if isinstance(estimate, dict) else {}
     return {
@@ -146,7 +130,6 @@ def sanitize_plan(data: dict) -> dict:
             "overview": _clean_str(background.get("overview"), 1200),
             "facts": _clean_str_list(background.get("facts"), 2),
         },
-        "questions_to_ask": groups,
         "years_experience": _clean_int(data.get("years_experience"), 0, 60),
         "salary_estimate": {
             "low": _clean_int(estimate.get("low"), SANE_SALARY_MIN, SANE_SALARY_MAX),

@@ -146,6 +146,37 @@ def test_applied_badge_shows_from_history_without_jobmatch_stamp(app, db_session
     assert applied.get(job_id) is True
 
 
+def test_board_shows_other_users_applied_count(app, db_session):
+    """Each board card carries how many OTHER users applied to that job."""
+    from app.applications import other_applicant_counts, record_application
+    from app.models import Job, JobMatch, User
+    from app.results import load_db_matches
+    from app.sync import rebuild_matches
+
+    user_id, job_id = _seed_user_search_job(db_session)
+    rebuild_matches()
+    job = db_session.get(Job, job_id)
+
+    # Two other users apply to the same job; the owner also applies.
+    for email in ("other1@example.com", "other2@example.com"):
+        u = User(email=email)
+        u.set_password("Str0ng-Pass-9x")
+        db_session.add(u)
+        db_session.commit()
+        record_application(db_session, u.id, job)
+    record_application(db_session, user_id, job)  # owner's own — must not count
+    db_session.commit()
+
+    counts = other_applicant_counts(db_session, [job.url], user_id)
+    assert counts[job.url] == 2
+
+    saved = db_session.query(JobMatch).filter(
+        JobMatch.user_id == user_id, JobMatch.job_id == job_id
+    ).one().saved_search
+    by_id = {m["id"]: m["applied_by_others"] for m in load_db_matches(saved)}
+    assert by_id[job_id] == 2
+
+
 def test_applied_route_redirects_to_analytics(signed_in_client):
     """The Applied tab is retired — old bookmarks land on Analytics."""
     resp = signed_in_client.get("/applied")

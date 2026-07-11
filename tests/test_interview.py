@@ -78,14 +78,13 @@ def test_sanitize_plan_coerces_and_bounds():
     }
     clean = sanitize_plan(dirty)
     assert set(clean.keys()) == {
-        "role_summary", "company_background", "questions_to_ask",
+        "role_summary", "company_background",
         "years_experience", "salary_estimate",
     }
     assert clean["role_summary"] == ""  # non-str coerced
     assert clean["company_background"]["overview"] == "Real overview."
     assert clean["company_background"]["facts"] == ["fact1", "fact2"]  # non-str dropped
-    assert clean["questions_to_ask"][0]["questions"] == ["q1", "q2"]
-    assert len(clean["questions_to_ask"]) == 1  # non-dict dropped
+    assert "questions_to_ask" not in clean  # section removed
     assert clean["years_experience"] == 12
     assert clean["salary_estimate"]["low"] == 150000
     assert clean["salary_estimate"]["high"] is None  # above sane cap
@@ -100,15 +99,24 @@ def test_sanitize_plan_handles_garbage():
     assert clean["years_experience"] is None
 
 
-def test_sanitize_plan_caps_two_bullets_per_section():
+def test_sanitize_plan_caps_two_facts():
     from app.interview import sanitize_plan
 
     clean = sanitize_plan({
         "company_background": {"overview": "o", "facts": ["f1", "f2", "f3", "f4"]},
-        "questions_to_ask": [{"category": "About the role", "questions": ["q1", "q2", "q3"]}],
     })
     assert clean["company_background"]["facts"] == ["f1", "f2"]
-    assert clean["questions_to_ask"][0]["questions"] == ["q1", "q2"]
+
+
+def test_sanitize_plan_omits_questions_section():
+    from app.interview import sanitize_plan
+
+    clean = sanitize_plan({
+        "questions_to_ask": [
+            {"category": "About the role", "questions": ["q1", "q2"]},
+        ],
+    })
+    assert "questions_to_ask" not in clean
 
 
 # ── Salary expectations ───────────────────────────────────────────────────────
@@ -212,7 +220,7 @@ def test_pro_user_generates_and_caches_plan(signed_in_client, db_session, monkey
     r1 = signed_in_client.post(f"/interview/{job_id}", follow_redirects=True)
     body = r1.get_data(as_text=True)
     assert "commercial and defense aircraft" in body      # company background
-    assert "What does success look like in 90 days?" in body  # questions to ask
+    assert "What you should ask them" not in body          # questions section removed
     assert "$120K" in body and "$150K" in body            # salary expectations
     assert db_session.query(InterviewPlan).count() == 1
     assert calls["n"] == 1
@@ -225,7 +233,8 @@ def test_pro_user_generates_and_caches_plan(signed_in_client, db_session, monkey
 
 def test_template_trims_cached_plans_to_two_bullets(signed_in_client, db_session):
     """Plans cached before the 2-bullet cap can hold more — the template
-    slices every bullet list to 2."""
+    slices the facts list to 2. The Questions-to-ask section is no longer
+    rendered at all, even for plans that still carry it."""
     from app.models import InterviewPlan
 
     user = _make_pro(db_session)
@@ -240,7 +249,9 @@ def test_template_trims_cached_plans_to_two_bullets(signed_in_client, db_session
 
     body = signed_in_client.get(f"/interview/{job_id}").get_data(as_text=True)
     assert "fact-a" in body and "fact-b" in body and "fact-c" not in body
-    assert "q-one" in body and "q-two" in body and "q-three" not in body
+    # Questions section removed — no questions render, and its header is gone.
+    assert "What you should ask them" not in body
+    assert "q-one" not in body
 
 
 def test_legacy_plan_regenerates_into_new_shape(signed_in_client, db_session, monkeypatch):

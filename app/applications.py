@@ -7,7 +7,7 @@ can be analysed up to a year later. See app/models.py::AppliedJob.
 """
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import distinct, func, select
 
 from .models import AppliedJob, Job
 
@@ -77,6 +77,25 @@ def applied_urls_for_user(db, user_id: int) -> set[str]:
             select(AppliedJob.url).where(AppliedJob.user_id == user_id)
         ).scalars().all()
     )
+
+
+def other_applicant_counts(db, urls, exclude_user_id: int) -> dict[str, int]:
+    """For each job URL, how many OTHER users (not exclude_user_id) applied.
+
+    Powers the "N others applied from this site" social-proof note on the board.
+    Counts distinct users by URL (the stable cross-user job identity) so a user
+    re-downloading a tailored resume never inflates the number.
+    """
+    urls = [u for u in set(urls or []) if u]
+    if not urls:
+        return {}
+    rows = db.execute(
+        select(AppliedJob.url, func.count(distinct(AppliedJob.user_id)))
+        .where(AppliedJob.url.in_(urls))
+        .where(AppliedJob.user_id != exclude_user_id)
+        .group_by(AppliedJob.url)
+    ).all()
+    return {url: count for url, count in rows}
 
 
 def applications_for_user(db, user_id: int) -> list[AppliedJob]:

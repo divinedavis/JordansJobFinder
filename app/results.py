@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
 
-from .applications import applied_urls_for_user
+from .applications import applied_urls_for_user, other_applicant_counts
 from .catalog import TITLE_LABELS
 from .db import get_db
 from .ingest import normalized_shared_jobs
@@ -67,7 +67,7 @@ def group_matches_by_city(matches: list[dict]) -> dict:
 # Board freshness window per vertical. IT project/program roles in the PA/FL
 # metros post far less often than the national tracks — a 2-day window leaves
 # that board nearly empty, so it keeps a week.
-BOARD_WINDOW_DAYS = {"it": 7, "hr": 7, "scm": 7}
+BOARD_WINDOW_DAYS = {"it": 7, "hr": 7, "scm": 7, "project": 7}
 DEFAULT_BOARD_WINDOW_DAYS = 2
 
 
@@ -139,6 +139,10 @@ def load_db_matches(saved_search) -> list[dict]:
     # if a JobMatch.applied_at stamp is ever lost, a recorded application keeps
     # the green note showing for a job still on the board.
     applied_urls = applied_urls_for_user(db, saved_search.user_id)
+    # Social proof: how many OTHER users applied to each board job from the site.
+    other_applied = other_applicant_counts(
+        db, [job.url for _, job in rows], saved_search.user_id
+    )
     # If the user has a base resume, every match can be tailored — the PDF is
     # generated on first download if it wasn't pre-built by the nightly sync.
     has_base_resume = db.scalar(
@@ -160,6 +164,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "matched_at": job_match.matched_at,
                 "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,
                 "applied": (job_match.applied_at is not None) or (job.url in applied_urls),
+                "applied_by_others": other_applied.get(job.url, 0),
             }
         )
     return matches

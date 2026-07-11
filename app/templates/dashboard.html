@@ -66,6 +66,14 @@
                         <span>{{ match.salary_label }}</span>
                       </div>
                     {% endif %}
+                    {% if match.applied_by_others %}
+                      <div class="match-meta" style="margin-top: 6px;">
+                        <span style="color: #0a7f3f; font-weight: 600;">
+                          &#128101; {{ match.applied_by_others }}
+                          other{{ '' if match.applied_by_others == 1 else 's' }} applied from this site
+                        </span>
+                      </div>
+                    {% endif %}
                     <div class="button-row" style="gap: 8px; flex-wrap: wrap; align-items: center;">
                       <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View Role</a>
                       {% if match.has_tailored_resume %}

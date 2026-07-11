@@ -121,7 +121,8 @@ def infer_city(location):
     return ""
 
 
-def make_job(*, company, title, url, city, location, source, posted_dt, posted_label):
+def make_job(*, company, title, url, city, location, source, posted_dt,
+             posted_label, vertical="scm"):
     return {
         "source": source,
         "company": company,
@@ -139,7 +140,7 @@ def make_job(*, company, title, url, city, location, source, posted_dt, posted_l
         "experience_min": None,
         "experience_max": None,
         "is_technical": False,
-        "vertical": "scm",
+        "vertical": vertical,
         "found_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -162,10 +163,11 @@ def _workday_detail_locations(tenant, wd_ver, site, ext_path):
 _MULTI_LOCATION_RE = re.compile(r"^\d+\s+locations$", re.IGNORECASE)
 
 
-def scrape_workday(name, tenant, wd_ver, site):
+def scrape_workday(name, tenant, wd_ver, site, title_filter=title_is_scm,
+                   vertical="scm", source_suffix="scm", search_terms=None):
     api = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
     found = []
-    for term in SCM_SEARCH_TERMS:
+    for term in (search_terms or SCM_SEARCH_TERMS):
         offset = 0
         while True:
             try:
@@ -188,7 +190,7 @@ def scrape_workday(name, tenant, wd_ver, site):
             for job in postings:
                 title = job.get("title", "")
                 location = job.get("locationsText", "")
-                if not title_is_scm(title):
+                if not title_filter(title):
                     continue
                 posted_label = job.get("postedOn", "") or ""
                 posted_dt = parse_relative_posted(posted_label)
@@ -207,8 +209,9 @@ def scrape_workday(name, tenant, wd_ver, site):
                 url = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/en-US/{site}{ext_path}"
                 found.append(make_job(
                     company=name, title=title, url=url, city=city,
-                    location=location, source="workday-scm",
+                    location=location, source=f"workday-{source_suffix}",
                     posted_dt=posted_dt, posted_label=posted_label,
+                    vertical=vertical,
                 ))
             offset += 20
             if offset >= total or not postings:
@@ -217,7 +220,8 @@ def scrape_workday(name, tenant, wd_ver, site):
     return found
 
 
-def scrape_greenhouse(name, token):
+def scrape_greenhouse(name, token, title_filter=title_is_scm,
+                      vertical="scm", source_suffix="scm"):
     api = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true"
     try:
         resp = requests.get(api, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=15)
@@ -232,7 +236,7 @@ def scrape_greenhouse(name, token):
     for job in jobs:
         title = job.get("title", "")
         location = job.get("location", {}).get("name", "")
-        if not title_is_scm(title):
+        if not title_filter(title):
             continue
         city = infer_city(location)
         if not city:
@@ -248,30 +252,43 @@ def scrape_greenhouse(name, token):
         label = posted_dt.date().isoformat() if posted_dt else ""
         found.append(make_job(
             company=name, title=title, url=job.get("absolute_url", ""),
-            city=city, location=location, source="greenhouse-scm",
-            posted_dt=posted_dt, posted_label=label,
+            city=city, location=location, source=f"greenhouse-{source_suffix}",
+            posted_dt=posted_dt, posted_label=label, vertical=vertical,
         ))
     return found
 
 
-def main() -> int:
+def run(*, title_filter=title_is_scm, vertical="scm", source_suffix="scm",
+        search_terms=None, out_file=SHARED_JOBS_FILE, label="SCM") -> int:
+    """Scrape the SC $1B+ employer union for one role vertical.
+
+    The SC employers, metros, and recency are shared; only the title filter and
+    the vertical tag change per role track (SCM, Project Management, …).
+    """
     all_jobs = []
     for name, tenant, ver, site in SCM_WORKDAY_COMPANIES:
         print(f"[Workday] {name}…")
-        all_jobs.extend(scrape_workday(name, tenant, ver, site))
+        all_jobs.extend(scrape_workday(
+            name, tenant, ver, site, title_filter=title_filter,
+            vertical=vertical, source_suffix=source_suffix,
+            search_terms=search_terms,
+        ))
         time.sleep(0.4)
     for name, token in SCM_GREENHOUSE_COMPANIES:
         print(f"[Greenhouse] {name}…")
-        all_jobs.extend(scrape_greenhouse(name, token))
+        all_jobs.extend(scrape_greenhouse(
+            name, token, title_filter=title_filter,
+            vertical=vertical, source_suffix=source_suffix,
+        ))
         time.sleep(0.3)
 
     print("[Extra ATS] Oracle/Lever/Phenom/iCIMS/SuccessFactors…")
     all_jobs.extend(collect_extra_jobs(
-        title_filter=title_is_scm,
+        title_filter=title_filter,
         infer_city=infer_city,
         within_recency=within_recency,
-        make_job=make_job,
-        source_suffix="scm",
+        make_job=lambda **kw: make_job(vertical=vertical, **kw),
+        source_suffix=source_suffix,
     ))
 
     seen = set()
@@ -282,8 +299,8 @@ def main() -> int:
         seen.add(job["url"])
         deduped.append(job)
 
-    SHARED_JOBS_FILE.write_text(json.dumps(deduped, indent=2))
-    print(f"\nWrote {len(deduped)} SCM jobs -> {SHARED_JOBS_FILE}")
+    out_file.write_text(json.dumps(deduped, indent=2))
+    print(f"\nWrote {len(deduped)} {label} jobs -> {out_file}")
     by_city = {}
     for j in deduped:
         by_city.setdefault(j["city"], 0)
@@ -291,6 +308,10 @@ def main() -> int:
     for c, n in sorted(by_city.items()):
         print(f"  {c}: {n}")
     return 0
+
+
+def main() -> int:
+    return run()
 
 
 if __name__ == "__main__":

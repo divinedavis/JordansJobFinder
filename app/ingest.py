@@ -27,6 +27,7 @@ SHARED_JOBS_SALES_FILE = REPO_ROOT / "shared_jobs_sales.json"
 SHARED_JOBS_IT_FILE = REPO_ROOT / "shared_jobs_it.json"
 SHARED_JOBS_HR_FILE = REPO_ROOT / "shared_jobs_hr.json"
 SHARED_JOBS_SCM_FILE = REPO_ROOT / "shared_jobs_scm.json"
+SHARED_JOBS_PROJECT_FILE = REPO_ROOT / "shared_jobs_project.json"
 
 
 def parse_posted_datetime(raw_value: Optional[str]):
@@ -89,6 +90,12 @@ def load_scm_jobs() -> list[dict]:
     if not SHARED_JOBS_SCM_FILE.exists():
         return []
     return json.loads(SHARED_JOBS_SCM_FILE.read_text())
+
+
+def load_project_jobs() -> list[dict]:
+    if not SHARED_JOBS_PROJECT_FILE.exists():
+        return []
+    return json.loads(SHARED_JOBS_PROJECT_FILE.read_text())
 
 
 def normalize_legacy_job(job: dict) -> dict:
@@ -162,9 +169,13 @@ def normalized_shared_jobs() -> list[dict]:
     it_jobs = [_normalize_one(j, "it") for j in load_it_jobs()]
     hr_jobs = [_normalize_one(j, "hr") for j in load_hr_jobs()]
     scm_jobs = [_normalize_one(j, "scm") for j in load_scm_jobs()]
+    project_jobs = [_normalize_one(j, "project") for j in load_project_jobs()]
     combined = [
         job
-        for job in (pm_jobs + finance_jobs + sales_jobs + it_jobs + hr_jobs + scm_jobs)
+        for job in (
+            pm_jobs + finance_jobs + sales_jobs + it_jobs + hr_jobs
+            + scm_jobs + project_jobs
+        )
         if not company_excluded(job.get("company", ""))
     ]
     if combined:
