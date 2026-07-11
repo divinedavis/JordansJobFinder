@@ -45,6 +45,27 @@ def test_scm_scraper_infers_sc_metros_only():
     assert infer_city("Atlanta, GA") == ""
 
 
+def test_verified_sc_1b_employers_are_in_scm_union():
+    # The verified >$1B SC employers (probed 200 from the droplet) must feed the
+    # SC track so their SC-located jobs surface. Guards against the registry
+    # being dropped from the union.
+    from scraper_scm import SCM_GREENHOUSE_COMPANIES, SCM_WORKDAY_COMPANIES
+    from scraper_sc_employers import SC_GREENHOUSE_1B, SC_WORKDAY_1B
+
+    wd_specs = {(t, v, s) for _, t, v, s in SCM_WORKDAY_COMPANIES}
+    for name, tenant, ver, site in SC_WORKDAY_1B:
+        assert (tenant, ver, site) in wd_specs, name
+
+    gh_tokens = {tok for _, tok in SCM_GREENHOUSE_COMPANIES}
+    for name, token in SC_GREENHOUSE_1B:
+        assert token in gh_tokens, name
+
+    # Spot-check a few marquee SC employers made it in by name.
+    names = {e[0] for e in SCM_WORKDAY_COMPANIES}
+    for marquee in ("Michelin", "Trane Technologies", "Prisma Health", "MUSC"):
+        assert marquee in names, marquee
+
+
 def test_scm_matches_without_salary(app):
     from app.matching import match_job_for_user
 

@@ -22,6 +22,7 @@ import requests
 from scraper_ats_extra import collect_extra_jobs
 from scraper_it import IT_GREENHOUSE_COMPANIES, IT_WORKDAY_COMPANIES
 from scraper_sales import first_truthy_date, parse_iso, parse_relative_posted
+from scraper_sc_employers import SC_GREENHOUSE_1B, SC_WORKDAY_1B
 from corporate_filter import is_corporate_role
 
 RECENCY_DAYS = 7
@@ -35,7 +36,8 @@ HEADERS = {
 }
 
 # $1B+ employer union (verified sales+finance set from scraper_it) plus the
-# verified Charleston-area employers that carry SC supply-chain roles.
+# verified Charleston-area employers, plus the full verified SC $1B+ registry
+# (scraper_sc_employers) — the major SC employers across all four metros.
 _CHARLESTON = [
     ("Boeing", "boeing", 1, "EXTERNAL_CAREERS"),
     ("Ingevity", "ingevity", 1, "Ingevity"),
@@ -56,9 +58,12 @@ def _merge(*lists, key):
 
 
 SCM_WORKDAY_COMPANIES = _merge(
-    IT_WORKDAY_COMPANIES, _CHARLESTON, key=lambda e: (e[1], e[2], e[3])
+    IT_WORKDAY_COMPANIES, _CHARLESTON, SC_WORKDAY_1B,
+    key=lambda e: (e[1], e[2], e[3]),
 )
-SCM_GREENHOUSE_COMPANIES = list(IT_GREENHOUSE_COMPANIES)
+SCM_GREENHOUSE_COMPANIES = _merge(
+    IT_GREENHOUSE_COMPANIES, SC_GREENHOUSE_1B, key=lambda e: e[1],
+)
 
 # Metro-level SC inference. Order-independent (no overlaps between metros).
 CITY_LOCATION_PATTERNS = {
