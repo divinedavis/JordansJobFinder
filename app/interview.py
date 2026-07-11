@@ -71,7 +71,8 @@ Output ONLY a JSON object with EXACTLY this shape — no markdown, no commentary
   "salary_estimate": {{"low": 150000, "high": 180000, "note": "1-2 sentences on how to position the ask in the negotiation."}}
 }}
 
-Provide 4-6 facts and 3-5 questions per category.
+Provide EXACTLY 2 facts and EXACTLY 2 questions per category — pick only the
+highest-impact ones.
 
 === JOB POSTING ===
 Company: {company}
@@ -135,7 +136,7 @@ def sanitize_plan(data: dict) -> dict:
         if isinstance(g, dict):
             groups.append({
                 "category": _clean_str(g.get("category"), 60),
-                "questions": _clean_str_list(g.get("questions"), 6),
+                "questions": _clean_str_list(g.get("questions"), 2),
             })
     estimate = data.get("salary_estimate")
     estimate = estimate if isinstance(estimate, dict) else {}
@@ -143,7 +144,7 @@ def sanitize_plan(data: dict) -> dict:
         "role_summary": _clean_str(data.get("role_summary"), 600),
         "company_background": {
             "overview": _clean_str(background.get("overview"), 1200),
-            "facts": _clean_str_list(background.get("facts"), 8),
+            "facts": _clean_str_list(background.get("facts"), 2),
         },
         "questions_to_ask": groups,
         "years_experience": _clean_int(data.get("years_experience"), 0, 60),

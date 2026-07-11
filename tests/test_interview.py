@@ -100,6 +100,17 @@ def test_sanitize_plan_handles_garbage():
     assert clean["years_experience"] is None
 
 
+def test_sanitize_plan_caps_two_bullets_per_section():
+    from app.interview import sanitize_plan
+
+    clean = sanitize_plan({
+        "company_background": {"overview": "o", "facts": ["f1", "f2", "f3", "f4"]},
+        "questions_to_ask": [{"category": "About the role", "questions": ["q1", "q2", "q3"]}],
+    })
+    assert clean["company_background"]["facts"] == ["f1", "f2"]
+    assert clean["questions_to_ask"][0]["questions"] == ["q1", "q2"]
+
+
 # ── Salary expectations ───────────────────────────────────────────────────────
 
 
@@ -210,6 +221,26 @@ def test_pro_user_generates_and_caches_plan(signed_in_client, db_session, monkey
     signed_in_client.post(f"/interview/{job_id}", follow_redirects=True)
     assert calls["n"] == 1
     assert db_session.query(InterviewPlan).count() == 1
+
+
+def test_template_trims_cached_plans_to_two_bullets(signed_in_client, db_session):
+    """Plans cached before the 2-bullet cap can hold more — the template
+    slices every bullet list to 2."""
+    from app.models import InterviewPlan
+
+    user = _make_pro(db_session)
+    job_id = _seed_job(db_session).id
+    plan = _fake_plan()
+    plan["company_background"]["facts"] = ["fact-a", "fact-b", "fact-c"]
+    plan["questions_to_ask"] = [
+        {"category": "About the role", "questions": ["q-one", "q-two", "q-three"]},
+    ]
+    db_session.add(InterviewPlan(user_id=user.id, job_id=job_id, content_json=json.dumps(plan)))
+    db_session.commit()
+
+    body = signed_in_client.get(f"/interview/{job_id}").get_data(as_text=True)
+    assert "fact-a" in body and "fact-b" in body and "fact-c" not in body
+    assert "q-one" in body and "q-two" in body and "q-three" not in body
 
 
 def test_legacy_plan_regenerates_into_new_shape(signed_in_client, db_session, monkeypatch):
