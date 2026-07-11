@@ -143,6 +143,52 @@ Runs in the 9 AM cron after scraper_hr.py; writes shared_jobs_scm.json. SC
 city slugs added to catalog/sync/results/analytics label maps. Tests:
 `tests/test_scm_vertical.py`.
 
+### Verified SC $1B+ employer registry (scraper_sc_employers.py, 2026-07-11)
+
+`scraper_sc_employers.py` is the **per-state big-employer registry template**:
+`SC_WORKDAY_1B` + `SC_GREENHOUSE_1B` are 15 employers with >$1B revenue and
+real SC operations, each careers endpoint **probed HTTP 200 from the droplet**
+(Michelin, GE Vernova, Trane, 3M, KION, Sonoco, Prisma Health, Duke Energy,
+Unum/Colonial Life, MUSC, Roper St. Francis, LPL, Movement Mortgage, Atrium,
+Red Ventures + Boeing). Merged into `SCM_WORKDAY_COMPANIES` /
+`SCM_GREENHOUSE_COMPANIES` so their SC jobs surface across the SC tracks.
+Excluded: BCBS-SC (`ourhrconnect`/SCBlues) 422s the datacenter IP. Deferred
+(unsupported ATS — need scraper_ats_extra support): Nucor, Volvo, Milliken,
+Timken, ZF, BMW (Taleo), Bosch/Continental (SmartRecruiters), Fluor
+(Eightfold), ScanSource (UKG), Lockheed (BrassRing), Dominion, Honeywell,
+Cummins, etc. To roll out another state, clone this file with its verified set.
+
+## Project Management Vertical (scraper_project.py, 2026-07-11)
+
+Seventh vertical (`vertical="project"`), user-selectable ("Project Management
+(SC · $1B+)"): project-management roles (coordinator → director, any industry —
+`matching.title_is_project`, no IT signal required unlike the IT track). Reuses
+the SC $1B+ employer union, SC-metro inference, and 7-day window from the SCM
+track via the **parameterized `scraper_scm.run(title_filter, vertical, …)`** —
+`scraper_project.py` is a thin wrapper that swaps only the title filter + the
+vertical tag (no salary/experience filter). Writes `shared_jobs_project.json`;
+runs in the 9 AM cron **after scraper_scm.py**, before the sync. `SCM`'s
+`scrape_workday`/`scrape_greenhouse`/`make_job` were parameterized (defaults keep
+SCM behavior). Wired through catalog/matching/ingest/results/routes/analytics.
+Tests: `tests/test_project_vertical.py`. NOTE: undated Workday postings (empty
+`postedOn`, e.g. many MUSC roles) are dropped by the recency filter — a shared
+SCM/Project limitation, not yet addressed.
+
+## Board Social Proof — "N others applied" (2026-07-11)
+
+Each dashboard job card shows how many OTHER users applied to that job from the
+site (`applications.other_applicant_counts` — distinct `AppliedJob.user_id` by
+URL, excluding the viewer). Surfaced as `match["applied_by_others"]` in
+`results.load_db_matches`, rendered under the card meta. Tests in
+`tests/test_applied.py`.
+
+## Interview Prep — Questions section removed (2026-07-11)
+
+The "Questions to ask" section was removed from interview prep at owner request
+(template + prompt + `sanitize_plan` no longer produce it). Company background
+and the deterministic Salary expectations block remain. Cached plans keep the
+now-unused `questions_to_ask` key in JSON but it never renders.
+
 ## HR Coordinator Vertical (scraper_hr.py)
 
 Fifth vertical (`vertical="hr"`), user-selectable: picking "HR Coordinator /
