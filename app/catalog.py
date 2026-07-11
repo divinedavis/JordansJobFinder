@@ -190,6 +190,15 @@ VERTICAL_DEFAULT_CITIES = {
 }
 CITY_LABELS = {item["slug"]: item["label"] for item in CITY_OPTIONS}
 SUPERUSER_EMAIL = os.getenv("SUPERUSER_EMAIL", "")
+# Owner/admin accounts (billing-exempt, unlimited cities, never search-locked,
+# feedback inbox, Pro features). SUPERUSER_EMAIL is the primary owner;
+# ADMIN_EMAILS adds co-owners (comma-separated). Both are normalized to a set
+# of lowercased addresses in ADMIN_EMAILS_SET below.
+ADMIN_EMAILS_SET = {
+    e.strip().lower()
+    for e in (SUPERUSER_EMAIL + "," + os.getenv("ADMIN_EMAILS", "")).split(",")
+    if e.strip()
+}
 
 
 def title_choices():

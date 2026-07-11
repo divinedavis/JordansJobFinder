@@ -1,7 +1,7 @@
 from typing import Optional
 
 from corporate_filter import is_corporate_role
-from .catalog import CITY_LABELS, SUPERUSER_EMAIL, TITLE_KEYWORDS, TITLE_VERTICALS
+from .catalog import ADMIN_EMAILS_SET, CITY_LABELS, TITLE_KEYWORDS, TITLE_VERTICALS
 
 EXCLUDE_TITLES = ["governance"]
 # Companies the user never wants to see on the dashboard, matched
@@ -268,14 +268,15 @@ def is_superuser_email(email: Optional[str]) -> bool:
 
 
 def is_admin_email(email: Optional[str]) -> bool:
-    """Only the configured owner (SUPERUSER_EMAIL) may review submitted feedback.
+    """Only configured owner accounts may review feedback + skip billing gates.
 
     is_superuser_email() is intentionally open to every signed-in user, so it
-    can't gate the feedback inbox — this stricter check matches the single
-    owner account (divinejdavis@gmail.com in production) exactly.
+    can't gate the feedback inbox — this stricter check matches the owner
+    accounts (SUPERUSER_EMAIL plus any co-owners in ADMIN_EMAILS) exactly.
+    In production that's divinejdavis@gmail.com and khaliefwhetstone@yahoo.com.
     """
-    target = (SUPERUSER_EMAIL or "").strip().lower()
-    return bool(target) and (email or "").strip().lower() == target
+    addr = (email or "").strip().lower()
+    return bool(addr) and addr in ADMIN_EMAILS_SET
 
 
 def match_job_for_user(

@@ -32,6 +32,9 @@ def app():
     # Reload catalog so SUPERUSER_EMAIL picks up the env var set above.
     from app import catalog as _catalog
     _catalog.SUPERUSER_EMAIL = os.environ["SUPERUSER_EMAIL"].strip().lower()
+    # Keep the shared admin set (held by reference in matching.py) in sync.
+    _catalog.ADMIN_EMAILS_SET.clear()
+    _catalog.ADMIN_EMAILS_SET.add(_catalog.SUPERUSER_EMAIL)
 
     from app import create_app, limiter
     flask_app = create_app()

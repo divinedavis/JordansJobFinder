@@ -4,6 +4,7 @@ import os
 from app.matching import (
     experience_at_least,
     experience_bucket_matches,
+    is_admin_email,
     is_superuser_email,
     match_job_for_user,
     salary_meets_minimum,
@@ -74,6 +75,27 @@ def test_is_superuser_email_open_access():
     assert is_superuser_email(None) is False
     assert is_superuser_email("") is False
     assert is_superuser_email("   ") is False
+
+
+def test_is_admin_email_matches_owner_set(app):
+    # Owner accounts (SUPERUSER_EMAIL + any ADMIN_EMAILS co-owners) are admins;
+    # everyone else is not. Case-insensitive; blank/None rejected.
+    from app import catalog as _catalog
+
+    _catalog.ADMIN_EMAILS_SET.clear()
+    _catalog.ADMIN_EMAILS_SET.update(
+        {"divinejdavis@gmail.com", "khaliefwhetstone@yahoo.com"}
+    )
+    try:
+        assert is_admin_email("divinejdavis@gmail.com") is True
+        assert is_admin_email("khaliefwhetstone@yahoo.com") is True
+        assert is_admin_email("KhaliefWhetstone@Yahoo.com") is True
+        assert is_admin_email("someone-else@example.com") is False
+        assert is_admin_email(None) is False
+        assert is_admin_email("") is False
+    finally:
+        _catalog.ADMIN_EMAILS_SET.clear()
+        _catalog.ADMIN_EMAILS_SET.add(os.environ["SUPERUSER_EMAIL"].strip().lower())
 
 
 def test_title_matches_basic_keywords():
