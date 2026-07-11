@@ -18,6 +18,22 @@ def test_city_dataset_loads_and_is_reasonably_sized():
     assert names["ID"] == "Idaho"
 
 
+def test_cities_are_ordered_by_population_descending():
+    # Each state's city list is pre-sorted most-populous first so the dropdown
+    # surfaces the biggest cities at the top (the template renders in list
+    # order). Spot-check the largest city in a few states.
+    from app.uscities import cities_by_state
+
+    data = cities_by_state()
+    assert data["NY"][0] == "New York"
+    assert data["TX"][0] == "Houston"
+    assert data["CA"][0] == "Los Angeles"
+    assert data["FL"][0] == "Jacksonville"
+    # New York must come before smaller NY cities like Buffalo/Yonkers.
+    ny = data["NY"]
+    assert ny.index("New York") < ny.index("Buffalo") < ny.index("Yonkers")
+
+
 def test_valid_city_accepts_any_50k_city_and_legacy_labels(app):
     from app.searches import valid_city
 

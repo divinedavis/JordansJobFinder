@@ -297,7 +297,12 @@ route auth, nav links).
   selects). Dataset vendored at `app/static/data/us_cities_50k.json` (Census
   sub-est2023, 801 cities; name cleanups: Boise City→Boise, Urban
   Honolulu→Honolulu, Ventura; VT/WV have no 50k+ place). Loader/validators in
-  `app/uscities.py`; canonical label is "City, ST".
+  `app/uscities.py`; canonical label is "City, ST". Each state's list is
+  ordered **most-populous first** (POPESTIMATE2023) so the biggest cities top
+  the dropdown; the template renders in list order. `citypicker.js`
+  **detaches/re-attaches optgroups** on state change (does NOT toggle
+  hidden/disabled — Safari still shows disabled/hidden optgroups in the native
+  picker, which leaked every state's cities into one dropdown).
 - **Matching beyond the metros**: `matching.location_matches_city` (city name
   + state signal in the raw location) is consulted by sync + preview when the
   label isn't a built-in metro. The PM multi-list scrapers keep non-metro
