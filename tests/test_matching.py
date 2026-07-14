@@ -77,6 +77,14 @@ def test_is_superuser_email_open_access():
     assert is_superuser_email("   ") is False
 
 
+def test_asana_is_excluded():
+    from app.matching import company_excluded
+
+    assert company_excluded("Asana")
+    assert company_excluded("ASANA")
+    assert not company_excluded("BNY")
+
+
 def test_is_admin_email_matches_owner_set(app):
     # Owner accounts (SUPERUSER_EMAIL + any ADMIN_EMAILS co-owners) are admins;
     # everyone else is not. Case-insensitive; blank/None rejected.

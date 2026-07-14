@@ -8,7 +8,12 @@ from sqlalchemy import select
 from .applications import prune_old_applications
 from .db import get_db
 from .ingest import normalized_shared_jobs
-from .matching import location_matches_city, match_job_for_user, title_is_it_pm
+from .matching import (
+    company_excluded,
+    location_matches_city,
+    match_job_for_user,
+    title_is_it_pm,
+)
 from .models import (
     BaseResume,
     DailyRun,
@@ -49,6 +54,10 @@ CITY_DISPLAY = {
 
 def _search_matches_job(search, job, user_email) -> bool:
     """Whether a single job belongs on a saved search's board."""
+    # Excluded employers never surface, even if a stale Job row lingers in the
+    # DB from before the company was added to EXCLUDE_COMPANIES.
+    if company_excluded(job.company or ""):
+        return False
     if job.vertical != search.vertical:
         # Combined selection: the PM track also covers IT project/program
         # manager jobs (one dropdown option for both role families).

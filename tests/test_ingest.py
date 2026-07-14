@@ -77,6 +77,7 @@ def test_blocked_company_is_dropped_from_ingest(monkeypatch):
     monkeypatch.setattr(ingest, "load_it_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_hr_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_scm_jobs", lambda: [])
+    monkeypatch.setattr(ingest, "load_project_jobs", lambda: [])
 
     companies = {job["company"] for job in ingest.normalized_shared_jobs()}
     assert companies == {"Postman"}
