@@ -1,6 +1,7 @@
+import secrets
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
@@ -65,6 +66,17 @@ def create_app() -> Flask:
                 limit, methods=methods
             )(view_func)
 
+    @app.before_request
+    def _set_csp_nonce():
+        # Per-request nonce so the inline Google-tag init script can run under a
+        # strict CSP (no 'unsafe-inline'). Exposed to templates via context
+        # processor as `csp_nonce`.
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    @app.context_processor
+    def _inject_csp_nonce():
+        return {"csp_nonce": getattr(g, "csp_nonce", "")}
+
     @app.after_request
     def set_security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -79,11 +91,16 @@ def create_app() -> Flask:
         # Fix #5: Content-Security-Policy
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://challenges.cloudflare.com; "
+            f"script-src 'self' https://challenges.cloudflare.com "
+            f"https://www.googletagmanager.com 'nonce-{g.get('csp_nonce', '')}'; "
             "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: https://cdn.undraw.co; "
-            "connect-src 'self' https://challenges.cloudflare.com; "
-            "frame-src https://challenges.cloudflare.com https://js.stripe.com; "
+            "img-src 'self' data: https://cdn.undraw.co https://www.google.com "
+            "https://googleads.g.doubleclick.net; "
+            "connect-src 'self' https://challenges.cloudflare.com "
+            "https://www.googletagmanager.com https://www.google.com "
+            "https://googleads.g.doubleclick.net; "
+            "frame-src https://challenges.cloudflare.com https://js.stripe.com "
+            "https://td.doubleclick.net; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
             "form-action 'self' https://checkout.stripe.com"

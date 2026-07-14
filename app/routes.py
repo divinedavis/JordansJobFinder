@@ -123,6 +123,27 @@ def inject_admin_flag():
     return {"is_admin": is_admin_email(user.email) if user else False}
 
 
+@web.app_context_processor
+def inject_gtag():
+    """Expose the Google Ads tag id to every page, and the sign-up conversion
+    label exactly once — on the first render after a new account is created.
+
+    The label is only surfaced (and the one-time flag consumed) when a label is
+    actually configured, so before the label is set the flag survives and fires
+    on the first render once it is."""
+    from flask import current_app, session
+
+    label = current_app.config.get("GOOGLE_ADS_SIGNUP_LABEL", "")
+    fire_label = ""
+    if label and session.get("signup_conversion"):
+        session.pop("signup_conversion", None)
+        fire_label = label
+    return {
+        "gads_id": current_app.config.get("GOOGLE_ADS_ID", ""),
+        "gads_signup_label": fire_label,
+    }
+
+
 def ensure_subscription(user: User, db):
     if user.subscription:
         return user.subscription
@@ -260,6 +281,9 @@ def sign_in():
         session.clear()
         session["user_id"] = user.id
         session.permanent = True
+        # Fire the Google Ads "Sign-ups" conversion once, on the next page.
+        # Only set on real account creation — NOT on the sign-in path below.
+        session["signup_conversion"] = True
         logger.info("Account created user_id=%d ip=%s", user.id, request.remote_addr)
         flash("Account created.", "success")
         return redirect(url_for("web.dashboard"))

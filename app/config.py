@@ -25,6 +25,11 @@ class Config:
         f"sqlite:///{BASE_DIR / 'jordansjobfinder.db'}",
     )
     BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:5000").rstrip("/")
+    # Google Ads: the account-level global tag (public) + the "Sign-ups"
+    # conversion action's label. The label is empty until set in .env, so the
+    # conversion event is a safe no-op until then (the base tag still loads).
+    GOOGLE_ADS_ID = os.getenv("GOOGLE_ADS_ID", "AW-1001356637")
+    GOOGLE_ADS_SIGNUP_LABEL = os.getenv("GOOGLE_ADS_SIGNUP_LABEL", "")
     SMTP_HOST = os.getenv("SMTP_HOST", "")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")

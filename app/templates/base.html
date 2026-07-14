@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  {% if gads_id %}
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ gads_id }}"></script>
+  <script nonce="{{ csp_nonce | default('') }}">
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '{{ gads_id }}');
+    {% if gads_signup_label %}gtag('event', 'conversion', {'send_to': '{{ gads_id }}/{{ gads_signup_label }}', 'value': 1.0, 'currency': 'USD'});{% endif %}
+  </script>
+  {% endif %}
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#f8f4ec">
   <meta name="apple-mobile-web-app-capable" content="yes">
