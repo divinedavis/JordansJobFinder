@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import case, func, select
 
 from .applications import applied_urls_for_user, other_applicant_counts
+from .company_revenue import revenue_for
 from .catalog import TITLE_LABELS
 from .db import get_db
 from .ingest import normalized_shared_jobs
@@ -165,6 +166,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,
                 "applied": (job_match.applied_at is not None) or (job.url in applied_urls),
                 "applied_by_others": other_applied.get(job.url, 0),
+                "revenue": revenue_for(job.company),
             }
         )
     return matches

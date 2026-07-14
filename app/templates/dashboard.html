@@ -56,7 +56,7 @@
                   <article class="match-card">
                     <div class="match-card-top">
                       <span class="match-company">
-                        {{ match.company }}{% if match.display_city %}<span class="match-city">{{ match.display_city }}</span>{% endif %}
+                        {{ match.company }}{% if match.display_city %}<span class="match-city">{{ match.display_city }}</span>{% endif %}{% if match.revenue %}<span class="match-city" style="color: #0a7f3f;" title="Approximate annual revenue">{{ match.revenue }} rev</span>{% endif %}
                       </span>
                       <span class="match-posted">{{ match.posted_label }}</span>
                     </div>
