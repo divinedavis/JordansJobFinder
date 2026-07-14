@@ -741,16 +741,31 @@ def save_shared_jobs(shared_jobs):
 
 
 def purge_old_store(store):
+    """Keep jobs whose POSTING is still recent.
+
+    Previously this purged by ``found_at`` (first-discovery time), so every job
+    vanished exactly VALID_POST_DAYS after we first saw it — even if it was
+    still live and freshly posted. That, combined with the app feed only ever
+    containing brand-new finds, emptied the board on any day with no net-new
+    postings. Purge by the posting date instead (falling back to discovery date
+    when the posting carries no parseable date), so a still-recent posting stays
+    on the board across runs.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(days=VALID_POST_DAYS)
     kept = []
     for job in store:
-        try:
-            found_at = datetime.fromisoformat(job.get("found_at", ""))
-            if found_at.tzinfo is None:
-                found_at = found_at.replace(tzinfo=timezone.utc)
-            if found_at >= cutoff:
-                kept.append(job)
-        except Exception:
+        stamp = parse_posted_datetime_from_label(job.get("posted", ""))
+        if stamp is None:
+            try:
+                stamp = datetime.fromisoformat(job.get("found_at", ""))
+            except Exception:
+                stamp = None
+        if stamp is None:
+            kept.append(job)  # unknown date → keep rather than silently drop
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        if stamp >= cutoff:
             kept.append(job)
     return kept
 
@@ -2148,9 +2163,10 @@ def main():
 
         browser.close()
 
-    # Persistent store: merge new jobs, purge old ones
+    # Persistent store: merge this run's brand-new jobs, then purge anything
+    # whose posting is no longer recent. The store is the durable set of
+    # currently-live postings.
     store = load_store()
-    store = purge_old_store(store)
     store_urls = {j["url"] for j in store}
     now_iso = datetime.now(timezone.utc).isoformat()
     added = 0
@@ -2158,12 +2174,28 @@ def main():
         if job["url"] and job["url"] not in store_urls:
             job["found_at"] = now_iso
             store.append(job)
+            store_urls.add(job["url"])
             added += 1
+    store = purge_old_store(store)
     save_store(store)
-    save_shared_jobs(shared_jobs)
+
+    # The app feed MIRRORS the live store — not just this run's new finds — so a
+    # still-live posting stays on the board across runs. (Previously shared_jobs
+    # held only newly-seen jobs, so the board emptied whenever a run surfaced
+    # nothing brand-new.)
+    save_shared_jobs([
+        normalize_shared_job(j, j.get("description", "")) for j in store
+    ])
+
+    # Rebuild `seen` to exactly the retained store. `seen` exists only to skip
+    # re-fetching detail pages for jobs we already hold; once a job ages out of
+    # the store it must be allowed to be rediscovered + re-enriched if it's
+    # still live, otherwise it could never come back.
+    seen = {j["url"] for j in store}
+
     write_html(store)
     save_seen(seen)
-    log(f"Done. {added} new job(s) added; {len(store)} total in store")
+    log(f"Done. {added} new job(s) added; {len(store)} live in store")
 
 
 # ── HTML Output ───────────────────────────────────────────────────────────────
