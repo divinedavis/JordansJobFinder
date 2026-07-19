@@ -103,3 +103,9 @@ def test_top10_wave_companies_have_revenue():
     for company in ("USAA", "Mondelez", "Cencora", "Illumina", "Republic Services",
                     "Axon", "Fanatics", "Dun & Bradstreet", "Citigroup"):
         assert revenue_for(company), company
+
+
+def test_every_metro_except_nyc_is_salary_optional():
+    # A metro missing from SALARY_OPTIONAL_CITIES silently drops every posting
+    # that doesn't expose a salary — which is most Workday postings.
+    assert set(scraper.PM_METROS) - scraper.SALARY_OPTIONAL_CITIES == {"nyc"}

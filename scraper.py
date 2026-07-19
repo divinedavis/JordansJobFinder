@@ -141,7 +141,12 @@ MIN_SALARY   = 180_000
 # (many postings outside NYC list no salary, and most non-NYC states don't mandate it).
 # "extra" = a user-selected city beyond the built-in metros (state-grouped
 # picker); those markets rarely publish salaries, so they're salary-optional.
-SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc", "la", "extra"}
+# Every metro except NYC (deliberate $180K floor there) — postings without a
+# parseable salary still surface. Must include every PM_METROS slug or that
+# metro silently drops all no-salary postings (2026-07-19 lesson).
+SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc", "la",
+                          "chicago", "phoenix", "san-antonio", "san-diego",
+                          "jacksonville-fl", "philadelphia-pa", "extra"}
 VALID_POST_DAYS = 2
 TECH_THRESHOLD  = 3
 TECH_SIGNALS = [
