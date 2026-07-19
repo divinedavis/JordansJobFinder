@@ -70,7 +70,35 @@ LA_LOCS      = ["los angeles", "l.a.", "greater los angeles", "socal",
                 "gardena", "sherman oaks", "westwood", "century city",
                 "torrance", "manhattan beach", "redondo beach", "inglewood",
                 "van nuys", "studio city", "north hollywood", "woodland hills",
-                "santa clarita", "calabasas", "beverly hills", "ventura"]
+                "santa clarita", "calabasas", "beverly hills", "ventura",
+                "newport beach", "irvine"]
+
+# Top-10-city metros added 2026-07-19. Specific place names only — no broad
+# state catch-alls — and every state-suffixed entry ("glendale, az",
+# "mesa, az") exists to beat a bare-name collision in a metro checked later
+# in PM_METROS (LA's bare "glendale"/"pasadena", Dallas's bare "arlington").
+CHICAGO_LOCS = ["chicago", "evanston", "naperville", "schaumburg",
+                "rosemont, il", "oak brook", "oakbrook", "deerfield, il",
+                "vernon hills", "lincolnshire", "northbrook",
+                "downers grove", "des plaines", "skokie", "itasca",
+                "hoffman estates", "lake forest, il"]
+PHOENIX_LOCS = ["phoenix", "scottsdale", "tempe", "chandler",
+                "mesa, az", "gilbert, az", "glendale, az", "peoria, az",
+                "goodyear, az"]
+SAN_ANTONIO_LOCS = ["san antonio", "new braunfels", "schertz", "windcrest",
+                    "live oak, tx"]
+SAN_DIEGO_LOCS = ["san diego", "la jolla", "carlsbad", "sorrento valley",
+                  "chula vista", "oceanside", "escondido", "encinitas",
+                  "del mar", "poway", "national city", "rancho bernardo",
+                  "mira mesa", "torrey pines"]
+JACKSONVILLE_LOCS = ["jacksonville", "ponte vedra", "st. johns, fl",
+                     "orange park, fl", "fernandina"]
+PHILADELPHIA_LOCS = ["philadelphia", "philly", "conshohocken",
+                     "king of prussia", "wayne, pa", "radnor", "malvern",
+                     "horsham", "camden, nj", "wilmington, de", "yardley",
+                     "chesterbrook", "plymouth meeting", "newtown square",
+                     "berwyn, pa", "west chester, pa", "blue bell",
+                     "fort washington, pa", "rosemont, pa"]
 
 CITY_LABELS = {
     "nyc": "New York, NY",
@@ -80,6 +108,12 @@ CITY_LABELS = {
     "houston": "Houston, TX",
     "dc": "Washington, DC",
     "la": "Los Angeles, CA",
+    "chicago": "Chicago, IL",
+    "phoenix": "Phoenix, AZ",
+    "san-antonio": "San Antonio, TX",
+    "san-diego": "San Diego, CA",
+    "jacksonville-fl": "Jacksonville, FL",
+    "philadelphia-pa": "Philadelphia, PA",
 }
 
 CITY_SEARCH = {
@@ -617,6 +651,9 @@ GREENHOUSE_MULTI = [
     ("Via", "via"),
     ("Wayve", "wayve"),
     ("Webflow", "webflow"),
+    # ── Top-10-city $1B+ wave (verified HTTP 200 from droplet 2026-07-19) ──
+    ("Axon", "axon"),               # Scottsdale AZ HQ, $2.1B
+    ("Fanatics", "fanaticsinc"),    # Jacksonville commerce hub, ~$8B
 ]
 
 # Lever: (name, token)
@@ -624,6 +661,8 @@ LEVER_MULTI = [
     ("Alloy", "alloy"),
     ("Ro", "ro"),
     ("Spotify", "spotify"),
+    # ── Top-10-city $1B+ wave (verified HTTP 200 from droplet 2026-07-19) ──
+    ("Dun & Bradstreet", "dnb"),    # Jacksonville HQ, $2.4B
 ]
 
 # Workday: (name, tenant, ver, site)
@@ -704,6 +743,75 @@ WORKDAY_MULTI = [
     ("Ingevity", "ingevity", 1, "Ingevity"),                  # specialty chemicals (HQ)
     ("SouthState Bank", "southstatebank", 5, "External"),      # SC-heavy bank
     ("Benefitfocus", "godirect", 5, "voya_jobs"),             # Voya/Benefitfocus (HQ, Daniel Island)
+    # ── Top-10-city $1B+ wave (2026-07-19): Chicago, Phoenix, San Antonio,
+    # San Diego, Jacksonville, Philadelphia, plus LA additions. Every endpoint
+    # verified HTTP 200 (Workday CXS jobs API) from the droplet IP 2026-07-19.
+    # Grouped by the metro that motivated inclusion; postings surface in ANY
+    # supported metro via infer_pm_city, like the rest of this list.
+    # ── Chicago ──
+    ("Baxter", "baxter", 1, "baxter"),
+    ("CDW", "cdw", 5, "Careers"),
+    ("Cboe Global Markets", "cboe", 1, "External_Career_CBOE"),
+    ("Conagra Brands", "conagrabrands", 1, "Careers_US"),
+    ("GE HealthCare", "gehc", 5, "GEHC_ExternalSite"),
+    ("Mondelez", "mdlz", 3, "External"),
+    ("Morningstar", "morningstar", 5, "Americas"),
+    ("Northern Trust", "ntrs", 1, "northerntrust"),
+    ("TransUnion", "transunion", 5, "TransUnion"),
+    ("US Foods", "usfoods", 1, "usfoodscareersExternal"),
+    ("Wintrust Financial", "wintrust", 1, "Search"),
+    ("Zebra Technologies", "zebra", 501, "Zebra_careers"),
+    # ── Jacksonville ──
+    ("PGA Tour", "pgatour", 5, "PGATOURExternal"),
+    ("RYAM", "myrayonieram", 5, "careers"),
+    # ── Los Angeles ──
+    ("Ares Management", "aresmgmt", 1, "External"),
+    ("Capital Group", "capgroup", 1, "capitalgroupcareers"),
+    ("DIRECTV", "directv", 1, "Careers"),
+    ("Ingram Micro", "ingrammicro", 5, "IngramMicro"),
+    ("Oaktree Capital", "oaktree", 1, "Oaktree"),
+    ("Pacific Life", "pacificlife", 1, "PacificLifeCareers"),
+    ("Skechers", "skechers", 5, "One-career-site"),
+    ("Sony Pictures", "spe", 1, "SonyPicturesEntertainment"),
+    ("Universal Music Group", "umusic", 5, "UMGUS"),
+    # ── Philadelphia ──
+    ("Axalta", "axalta", 1, "Axalta"),
+    ("Campbell's", "campbellsoup", 5, "ExternalCareers_GlobalSite"),
+    ("Carpenter Technology", "cartech", 5, "CTCExternal"),
+    ("Cencora", "myhrabc", 5, "Global"),
+    ("Chemours", "chemours", 103, "Chemours"),
+    ("Crown Holdings", "crownholdings", 501, "CrownHoldings"),
+    ("DuPont", "dupont", 5, "Jobs"),
+    ("FMC Corporation", "fmc", 12, "FMC"),
+    ("Five Below", "fivebelow", 1, "fivebelowcareers"),
+    ("Jefferson Health", "jeffersonhealth", 5, "ThomasJeffersonExternal"),
+    ("Penn Mutual", "pennmutual", 1, "_penn-careers"),
+    ("UPenn", "upenn", 1, "careers-at-penn"),
+    # ── Phoenix ──
+    ("Banner Health", "bannerhealth", 108, "Careers"),
+    ("Microchip Technology", "microchiphr", 5, "External"),
+    ("Republic Services", "republic", 5, "Republic"),
+    ("Taylor Morrison", "taylormorrison", 1, "TaylorMorrisonCareers"),
+    ("U-Haul", "uhaul", 1, "UhaulJobs"),
+    ("Western Alliance Bank", "westernalliancebank", 5, "WAB"),
+    # ── San Antonio ──
+    ("Citigroup", "citi", 5, "2"),
+    ("Clear Channel Outdoor", "clearchanneloutdoor", 5, "CCO"),
+    ("Frost Bank", "frostbank", 5, "External"),
+    ("Rackspace", "rackspace", 1, "External"),
+    ("USAA", "usaa", 1, "USAAJOBSWD"),
+    ("Whataburger", "whataburger", 5, "WAB_CAREERS"),
+    ("iHeartMedia", "iheartmedia", 5, "External_iHM"),
+    # ── San Diego ──
+    ("Cubic", "cubic", 1, "cubic_global_careers"),
+    ("Dexcom", "dexcom", 1, "Dexcom"),
+    ("Illumina", "illumina", 1, "illumina-careers"),
+    ("Neurocrine Biosciences", "neurocrine", 5, "Neurocrinecareers"),
+    ("Realty Income", "realtyincome", 108, "realty_income_careers"),
+    ("ResMed", "resmed", 3, "ResMed_External_Careers"),
+    ("Sharp HealthCare", "sharp", 1, "External"),
+    ("Sony Electronics", "sonyglobal", 1, "SonyGlobalCareers"),
+    ("Topgolf Callaway", "tcbrands", 1, "callaway-careers"),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -827,6 +935,36 @@ def is_la(text):
     return any(loc in t for loc in LA_LOCS)
 
 
+def is_chicago(text):
+    t = text.lower()
+    return any(loc in t for loc in CHICAGO_LOCS)
+
+
+def is_phoenix(text):
+    t = text.lower()
+    return any(loc in t for loc in PHOENIX_LOCS)
+
+
+def is_san_antonio(text):
+    t = text.lower()
+    return any(loc in t for loc in SAN_ANTONIO_LOCS)
+
+
+def is_san_diego(text):
+    t = text.lower()
+    return any(loc in t for loc in SAN_DIEGO_LOCS)
+
+
+def is_jacksonville(text):
+    t = text.lower()
+    return any(loc in t for loc in JACKSONVILLE_LOCS)
+
+
+def is_philadelphia(text):
+    t = text.lower()
+    return any(loc in t for loc in PHILADELPHIA_LOCS)
+
+
 def location_ok(text, city):
     if city == "nyc":
         return is_nyc(text)
@@ -842,6 +980,18 @@ def location_ok(text, city):
         return is_dc(text)
     if city == "la":
         return is_la(text)
+    if city == "chicago":
+        return is_chicago(text)
+    if city == "phoenix":
+        return is_phoenix(text)
+    if city == "san-antonio":
+        return is_san_antonio(text)
+    if city == "san-diego":
+        return is_san_diego(text)
+    if city == "jacksonville-fl":
+        return is_jacksonville(text)
+    if city == "philadelphia-pa":
+        return is_philadelphia(text)
     return False
 
 
@@ -850,7 +1000,12 @@ def location_ok(text, city):
 # pattern list intentionally includes broad Texas catch-alls (", tx", "texas")
 # for per-city use. Without this ordering "Houston, TX" would match Dallas's
 # ", tx", and "Arlington, VA" would match Dallas's bare "arlington" before DC.
-PM_METROS = ("nyc", "miami", "atlanta", "la", "dc", "houston", "dallas")
+# Phoenix precedes LA so "Glendale, AZ" beats LA's bare "glendale";
+# San Antonio precedes Dallas for the Texas catch-all; the six 2026-07-19
+# metros complete top-10-US-city coverage (with NYC/HOU/DAL).
+PM_METROS = ("nyc", "miami", "atlanta", "chicago", "phoenix", "san-antonio",
+             "san-diego", "jacksonville-fl", "philadelphia-pa", "la", "dc",
+             "houston", "dallas")
 
 def infer_pm_city(text):
     """Return the first supported metro whose pattern matches `text`, else None."""

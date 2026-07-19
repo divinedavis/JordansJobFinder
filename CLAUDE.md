@@ -43,7 +43,11 @@ Outputs: jobs.html (static public board), jobs_store.json, shared_jobs.json, see
 A second wave of large-cap ($1B+ revenue / unicorn-scale) employers lives in
 these three lists. Unlike the per-city lists (one row per company×city), each
 multi entry is **fetched once** and the metro is inferred per posting via
-`infer_pm_city()` across all 7 supported cities. This avoids re-fetching the
+`infer_pm_city()` across all supported metros (13 as of 2026-07-19 — the
+original 7 plus Chicago, Phoenix, San Antonio, San Diego, Jacksonville, and
+Philadelphia, completing top-10-US-city coverage; see PM_METROS ordering
+comments for the collision rules: Phoenix before LA for "Glendale, AZ",
+San Antonio before Dallas's Texas catch-alls). This avoids re-fetching the
 same board once per city. `infer_pm_city` checks metros in a deliberate order —
 Dallas LAST — because `DALLAS_LOCS` carries broad Texas catch-alls (", tx",
 "texas") and a bare "arlington" that would otherwise swallow Houston / DC. Every
@@ -51,6 +55,22 @@ endpoint was auto-discovered + verified HTTP 200 from the droplet IP (Workday
 version+site brute-probed; Greenhouse/Lever token). The same verified set is
 appended to the finance + sales vertical lists (which already infer city). See
 `tests/test_scraper_multi.py` for the inference + list-integrity guards.
+
+### Top-10-city $1B+ wave (2026-07-19)
+
+60 new $1B+ employers added to the multi lists for the top 10 US cities:
+57 Workday + Axon/Fanatics (Greenhouse) + Dun & Bradstreet (Lever). Every
+endpoint verified HTTP 200 from the droplet IP via the ATS APIs
+(Workday CXS jobs POST / Greenhouse boards / Lever postings). Sub-$1B or
+revenue-unverifiable candidates (Availity, Newfold) were dropped, as were 7
+tenants whose Workday site name couldn't be discovered (Live Nation,
+Activision, Petco, Scripps Health, Grubhub, GoDaddy, Radian — 422/401 on all
+probed site names; revisit if needed). Revenue strings added to
+app/company_revenue.py (gotcha tenants: Cencora=myhrabc, Radian=compass,
+Microchip=microchiphr, RYAM=myrayonieram, Citi site name is literally "2").
+Follow-up option: append this set to the finance/sales vertical lists — their
+city sets are pinned, so it's invisible until those verticals get the new
+metros; skipped to keep the 5 AM scrape window safe.
 
 ### Charleston SC coverage + NYC $1B floor (2026-07-07)
 
