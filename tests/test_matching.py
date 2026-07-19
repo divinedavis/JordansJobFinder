@@ -241,3 +241,20 @@ def test_finance_and_sales_level_follows_experience_selection(app):
         "entry-sales-any", "10+", "Sales Manager", "",
         None, None, "u@example.com",
     )
+
+
+def test_finance_department_ic_titles_match():
+    """2026-07-19 expansion: risk/compliance/actuarial/quant/pricing/fund-ops
+    titles count as finance ICs."""
+    from app.matching import title_is_entry_level_finance
+
+    for title in (
+        "Risk Analyst", "Compliance Officer", "AML Investigator",
+        "KYC Analyst", "Actuarial Assistant", "Actuary",
+        "Quantitative Analyst", "Pricing Analyst", "Revenue Analyst",
+        "Fund Operations Specialist", "Middle Office Analyst",
+        "Client Service Associate", "Reconciliation Analyst",
+    ):
+        assert title_is_entry_level_finance(title), title
+    for title in ("Director of Compliance", "VP, Risk Management"):
+        assert not title_is_entry_level_finance(title), title

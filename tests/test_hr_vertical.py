@@ -57,7 +57,7 @@ def test_hr_vertical_matches_without_salary(app):
 # ── City coverage ─────────────────────────────────────────────────────────────
 
 
-def test_hr_scraper_covers_the_four_pa_metros_only():
+def test_hr_scraper_covers_pa_metros_first():
     from scraper_hr import infer_city
 
     assert infer_city("York, PA") == "york-pa"
@@ -65,16 +65,20 @@ def test_hr_scraper_covers_the_four_pa_metros_only():
     assert infer_city("Philadelphia, PA") == "philadelphia-pa"
     assert infer_city("Harrisburg, PA") == "harrisburg-pa"
     assert infer_city("Hershey, PA") == "harrisburg-pa"
-    assert infer_city("New York, NY") == ""
-    assert infer_city("Miami, FL") == ""
+    # Nationwide since 2026-07-19; out-of-scope towns still drop.
+    assert infer_city("New York, NY") == "nyc"
+    assert infer_city("Boise, ID") == ""
 
 
-def test_hr_default_cities_pin_the_four_pa_metros():
+def test_hr_default_cities_keep_pa_first():
+    """PA metros stay first (original audience keeps free-tier cities);
+    nationwide metros follow (2026-07-19)."""
     from app.catalog import HR_DEFAULT_CITIES
 
-    assert HR_DEFAULT_CITIES == [
+    assert HR_DEFAULT_CITIES[:4] == [
         "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
     ]
+    assert "Chicago, IL" in HR_DEFAULT_CITIES
 
 
 # ── Select-a-track flow ───────────────────────────────────────────────────────
@@ -100,7 +104,7 @@ def test_selecting_hr_title_adds_hr_tab_with_pa_cities(signed_in_client, db_sess
     assert search.cities == ["York, PA", "Lancaster, PA", "Philadelphia, PA"]
 
     body = signed_in_client.get("/dashboard?tab=hr").get_data(as_text=True)
-    assert "HR coordinator and generalist roles" in body
+    assert "HR coordinator, generalist, and specialist roles" in body
     assert "?tab=hr" in body
 
 
@@ -152,3 +156,15 @@ def test_dashboard_has_no_hardcoded_track_switch_pill(signed_in_client):
     })
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
     assert "?tab=hr" in body
+
+
+def test_hr_scraper_infers_nationwide_metros():
+    """2026-07-19: HR expanded beyond the PA metros."""
+    from scraper_hr import infer_city
+
+    assert infer_city("Chicago, IL") == "chicago"
+    assert infer_city("Phoenix, AZ") == "phoenix"
+    assert infer_city("San Antonio, TX") == "san-antonio"
+    assert infer_city("Glendale, AZ") == "phoenix"
+    assert infer_city("Philadelphia, PA") == "philadelphia-pa"
+    assert infer_city("Houston, TX") == "houston"

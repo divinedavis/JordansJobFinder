@@ -1,5 +1,6 @@
 """HR scraper — HR coordinator roles and the level directly above
-(generalist / specialist) across the four PA metros.
+(generalist / specialist) across the four PA metros plus the top-10 US
+metros (nationwide expansion 2026-07-19).
 
 Writes to shared_jobs_hr.json. Mirrors scraper_it.py: same 7-day recency
 (these roles post rarely in small metros; results.BOARD_WINDOW_DAYS matches),
@@ -7,7 +8,9 @@ same merged Workday+Greenhouse employer union, same extra-ATS regional
 platforms — which are the ONLY reach into York and Lancaster employers
 (WellSpan, Fulton Bank, Armstrong, Dentsply, Hershey, …). No salary filter:
 HR postings rarely carry pay data and the track doesn't require it.
-Coverage: York PA, Lancaster PA, Philadelphia PA, Harrisburg PA.
+Coverage: York PA, Lancaster PA, Philadelphia PA, Harrisburg PA, plus
+NYC, Chicago, Phoenix, San Antonio, San Diego, Jacksonville, LA, DC,
+Houston, Dallas, Atlanta, Miami (2026-07-19).
 """
 import json
 import re
@@ -34,8 +37,72 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; JordansJobFinder/hr)",
 }
 
+# Top-10-city $1B+ wave (2026-07-19) — endpoints verified from the droplet.
+_TOP10_WAVE = [
+    ("Baxter", "baxter", 1, "baxter"),
+    ("CDW", "cdw", 5, "Careers"),
+    ("Cboe Global Markets", "cboe", 1, "External_Career_CBOE"),
+    ("Conagra Brands", "conagrabrands", 1, "Careers_US"),
+    ("GE HealthCare", "gehc", 5, "GEHC_ExternalSite"),
+    ("Mondelez", "mdlz", 3, "External"),
+    ("Morningstar", "morningstar", 5, "Americas"),
+    ("Northern Trust", "ntrs", 1, "northerntrust"),
+    ("TransUnion", "transunion", 5, "TransUnion"),
+    ("US Foods", "usfoods", 1, "usfoodscareersExternal"),
+    ("Wintrust Financial", "wintrust", 1, "Search"),
+    ("Zebra Technologies", "zebra", 501, "Zebra_careers"),
+    ("PGA Tour", "pgatour", 5, "PGATOURExternal"),
+    ("RYAM", "myrayonieram", 5, "careers"),
+    ("Ares Management", "aresmgmt", 1, "External"),
+    ("Capital Group", "capgroup", 1, "capitalgroupcareers"),
+    ("DIRECTV", "directv", 1, "Careers"),
+    ("Ingram Micro", "ingrammicro", 5, "IngramMicro"),
+    ("Oaktree Capital", "oaktree", 1, "Oaktree"),
+    ("Pacific Life", "pacificlife", 1, "PacificLifeCareers"),
+    ("Skechers", "skechers", 5, "One-career-site"),
+    ("Sony Pictures", "spe", 1, "SonyPicturesEntertainment"),
+    ("Universal Music Group", "umusic", 5, "UMGUS"),
+    ("Axalta", "axalta", 1, "Axalta"),
+    ("Campbell's", "campbellsoup", 5, "ExternalCareers_GlobalSite"),
+    ("Carpenter Technology", "cartech", 5, "CTCExternal"),
+    ("Cencora", "myhrabc", 5, "Global"),
+    ("Chemours", "chemours", 103, "Chemours"),
+    ("Crown Holdings", "crownholdings", 501, "CrownHoldings"),
+    ("DuPont", "dupont", 5, "Jobs"),
+    ("FMC Corporation", "fmc", 12, "FMC"),
+    ("Five Below", "fivebelow", 1, "fivebelowcareers"),
+    ("Jefferson Health", "jeffersonhealth", 5, "ThomasJeffersonExternal"),
+    ("Penn Mutual", "pennmutual", 1, "_penn-careers"),
+    ("UPenn", "upenn", 1, "careers-at-penn"),
+    ("Banner Health", "bannerhealth", 108, "Careers"),
+    ("Microchip Technology", "microchiphr", 5, "External"),
+    ("Republic Services", "republic", 5, "Republic"),
+    ("Taylor Morrison", "taylormorrison", 1, "TaylorMorrisonCareers"),
+    ("U-Haul", "uhaul", 1, "UhaulJobs"),
+    ("Western Alliance Bank", "westernalliancebank", 5, "WAB"),
+    ("Citigroup", "citi", 5, "2"),
+    ("Clear Channel Outdoor", "clearchanneloutdoor", 5, "CCO"),
+    ("Frost Bank", "frostbank", 5, "External"),
+    ("Rackspace", "rackspace", 1, "External"),
+    ("USAA", "usaa", 1, "USAAJOBSWD"),
+    ("Whataburger", "whataburger", 5, "WAB_CAREERS"),
+    ("iHeartMedia", "iheartmedia", 5, "External_iHM"),
+    ("Cubic", "cubic", 1, "cubic_global_careers"),
+    ("Dexcom", "dexcom", 1, "Dexcom"),
+    ("Illumina", "illumina", 1, "illumina-careers"),
+    ("Neurocrine Biosciences", "neurocrine", 5, "Neurocrinecareers"),
+    ("Realty Income", "realtyincome", 108, "realty_income_careers"),
+    ("ResMed", "resmed", 3, "ResMed_External_Careers"),
+    ("Sharp HealthCare", "sharp", 1, "External"),
+    ("Sony Electronics", "sonyglobal", 1, "SonyGlobalCareers"),
+    ("Topgolf Callaway", "tcbrands", 1, "callaway-careers"),
+]
+
 # Reuse the verified sales+finance union assembled by scraper_it.
-HR_WORKDAY_COMPANIES = list(IT_WORKDAY_COMPANIES)
+HR_WORKDAY_COMPANIES = list(IT_WORKDAY_COMPANIES) + [
+    e for e in _TOP10_WAVE
+    if (e[1], e[2], e[3]) not in {(x[1], x[2], x[3]) for x in IT_WORKDAY_COMPANIES}
+]
 HR_GREENHOUSE_COMPANIES = list(IT_GREENHOUSE_COMPANIES)
 
 CITY_LOCATION_PATTERNS = {
@@ -46,6 +113,34 @@ CITY_LOCATION_PATTERNS = {
     "philadelphia-pa": ["philadelphia", "philly", "malvern", "horsham", "blue bell", "wayne, pa", "valley forge", "king of prussia",
                         "hup", "perelman", "pennsylvania hospital", "penn presbyterian", "university city"],
     "harrisburg-pa":   ["harrisburg", "camp hill", "mechanicsburg", "hershey, pa"],
+    # Nationwide metros (2026-07-19). Ordering rules follow scraper.py
+    # PM_METROS: specific metros before Dallas's ", tx"/"texas" catch-alls;
+    # Phoenix before LA so "glendale, az" beats LA's bare "glendale".
+    "nyc":            ["new york", "nyc", "manhattan", "brooklyn", "jersey city"],
+    "miami":          ["miami", "miami beach", "fort lauderdale", "boca raton",
+                       "doral", "coral gables"],
+    "atlanta":        ["atlanta", "alpharetta", "sandy springs", "dunwoody"],
+    "chicago":        ["chicago", "evanston", "naperville", "schaumburg",
+                       "rosemont, il", "oak brook", "deerfield, il",
+                       "vernon hills", "lincolnshire", "northbrook",
+                       "downers grove", "des plaines", "skokie"],
+    "phoenix":        ["phoenix", "scottsdale", "tempe", "chandler",
+                       "mesa, az", "gilbert, az", "glendale, az", "peoria, az"],
+    "san-antonio":    ["san antonio", "new braunfels", "schertz", "windcrest"],
+    "san-diego":      ["san diego", "la jolla", "carlsbad", "chula vista",
+                       "oceanside", "escondido", "encinitas", "poway"],
+    "jacksonville-fl": ["jacksonville", "ponte vedra", "orange park, fl"],
+    "la":             ["los angeles", "santa monica", "culver city",
+                       "long beach", "burbank", "el segundo", "torrance",
+                       "irvine", "newport beach", "beverly hills"],
+    "dc":             ["washington", "d.c.", "arlington, va", "mclean",
+                       "tysons", "reston", "bethesda", "rockville",
+                       "alexandria", "fairfax"],
+    "houston":        ["houston", "the woodlands", "sugar land", "katy",
+                       "pearland", "baytown"],
+    "dallas":         ["dallas", "fort worth", "dfw", "plano", "irving",
+                       "frisco", "richardson", "addison", "tx,", ", tx",
+                       "texas"],
 }
 
 HR_SEARCH_TERMS = [

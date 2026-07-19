@@ -132,6 +132,63 @@ FINANCE_WORKDAY_COMPANIES = [
     ("Williams", "williams", 5, "External"),
     ("Xcel Energy", "xcelenergy", 1, "External"),
 
+    # ── Top-10-city $1B+ wave (2026-07-19): corporate finance departments
+    # at tech / manufacturing / healthcare employers. Endpoints verified
+    # HTTP 200 from the droplet 2026-07-19 (see scraper.py WORKDAY_MULTI).
+    ("Baxter", "baxter", 1, "baxter"),
+    ("CDW", "cdw", 5, "Careers"),
+    ("Cboe Global Markets", "cboe", 1, "External_Career_CBOE"),
+    ("Conagra Brands", "conagrabrands", 1, "Careers_US"),
+    ("GE HealthCare", "gehc", 5, "GEHC_ExternalSite"),
+    ("Mondelez", "mdlz", 3, "External"),
+    ("Morningstar", "morningstar", 5, "Americas"),
+    ("Northern Trust", "ntrs", 1, "northerntrust"),
+    ("TransUnion", "transunion", 5, "TransUnion"),
+    ("US Foods", "usfoods", 1, "usfoodscareersExternal"),
+    ("Wintrust Financial", "wintrust", 1, "Search"),
+    ("Zebra Technologies", "zebra", 501, "Zebra_careers"),
+    ("PGA Tour", "pgatour", 5, "PGATOURExternal"),
+    ("RYAM", "myrayonieram", 5, "careers"),
+    ("Ares Management", "aresmgmt", 1, "External"),
+    ("Capital Group", "capgroup", 1, "capitalgroupcareers"),
+    ("DIRECTV", "directv", 1, "Careers"),
+    ("Ingram Micro", "ingrammicro", 5, "IngramMicro"),
+    ("Oaktree Capital", "oaktree", 1, "Oaktree"),
+    ("Pacific Life", "pacificlife", 1, "PacificLifeCareers"),
+    ("Skechers", "skechers", 5, "One-career-site"),
+    ("Sony Pictures", "spe", 1, "SonyPicturesEntertainment"),
+    ("Universal Music Group", "umusic", 5, "UMGUS"),
+    ("Axalta", "axalta", 1, "Axalta"),
+    ("Campbell's", "campbellsoup", 5, "ExternalCareers_GlobalSite"),
+    ("Carpenter Technology", "cartech", 5, "CTCExternal"),
+    ("Cencora", "myhrabc", 5, "Global"),
+    ("Chemours", "chemours", 103, "Chemours"),
+    ("DuPont", "dupont", 5, "Jobs"),
+    ("Five Below", "fivebelow", 1, "fivebelowcareers"),
+    ("Jefferson Health", "jeffersonhealth", 5, "ThomasJeffersonExternal"),
+    ("Penn Mutual", "pennmutual", 1, "_penn-careers"),
+    ("Banner Health", "bannerhealth", 108, "Careers"),
+    ("Microchip Technology", "microchiphr", 5, "External"),
+    ("Republic Services", "republic", 5, "Republic"),
+    ("Taylor Morrison", "taylormorrison", 1, "TaylorMorrisonCareers"),
+    ("U-Haul", "uhaul", 1, "UhaulJobs"),
+    ("Western Alliance Bank", "westernalliancebank", 5, "WAB"),
+    ("Citigroup", "citi", 5, "2"),
+    ("Clear Channel Outdoor", "clearchanneloutdoor", 5, "CCO"),
+    ("Frost Bank", "frostbank", 5, "External"),
+    ("Rackspace", "rackspace", 1, "External"),
+    ("USAA", "usaa", 1, "USAAJOBSWD"),
+    ("Whataburger", "whataburger", 5, "WAB_CAREERS"),
+    ("iHeartMedia", "iheartmedia", 5, "External_iHM"),
+    ("Cubic", "cubic", 1, "cubic_global_careers"),
+    ("Dexcom", "dexcom", 1, "Dexcom"),
+    ("Illumina", "illumina", 1, "illumina-careers"),
+    ("Neurocrine Biosciences", "neurocrine", 5, "Neurocrinecareers"),
+    ("Realty Income", "realtyincome", 108, "realty_income_careers"),
+    ("ResMed", "resmed", 3, "ResMed_External_Careers"),
+    ("Sharp HealthCare", "sharp", 1, "External"),
+    ("Sony Electronics", "sonyglobal", 1, "SonyGlobalCareers"),
+    ("Topgolf Callaway", "tcbrands", 1, "callaway-careers"),
 ]
 
 # Greenhouse: (name, token). Token "coinbase" 404'd — Coinbase moved boards.
@@ -242,6 +299,9 @@ FINANCE_SEARCH_TERMS = [
     "associate",
     "fp&a",
     "treasury",
+    # 2026-07-19: catch titles with no analyst/associate token
+    "actuarial",
+    "compliance",
 ]
 
 # Title keywords that mark a job as entry-level finance
@@ -253,6 +313,11 @@ FINANCE_TITLE_KEYWORDS = (
     "actuarial", "treasury", "risk analyst",
     "compliance analyst", "operations analyst",
     "research associate", "research analyst",
+    # 2026-07-19: finance-department ICs beyond the classic tracks
+    "actuary", "compliance officer", "aml", "kyc", "financial crimes",
+    "quantitative analyst", "quant analyst", "pricing analyst",
+    "revenue analyst", "fund operations", "middle office",
+    "client service associate", "reconciliation analyst",
 )
 
 # Negative title keywords — skip these

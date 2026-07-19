@@ -73,7 +73,7 @@ def group_matches_by_city(matches: list[dict]) -> dict:
 # Board freshness window per vertical. IT project/program roles in the PA/FL
 # metros post far less often than the national tracks — a 2-day window leaves
 # that board nearly empty, so it keeps a week.
-BOARD_WINDOW_DAYS = {"it": 7, "hr": 7, "scm": 7, "project": 7}
+BOARD_WINDOW_DAYS = {"it": 7, "hr": 7, "scm": 7, "project": 7, "analyst": 7}
 DEFAULT_BOARD_WINDOW_DAYS = 2
 
 

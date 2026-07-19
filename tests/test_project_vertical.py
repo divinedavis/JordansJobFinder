@@ -42,7 +42,10 @@ def test_project_matches_without_salary(app):
     )
 
 
-def test_project_is_selectable_and_wired():
+def test_project_is_merged_into_pm_not_selectable():
+    """2026-07-19: project management rides the Product/Program Manager
+    board. The standalone picker option is gone, but legacy wiring (labels,
+    keywords, default cities) stays for existing saved searches."""
     from app.catalog import (
         SELECTABLE_TITLES,
         TITLE_KEYWORDS,
@@ -50,12 +53,34 @@ def test_project_is_selectable_and_wired():
         VERTICAL_DEFAULT_CITIES,
     )
 
-    assert any(t["slug"] == "project-management" for t in SELECTABLE_TITLES)
+    assert not any(t["slug"] == "project-management" for t in SELECTABLE_TITLES)
+    # Legacy wiring still resolves for accounts created before the merge.
     assert TITLE_VERTICALS["project-management"] == "project"
     assert "project-management" in TITLE_KEYWORDS
-    assert VERTICAL_DEFAULT_CITIES["project"] == [
-        "Charleston, SC", "Columbia, SC", "Greenville, SC", "Rock Hill, SC",
-    ]
+    assert "project" in VERTICAL_DEFAULT_CITIES
+
+
+def test_pm_search_matches_project_jobs(app):
+    """A Product/Program Manager saved search shows project-vertical jobs."""
+    from types import SimpleNamespace
+    from app.sync import _search_matches_job
+
+    search = SimpleNamespace(
+        vertical="pm", title_slug="technical-product-manager",
+        experience_bucket="10+", cities=["Charleston, SC"],
+    )
+    job = SimpleNamespace(
+        vertical="project", title="Project Manager, Facilities",
+        company="MUSC", city="charleston-sc", location="Charleston, SC",
+        description="", salary_min=None, salary_max=None,
+    )
+    assert _search_matches_job(search, job, "u@example.com")
+    bad = SimpleNamespace(
+        vertical="project", title="Marketing Analyst",
+        company="MUSC", city="charleston-sc", location="Charleston, SC",
+        description="", salary_min=None, salary_max=None,
+    )
+    assert not _search_matches_job(search, bad, "u@example.com")
 
 
 def test_project_board_window_is_a_week():

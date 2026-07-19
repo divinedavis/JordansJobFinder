@@ -1,5 +1,7 @@
 """Supply Chain Management scraper — supply-chain / logistics / procurement
-roles at $1B+ employers, scoped to South Carolina's major metros.
+roles (plus manufacturing-operations ICs) at $1B+ employers across the
+top-10 US metros, Atlanta/Miami/DC, and South Carolina's major metros
+(nationwide expansion 2026-07-19; originally SC-only).
 
 Writes to shared_jobs_scm.json. Mirrors scraper_hr.py: same 7-day recency
 (SC roles post sparsely; results.BOARD_WINDOW_DAYS matches), same merged
@@ -38,6 +40,68 @@ HEADERS = {
 # $1B+ employer union (verified sales+finance set from scraper_it) plus the
 # verified Charleston-area employers, plus the full verified SC $1B+ registry
 # (scraper_sc_employers) — the major SC employers across all four metros.
+# Top-10-city $1B+ wave (2026-07-19) — manufacturing/health/consumer
+# employers with heavy supply-chain orgs. Endpoints verified from droplet.
+_TOP10_WAVE = [
+    ("Baxter", "baxter", 1, "baxter"),
+    ("CDW", "cdw", 5, "Careers"),
+    ("Cboe Global Markets", "cboe", 1, "External_Career_CBOE"),
+    ("Conagra Brands", "conagrabrands", 1, "Careers_US"),
+    ("GE HealthCare", "gehc", 5, "GEHC_ExternalSite"),
+    ("Mondelez", "mdlz", 3, "External"),
+    ("Morningstar", "morningstar", 5, "Americas"),
+    ("Northern Trust", "ntrs", 1, "northerntrust"),
+    ("TransUnion", "transunion", 5, "TransUnion"),
+    ("US Foods", "usfoods", 1, "usfoodscareersExternal"),
+    ("Wintrust Financial", "wintrust", 1, "Search"),
+    ("Zebra Technologies", "zebra", 501, "Zebra_careers"),
+    ("PGA Tour", "pgatour", 5, "PGATOURExternal"),
+    ("RYAM", "myrayonieram", 5, "careers"),
+    ("Ares Management", "aresmgmt", 1, "External"),
+    ("Capital Group", "capgroup", 1, "capitalgroupcareers"),
+    ("DIRECTV", "directv", 1, "Careers"),
+    ("Ingram Micro", "ingrammicro", 5, "IngramMicro"),
+    ("Oaktree Capital", "oaktree", 1, "Oaktree"),
+    ("Pacific Life", "pacificlife", 1, "PacificLifeCareers"),
+    ("Skechers", "skechers", 5, "One-career-site"),
+    ("Sony Pictures", "spe", 1, "SonyPicturesEntertainment"),
+    ("Universal Music Group", "umusic", 5, "UMGUS"),
+    ("Axalta", "axalta", 1, "Axalta"),
+    ("Campbell's", "campbellsoup", 5, "ExternalCareers_GlobalSite"),
+    ("Carpenter Technology", "cartech", 5, "CTCExternal"),
+    ("Cencora", "myhrabc", 5, "Global"),
+    ("Chemours", "chemours", 103, "Chemours"),
+    ("Crown Holdings", "crownholdings", 501, "CrownHoldings"),
+    ("DuPont", "dupont", 5, "Jobs"),
+    ("FMC Corporation", "fmc", 12, "FMC"),
+    ("Five Below", "fivebelow", 1, "fivebelowcareers"),
+    ("Jefferson Health", "jeffersonhealth", 5, "ThomasJeffersonExternal"),
+    ("Penn Mutual", "pennmutual", 1, "_penn-careers"),
+    ("UPenn", "upenn", 1, "careers-at-penn"),
+    ("Banner Health", "bannerhealth", 108, "Careers"),
+    ("Microchip Technology", "microchiphr", 5, "External"),
+    ("Republic Services", "republic", 5, "Republic"),
+    ("Taylor Morrison", "taylormorrison", 1, "TaylorMorrisonCareers"),
+    ("U-Haul", "uhaul", 1, "UhaulJobs"),
+    ("Western Alliance Bank", "westernalliancebank", 5, "WAB"),
+    ("Citigroup", "citi", 5, "2"),
+    ("Clear Channel Outdoor", "clearchanneloutdoor", 5, "CCO"),
+    ("Frost Bank", "frostbank", 5, "External"),
+    ("Rackspace", "rackspace", 1, "External"),
+    ("USAA", "usaa", 1, "USAAJOBSWD"),
+    ("Whataburger", "whataburger", 5, "WAB_CAREERS"),
+    ("iHeartMedia", "iheartmedia", 5, "External_iHM"),
+    ("Cubic", "cubic", 1, "cubic_global_careers"),
+    ("Dexcom", "dexcom", 1, "Dexcom"),
+    ("Illumina", "illumina", 1, "illumina-careers"),
+    ("Neurocrine Biosciences", "neurocrine", 5, "Neurocrinecareers"),
+    ("Realty Income", "realtyincome", 108, "realty_income_careers"),
+    ("ResMed", "resmed", 3, "ResMed_External_Careers"),
+    ("Sharp HealthCare", "sharp", 1, "External"),
+    ("Sony Electronics", "sonyglobal", 1, "SonyGlobalCareers"),
+    ("Topgolf Callaway", "tcbrands", 1, "callaway-careers"),
+]
+
 _CHARLESTON = [
     ("Boeing", "boeing", 1, "EXTERNAL_CAREERS"),
     ("Ingevity", "ingevity", 1, "Ingevity"),
@@ -58,7 +122,7 @@ def _merge(*lists, key):
 
 
 SCM_WORKDAY_COMPANIES = _merge(
-    IT_WORKDAY_COMPANIES, _CHARLESTON, SC_WORKDAY_1B,
+    IT_WORKDAY_COMPANIES, _CHARLESTON, SC_WORKDAY_1B, _TOP10_WAVE,
     key=lambda e: (e[1], e[2], e[3]),
 )
 SCM_GREENHOUSE_COMPANIES = _merge(
@@ -67,6 +131,7 @@ SCM_GREENHOUSE_COMPANIES = _merge(
 
 # Metro-level SC inference. Order-independent (no overlaps between metros).
 CITY_LOCATION_PATTERNS = {
+    # SC metros first (original track scope; no overlaps with each other).
     "charleston-sc":  ["charleston", "north charleston", "mount pleasant",
                        "mt pleasant", "summerville", "ladson", "goose creek",
                        "moncks corner", "hanahan", "daniel island", "ridgeville"],
@@ -78,11 +143,52 @@ CITY_LOCATION_PATTERNS = {
                        "easley", "duncan, sc", "upstate"],
     "rock-hill-sc":   ["rock hill", "fort mill", "york, sc", "york county, sc",
                        "tega cay", "clover, sc"],
+    # Nationwide metros (2026-07-19 expansion). Same ordering rules as
+    # scraper.py PM_METROS: specific metros before Dallas (whose list carries
+    # broad ", tx"/"texas" catch-alls); Phoenix before LA so "glendale, az"
+    # beats LA's bare "glendale".
+    "nyc":            ["new york", "nyc", "manhattan", "brooklyn", "jersey city"],
+    "miami":          ["miami", "miami beach", "fort lauderdale", "boca raton",
+                       "doral", "coral gables", "south florida"],
+    "atlanta":        ["atlanta", "alpharetta", "sandy springs", "dunwoody"],
+    "chicago":        ["chicago", "evanston", "naperville", "schaumburg",
+                       "rosemont, il", "oak brook", "deerfield, il",
+                       "vernon hills", "lincolnshire", "northbrook",
+                       "downers grove", "des plaines", "skokie", "itasca",
+                       "hoffman estates", "lake forest, il"],
+    "phoenix":        ["phoenix", "scottsdale", "tempe", "chandler",
+                       "mesa, az", "gilbert, az", "glendale, az",
+                       "peoria, az", "goodyear, az"],
+    "san-antonio":    ["san antonio", "new braunfels", "schertz", "windcrest"],
+    "san-diego":      ["san diego", "la jolla", "carlsbad", "sorrento valley",
+                       "chula vista", "oceanside", "escondido", "encinitas",
+                       "poway", "rancho bernardo"],
+    "jacksonville-fl": ["jacksonville", "ponte vedra", "orange park, fl"],
+    "philadelphia-pa": ["philadelphia", "philly", "conshohocken",
+                        "king of prussia", "wayne, pa", "radnor", "malvern",
+                        "horsham", "camden, nj", "wilmington, de",
+                        "chesterbrook", "plymouth meeting", "blue bell",
+                        "west chester, pa", "newtown square"],
+    "la":             ["los angeles", "santa monica", "culver city",
+                       "long beach", "burbank", "el segundo", "torrance",
+                       "irvine", "newport beach", "woodland hills",
+                       "manhattan beach", "beverly hills"],
+    "dc":             ["washington", "d.c.", "arlington, va", "mclean",
+                       "tysons", "reston", "bethesda", "rockville",
+                       "alexandria", "fairfax"],
+    "houston":        ["houston", "the woodlands", "sugar land", "katy",
+                       "pearland", "baytown"],
+    "dallas":         ["dallas", "fort worth", "dfw", "plano", "irving",
+                       "frisco", "richardson", "addison", "tx,", ", tx",
+                       "texas"],
 }
 
 SCM_SEARCH_TERMS = [
     "supply chain", "logistics", "procurement", "sourcing", "buyer",
     "materials", "demand planning", "warehouse", "distribution",
+    # 2026-07-19: manufacturing-operations ICs
+    "production planner", "quality engineer", "manufacturing engineer",
+    "process engineer", "continuous improvement",
 ]
 
 # Keep in sync with app/matching.py::SCM_KEYWORDS.
@@ -92,6 +198,12 @@ SCM_KEYWORDS = (
     "supply planning", "inventory", "distribution", "warehouse",
     "fulfillment", "s&op", "buyer", "commodity manager", "category manager",
     "supply chain planner", "operations planner", "logistics coordinator",
+    # 2026-07-19: manufacturing-operations ICs. Keep in sync with
+    # app/matching.py::SCM_KEYWORDS.
+    "production planner", "master scheduler", "production scheduler",
+    "quality engineer", "quality analyst", "supplier quality",
+    "manufacturing engineer", "process engineer", "industrial engineer",
+    "continuous improvement", "lean six sigma", "ehs specialist",
 )
 SCM_NEGATIVE_KEYWORDS = ("intern", "internship")
 

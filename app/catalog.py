@@ -14,6 +14,7 @@ TITLE_OPTIONS = [
     {"slug": "entry-sales-solutions-engineer", "label": "Sales / Solutions Engineer", "vertical": "sales"},
     {"slug": "entry-sales-inside-sales", "label": "Inside Sales / Sales Representative", "vertical": "sales"},
     {"slug": "it-project-program-manager", "label": "IT Project / Program Manager", "vertical": "it"},
+    {"slug": "data-business-analyst", "label": "Data / Business Analyst", "vertical": "analyst"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
     {"slug": "supply-chain-mgmt", "label": "Supply Chain Management", "vertical": "scm"},
     {"slug": "project-management", "label": "Project Management", "vertical": "project"},
@@ -26,14 +27,15 @@ TITLE_VERTICALS = {item["slug"]: item["vertical"] for item in TITLE_OPTIONS}
 # per track. The full TITLE_OPTIONS list above stays for validation/labels so
 # legacy saved searches with sub-track slugs keep working.
 SELECTABLE_TITLES = [
-    # Combined selection: product, program, AND IT project/program manager
-    # roles ride one option — a PM search also matches IT-vertical jobs.
-    {"slug": "technical-product-manager", "label": "Product / Program / IT Manager", "vertical": "pm"},
+    # Combined selection: product, program, project, AND IT project/program
+    # manager roles ride one option — a Product/Program Manager search also
+    # matches IT-vertical and project-vertical jobs.
+    {"slug": "technical-product-manager", "label": "Product / Program / Project Manager", "vertical": "pm"},
     {"slug": "entry-finance-any", "label": "Corporate Finance", "vertical": "finance"},
     {"slug": "entry-sales-any", "label": "Corporate Sales", "vertical": "sales"},
+    {"slug": "data-business-analyst", "label": "Data / Business Analyst", "vertical": "analyst"},
     {"slug": "hr-coordinator", "label": "HR Coordinator / Generalist (5+ yrs)", "vertical": "hr"},
-    {"slug": "supply-chain-mgmt", "label": "Supply Chain Management (SC · $1B+)", "vertical": "scm"},
-    {"slug": "project-management", "label": "Project Management (SC · $1B+)", "vertical": "project"},
+    {"slug": "supply-chain-mgmt", "label": "Supply Chain Management ($1B+)", "vertical": "scm"},
 ]
 
 TITLE_KEYWORDS = {
@@ -56,6 +58,22 @@ TITLE_KEYWORDS = {
     "entry-finance-commercial-banking": [
         "credit analyst", "commercial banking", "underwriting",
         "underwriter", "loan officer", "portfolio analyst",
+    ],
+    # 2026-07-19: corporate-finance-department ICs beyond the classic
+    # analyst tracks — risk/compliance, actuarial, quant, pricing, fund
+    # operations, client service.
+    "data-business-analyst": [
+        "data analyst", "business analyst", "business intelligence",
+        "bi analyst", "analytics analyst", "product analyst",
+        "product operations", "business systems analyst",
+        "reporting analyst", "insights analyst",
+    ],
+    "entry-finance-risk-compliance": [
+        "risk analyst", "compliance analyst", "compliance officer",
+        "aml", "kyc", "financial crimes", "sanctions screening",
+        "actuarial", "actuary", "quantitative analyst", "quant analyst",
+        "pricing analyst", "revenue analyst", "fund operations",
+        "middle office", "client service associate", "reconciliation analyst",
     ],
 }
 # "any" finance slug = union of all finance keywords
@@ -182,20 +200,36 @@ IT_DEFAULT_CITIES = [
 ]
 # HR coordinator track: the four PA metros, always — selecting the HR title
 # pins these cities (the 3-city picker on the form is PM-specific).
+# PA metros stay first (the track's original audience keeps its free-tier
+# cities); the nationwide metros added 2026-07-19 are reachable on paid
+# tiers or via a custom-city override.
 HR_DEFAULT_CITIES = [
     "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
+    "New York, NY", "Chicago, IL", "Phoenix, AZ", "San Diego, CA",
+    "Houston, TX", "Dallas, TX",
 ]
-# Supply chain management track: South Carolina's major metros (Lowcountry,
-# Midlands, Upstate, and the York-County/Charlotte side). Free plan caps to
-# the first 3 (Charleston, Columbia, Greenville).
+# Data / Business Analyst track (2026-07-19): biggest analytics markets
+# first; free plan caps to the first 3.
+ANALYST_DEFAULT_CITIES = [
+    "New York, NY", "Chicago, IL", "Dallas, TX", "Atlanta, GA",
+    "Philadelphia, PA", "Phoenix, AZ", "Los Angeles, CA", "San Diego, CA",
+    "Houston, TX", "Washington, DC",
+]
+# Supply chain management track: nationwide major metros since 2026-07-19
+# (originally SC-only). Free plan caps to the first 3.
+# 2026-07-19: expanded nationwide (originally SC-only). Free plan caps to the
+# first 3; paid tiers reach deeper into the list.
 SCM_DEFAULT_CITIES = [
-    "Charleston, SC", "Columbia, SC", "Greenville, SC", "Rock Hill, SC",
+    "Chicago, IL", "Philadelphia, PA", "Houston, TX", "Phoenix, AZ",
+    "Dallas, TX", "New York, NY", "Los Angeles, CA", "San Diego, CA",
+    "Jacksonville, FL", "Charleston, SC",
 ]
 # Project management track: same four SC metros as SCM (pilot state). Free plan
 # caps to the first 3.
 PROJECT_DEFAULT_CITIES = list(SCM_DEFAULT_CITIES)
 # Vertical -> fixed default city set used when a non-PM title is selected.
 VERTICAL_DEFAULT_CITIES = {
+    "analyst": ANALYST_DEFAULT_CITIES,
     "finance": FINANCE_DEFAULT_CITIES,
     "sales": SALES_DEFAULT_CITIES,
     "it": IT_DEFAULT_CITIES,

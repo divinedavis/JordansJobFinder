@@ -186,10 +186,10 @@ def test_title_choices_are_combined_one_per_track():
     from app.searches import valid_title_slug
 
     options = title_choices()
-    # IT project/program rides the PM option (combined); SCM and Project
-    # Management are each their own SC-scoped option.
+    # IT project/program AND project management ride the PM option
+    # (combined 2026-07-19); Data/Business Analyst added the same day.
     assert [o["vertical"] for o in options] == [
-        "pm", "finance", "sales", "hr", "scm", "project",
+        "pm", "finance", "sales", "analyst", "hr", "scm",
     ]
     assert len(options) == 6
     # Legacy sub-track slugs must remain valid for existing saved searches.

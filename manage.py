@@ -21,6 +21,7 @@ def main():
             "rebuild-matches",
             "run-daily-sync",
             "backfill-resume-years",
+            "migrate-project-searches",
         ],
         help="Command to execute",
     )
@@ -66,6 +67,35 @@ def main():
             db.commit()
             matched = rebuild_matches()
         print(f"Backfilled years on {updated} resumes; rebuilt {matched} matches.")
+        return
+
+    if args.command == "migrate-project-searches":
+        # 2026-07-19: project management merged into the Product/Program
+        # Manager board. Convert standalone project saved searches to the PM
+        # track (keeping cities); drop them when the user already has a PM
+        # search, then rebuild matches.
+        from app.db import get_db
+        from app.models import SavedSearch
+
+        with app.app_context():
+            db = get_db()
+            converted = dropped = 0
+            for search in db.query(SavedSearch).filter(SavedSearch.vertical == "project").all():
+                has_pm = (
+                    db.query(SavedSearch)
+                    .filter(SavedSearch.user_id == search.user_id, SavedSearch.vertical == "pm")
+                    .count()
+                )
+                if has_pm:
+                    db.delete(search)
+                    dropped += 1
+                else:
+                    search.vertical = "pm"
+                    search.title_slug = "technical-product-manager"
+                    converted += 1
+            db.commit()
+            matched = rebuild_matches()
+        print(f"Converted {converted}, dropped {dropped} project searches; rebuilt {matched} matches.")
         return
 
     if args.command == "run-daily-sync":

@@ -748,6 +748,12 @@ WORKDAY_MULTI = [
     ("Ingevity", "ingevity", 1, "Ingevity"),                  # specialty chemicals (HQ)
     ("SouthState Bank", "southstatebank", 5, "External"),      # SC-heavy bank
     ("Benefitfocus", "godirect", 5, "voya_jobs"),             # Voya/Benefitfocus (HQ, Daniel Island)
+    # ── Finance-scraper boards not previously scraped for Product/Program
+    # Manager roles (2026-07-19). Endpoints already verified daily by
+    # scraper_finance.py from the droplet.
+    ("Highmark", "highmarkhealth", 1, "highmark"),
+    ("M&T Bank", "mtb", 5, "MTB"),
+    ("Stanley Black & Decker", "sbdinc", 1, "Stanley_Black_Decker_Career_Site"),
     # ── Top-10-city $1B+ wave (2026-07-19): Chicago, Phoenix, San Antonio,
     # San Diego, Jacksonville, Philadelphia, plus LA additions. Every endpoint
     # verified HTTP 200 (Workday CXS jobs API) from the droplet IP 2026-07-19.
@@ -2420,14 +2426,14 @@ def write_html(jobs):
             "label": "Atlanta",
             "kicker": "VP or Senior",
             "accent": "var(--accent-atl)",
-            "description": "Senior and executive PM and PgM roles across enterprise, fintech, and infrastructure.",
+            "description": "Senior and executive Product Manager and Program Manager roles across enterprise, fintech, and infrastructure.",
             "empty": "No Atlanta matches landed in the last two days.",
         },
         "mia": {
             "label": "Miami",
             "kicker": "VP or Senior",
             "accent": "var(--accent-mia)",
-            "description": "South Florida PM and PgM coverage with the same screening logic as Atlanta.",
+            "description": "South Florida Product Manager and Program Manager coverage with the same screening logic as Atlanta.",
             "empty": "No Miami matches landed in the last two days.",
         },
     }
@@ -2799,7 +2805,7 @@ def write_html(jobs):
         <div class="hero-meta">
           <span class="hero-pill">Last run: {run_date}</span>
           <span class="hero-pill">Live public website</span>
-          <span class="hero-pill">PM / PgM only</span>
+          <span class="hero-pill">Product / Program Manager roles only</span>
         </div>
       </div>
       <div class="hero-visual">

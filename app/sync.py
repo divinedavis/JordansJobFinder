@@ -14,6 +14,7 @@ from .matching import (
     location_matches_city,
     match_job_for_user,
     title_is_it_pm,
+    title_is_project,
 )
 from .models import (
     BaseResume,
@@ -79,9 +80,10 @@ def _search_matches_job(search, job, user_email, resume_years=None) -> bool:
     if company_excluded(job.company or ""):
         return False
     if job.vertical != search.vertical:
-        # Combined selection: the PM track also covers IT project/program
-        # manager jobs (one dropdown option for both role families).
-        if not (search.vertical == "pm" and job.vertical == "it"):
+        # Combined selection: the Product/Program Manager track also covers
+        # IT project/program manager AND project-management jobs (one
+        # dropdown option for all three role families).
+        if not (search.vertical == "pm" and job.vertical in ("it", "project")):
             return False
     allowed_cities = {c for c in (search.cities or []) if c}
     city_display = CITY_DISPLAY.get(job.city, job.location or "")
@@ -97,6 +99,9 @@ def _search_matches_job(search, job, user_email, resume_years=None) -> bool:
         # IT-vertical feeds carry no salary or experience data — apply the IT
         # track's own rule (title heuristic only) instead of the PM gates.
         return title_is_it_pm(job.title)
+    if search.vertical == "pm" and job.vertical == "project":
+        # Same shape for project-management jobs riding the PM board.
+        return title_is_project(job.title)
     return match_job_for_user(
         search.title_slug,
         bucket_for_years(resume_years) or search.experience_bucket,

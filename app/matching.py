@@ -105,8 +105,52 @@ SCM_KEYWORDS = (
     "supply planning", "inventory", "distribution", "warehouse",
     "fulfillment", "s&op", "buyer", "commodity manager", "category manager",
     "supply chain planner", "operations planner", "logistics coordinator",
+    # 2026-07-19: manufacturing-operations ICs (the track covers supply chain
+    # AND manufacturing ops at $1B+ employers). Keep in sync with
+    # scraper_scm.py::SCM_KEYWORDS.
+    "production planner", "master scheduler", "production scheduler",
+    "quality engineer", "quality analyst", "supplier quality",
+    "manufacturing engineer", "process engineer", "industrial engineer",
+    "continuous improvement", "lean six sigma", "ehs specialist",
 )
 SCM_NEGATIVE_KEYWORDS = ("intern", "internship")
+
+
+# Data / Business Analyst track (2026-07-19): analytics ICs across every
+# industry. Finance-track vocabulary (financial/credit/investment analyst…)
+# is deliberately EXCLUDED so the same posting doesn't flip between
+# verticals on successive syncs (DB upsert is by URL, last write wins).
+# Keep in sync with scraper_analyst.py.
+ANALYST_KEYWORDS = (
+    "data analyst", "business analyst", "business intelligence",
+    "bi analyst", "bi developer", "analytics analyst", "product analyst",
+    "product operations", "business systems analyst", "reporting analyst",
+    "insights analyst", "data quality analyst", "marketing analyst",
+    "operations analyst", "strategy analyst",
+)
+ANALYST_NEGATIVE_KEYWORDS = (
+    "financial analyst", "finance analyst", "credit analyst",
+    "investment analyst", "audit", "tax", "actuarial", "treasury",
+    "intern", "internship",
+    "director", "vice president", "vp,", "vp ", " vp", "head of", "chief",
+)
+
+
+def title_is_analyst(title: str, entry_only: bool = False) -> bool:
+    """Data/business-analytics IC titles. Management always excluded;
+    senior ICs excluded only for 0-2-years users (entry_only)."""
+    normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
+    if not is_corporate_role(normalized):
+        return False
+    if any(neg in normalized for neg in ANALYST_NEGATIVE_KEYWORDS):
+        return False
+    if any(neg in normalized for neg in FINANCE_MANAGEMENT_NEGATIVE):
+        return False
+    if entry_only and any(term in normalized for term in IC_SENIORITY_TERMS):
+        return False
+    return any(kw in normalized for kw in ANALYST_KEYWORDS)
 
 
 def title_is_scm(title: str) -> bool:
@@ -342,6 +386,18 @@ def match_job_for_user(
         if title_slug != "entry-finance-any" and not title_matches(title, title_slug):
             return False
         # If experience is parseable, require it to fit (defaults to 0-2).
+        if parsed.min_years is not None or parsed.max_years is not None:
+            if resume_years is not None:
+                return candidate_qualifies(resume_years, parsed)
+            return experience_bucket_matches(experience_bucket or "0-2", parsed)
+        return True
+
+    if vertical == "analyst":
+        # Data/Business Analyst: level follows experience (like finance).
+        # No salary floor — analytics postings often omit pay.
+        entry_only = (experience_bucket or "0-2") == "0-2"
+        if not title_is_analyst(title, entry_only=entry_only):
+            return False
         if parsed.min_years is not None or parsed.max_years is not None:
             if resume_years is not None:
                 return candidate_qualifies(resume_years, parsed)

@@ -30,7 +30,7 @@ def test_title_is_scm_rejects_unrelated_roles():
         assert not title_is_scm(title), title
 
 
-def test_scm_scraper_infers_sc_metros_only():
+def test_scm_scraper_infers_sc_and_nationwide_metros():
     from scraper_scm import infer_city
 
     assert infer_city("Charleston, SC") == "charleston-sc"
@@ -40,9 +40,15 @@ def test_scm_scraper_infers_sc_metros_only():
     assert infer_city("Spartanburg, SC") == "greenville-sc"
     assert infer_city("Rock Hill, SC") == "rock-hill-sc"
     assert infer_city("Fort Mill, SC") == "rock-hill-sc"
+    # Nationwide expansion (2026-07-19).
+    assert infer_city("Chicago, IL") == "chicago"
+    assert infer_city("Phoenix, AZ") == "phoenix"
+    assert infer_city("San Antonio, TX") == "san-antonio"
+    assert infer_city("Houston, TX") == "houston"
+    assert infer_city("Glendale, AZ") == "phoenix"
+    assert infer_city("Philadelphia, PA") == "philadelphia-pa"
     # Out of scope -> dropped.
     assert infer_city("Charlotte, NC") == ""
-    assert infer_city("Atlanta, GA") == ""
 
 
 def test_verified_sc_1b_employers_are_in_scm_union():
@@ -79,12 +85,11 @@ def test_scm_matches_without_salary(app):
     )
 
 
-def test_scm_default_cities_are_sc_metros():
+def test_scm_default_cities_lead_with_major_metros():
     from app.catalog import SCM_DEFAULT_CITIES
 
-    assert SCM_DEFAULT_CITIES == [
-        "Charleston, SC", "Columbia, SC", "Greenville, SC", "Rock Hill, SC",
-    ]
+    assert SCM_DEFAULT_CITIES[:3] == ["Chicago, IL", "Philadelphia, PA", "Houston, TX"]
+    assert "Charleston, SC" in SCM_DEFAULT_CITIES
 
 
 def test_selecting_scm_adds_track_capped_to_free_limit(signed_in_client, db_session):
@@ -101,8 +106,8 @@ def test_selecting_scm_adds_track_capped_to_free_limit(signed_in_client, db_sess
     search = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "scm"
     ).one()
-    # Free plan caps to 3 of the 4 SC metros.
-    assert search.cities == ["Charleston, SC", "Columbia, SC", "Greenville, SC"]
+    # Free plan caps to the first 3 defaults (nationwide since 2026-07-19).
+    assert search.cities == ["Chicago, IL", "Philadelphia, PA", "Houston, TX"]
 
     body = signed_in_client.get("/dashboard?tab=scm").get_data(as_text=True)
     assert "Supply chain" in body
@@ -123,8 +128,8 @@ def test_scm_board_keeps_a_week(app, signed_in_client, db_session):
     job = Job(
         source="test", company="Nucor", title="Supply Chain Analyst",
         normalized_title="supply chain analyst",
-        url="https://example.com/jobs/scm-1", city="greenville-sc",
-        location="Greenville, SC", description="", vertical="scm",
+        url="https://example.com/jobs/scm-1", city="chicago",
+        location="Chicago, IL", description="", vertical="scm",
         is_technical=False, posted_at=five_days_ago,
     )
     db_session.add(job)

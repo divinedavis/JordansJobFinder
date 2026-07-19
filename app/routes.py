@@ -372,15 +372,16 @@ def login():
 
 
 VERTICAL_LABELS = {
-    "pm": "Product / Program / IT Manager",
+    "pm": "Product / Program / Project Manager",
     "finance": "Corporate Finance",
     "sales": "Corporate Sales",
+    "analyst": "Data / Business Analyst",
     "it": "IT Project/Program Manager",
     "hr": "HR Coordinator+",
-    "scm": "Supply Chain (SC)",
-    "project": "Project Management (SC)",
+    "scm": "Supply Chain",
+    "project": "Project Management",
 }
-VERTICAL_ORDER = ["pm", "finance", "sales", "it", "hr", "scm", "project"]
+VERTICAL_ORDER = ["pm", "finance", "sales", "analyst", "it", "hr", "scm", "project"]
 
 
 def user_verticals(user) -> list[str]:

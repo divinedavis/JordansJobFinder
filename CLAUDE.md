@@ -259,6 +259,31 @@ Verify from the server:
 - **iCIMS**: `GET https://{sub}.icims.com/jobs/search?ss=1&hashed=-1&in_iframe=1` (browser UA; the `in_iframe=1` is mandatory).
 - **SuccessFactors**: `GET https://{careers-host}/search/?q=&startrow=0` (browser UA; parse `tr.data-row`).
 
+## Vertical Overhaul (2026-07-19)
+
+- **Project management merged into the PM track**: the picker option is gone;
+  a PM saved search matches `vertical in ("pm","it","project")` jobs
+  (`_search_matches_job`). One-time `manage.py migrate-project-searches`
+  converts/drops legacy project searches. scraper_project.py still runs and
+  feeds `vertical="project"` — its jobs now surface on PM boards.
+- **Finance**: top-10-city wave appended to FINANCE_WORKDAY_COMPANIES (+54
+  boards); new IC keyword group `entry-finance-risk-compliance`
+  (risk/compliance/AML-KYC/actuarial/quant/pricing/fund-ops/client-service);
+  search terms += actuarial, compliance. Scrape runtime grows accordingly.
+- **SCM nationwide**: scraper_scm.py covers the 13 metros + SC four (ordered
+  patterns, Dallas catch-alls last), adds the wave employers, and now also
+  matches manufacturing-operations ICs (production planner, quality/process/
+  manufacturing/industrial engineer, lean/CI, EHS). Defaults lead with
+  Chicago/Philadelphia/Houston.
+- **HR nationwide**: scraper_hr.py adds the same nationwide metros (PA metros
+  stay first in defaults for the original audience) + wave employers.
+- **Data/Business Analyst vertical** (`analyst`): new selectable title
+  `data-business-analyst`; scraper_analyst.py is a thin wrapper over
+  scraper_scm.run() (same employer union/metros, analyst terms + title
+  filter). Finance vocabulary excluded from analyst keywords so postings
+  don't flip verticals between syncs (DB upsert is by URL). 7-day board
+  window. Cron must run scraper_analyst.py before run-daily-sync.
+
 ## Database Models
 
 - **User** — email, password hash
