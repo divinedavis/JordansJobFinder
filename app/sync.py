@@ -57,22 +57,22 @@ CITY_DISPLAY = {
 }
 
 
-def _resume_buckets_by_user(db) -> dict:
-    """user_id -> experience bucket derived from their resume's estimated
-    years. Users absent from this map fall back to their manually saved
-    bucket (no resume, or no parseable dates in it)."""
+def _resume_years_by_user(db) -> dict:
+    """user_id -> estimated years of experience from their resume. Users
+    absent from this map fall back to their manually saved bucket (no
+    resume, or no parseable dates in it)."""
     rows = db.execute(
         select(BaseResume.user_id, BaseResume.years_experience).where(
             BaseResume.years_experience.is_not(None)
         )
     ).all()
-    return {user_id: bucket_for_years(years) for user_id, years in rows}
+    return dict(rows)
 
 
-def _search_matches_job(search, job, user_email, experience_bucket=None) -> bool:
+def _search_matches_job(search, job, user_email, resume_years=None) -> bool:
     """Whether a single job belongs on a saved search's board.
 
-    experience_bucket overrides search.experience_bucket when the user has a
+    resume_years overrides search.experience_bucket when the user has a
     resume with parseable years (resume-derived seniority wins)."""
     # Excluded employers never surface, even if a stale Job row lingers in the
     # DB from before the company was added to EXCLUDE_COMPANIES.
@@ -99,13 +99,13 @@ def _search_matches_job(search, job, user_email, experience_bucket=None) -> bool
         return title_is_it_pm(job.title)
     return match_job_for_user(
         search.title_slug,
-        experience_bucket or search.experience_bucket,
+        bucket_for_years(resume_years) or search.experience_bucket,
         job.title,
         job.description or "",
         job.salary_min,
         job.salary_max,
         user_email,
-        resume_bucket=experience_bucket,
+        resume_years=resume_years,
     )
 
 
@@ -160,15 +160,15 @@ def rebuild_matches() -> int:
     saved_searches = db.execute(select(SavedSearch)).scalars().all()
     jobs = db.execute(select(Job)).scalars().all()
     users_by_id = {user.id: user for user in db.execute(select(User)).scalars().all()}
-    resume_buckets = _resume_buckets_by_user(db)
+    resume_years_map = _resume_years_by_user(db)
     created = 0
 
     for search in saved_searches:
         user = users_by_id.get(search.user_id)
         user_email = user.email if user else None
-        resume_bucket = resume_buckets.get(search.user_id)
+        resume_years = resume_years_map.get(search.user_id)
         for job in jobs:
-            if not _search_matches_job(search, job, user_email, resume_bucket):
+            if not _search_matches_job(search, job, user_email, resume_years):
                 continue
             db.add(
                 JobMatch(
@@ -209,11 +209,10 @@ def rebuild_matches_for_user(user_id: int) -> int:
     resume_years = db.execute(
         select(BaseResume.years_experience).where(BaseResume.user_id == user_id)
     ).scalar_one_or_none()
-    resume_bucket = bucket_for_years(resume_years)
     created = 0
     for search in searches:
         for job in jobs:
-            if not _search_matches_job(search, job, user.email, resume_bucket):
+            if not _search_matches_job(search, job, user.email, resume_years):
                 continue
             db.add(
                 JobMatch(

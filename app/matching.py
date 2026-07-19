@@ -222,6 +222,17 @@ def experience_bucket_matches(bucket: str, parsed: ParsedExperience) -> bool:
     return not (value_high < target_low or value_low > target_high)
 
 
+def candidate_qualifies(candidate_years: int, parsed: ParsedExperience) -> bool:
+    """Whether a candidate with `candidate_years` of experience meets a job's
+    parsed requirement: the required MINIMUM must not exceed what they have.
+    (Band overlap is wrong for resume-derived years — a 10-year candidate
+    must match an "8+ years" job.) Unparseable requirements stay excluded,
+    matching the pre-resume behavior."""
+    if parsed.min_years is None and parsed.max_years is None:
+        return False
+    return (parsed.min_years or 0) <= candidate_years
+
+
 def experience_at_least(minimum_years: int, parsed: ParsedExperience) -> bool:
     if parsed.min_years is None and parsed.max_years is None:
         return False
@@ -310,13 +321,15 @@ def match_job_for_user(
     salary_min: Optional[int] = None,
     salary_max: Optional[int] = None,
     user_email: Optional[str] = None,
-    resume_bucket: Optional[str] = None,
+    resume_years: Optional[int] = None,
 ) -> bool:
-    """resume_bucket is the experience band derived from the user's resume
+    """resume_years is the total experience read from the user's resume
     (None when they have no resume / no parseable dates). When present it is
-    the authoritative seniority signal: callers also pass it as
-    experience_bucket, and the PM open-scope branch below matches the job's
-    required years against it instead of the blanket 5+ rule."""
+    the authoritative seniority signal: callers also pass the derived band as
+    experience_bucket, and the years-sensitive branches below use
+    QUALIFICATION semantics (job's required minimum <= the candidate's years)
+    instead of band overlap — a 10-year candidate must match an "8+ years"
+    job, which band overlap would wrongly reject."""
     vertical = TITLE_VERTICALS.get(title_slug, "pm")
     parsed = parse_experience_years(title, description)
 
@@ -328,8 +341,10 @@ def match_job_for_user(
             return False
         if title_slug != "entry-finance-any" and not title_matches(title, title_slug):
             return False
-        # If experience is parseable, require it to fit the bucket (defaults to 0-2)
+        # If experience is parseable, require it to fit (defaults to 0-2).
         if parsed.min_years is not None or parsed.max_years is not None:
+            if resume_years is not None:
+                return candidate_qualifies(resume_years, parsed)
             return experience_bucket_matches(experience_bucket or "0-2", parsed)
         return True
 
@@ -368,6 +383,8 @@ def match_job_for_user(
         if title_slug != "entry-sales-any" and not title_matches(title, title_slug):
             return False
         if parsed.min_years is not None or parsed.max_years is not None:
+            if resume_years is not None:
+                return candidate_qualifies(resume_years, parsed)
             return experience_bucket_matches(experience_bucket or "0-2", parsed)
         return True
 
@@ -378,12 +395,14 @@ def match_job_for_user(
             and salary_meets_minimum(salary_min, salary_max, 180000)
         ):
             return False
-        # Resume-derived seniority beats the blanket 5+ rule: match the job's
-        # required years against the candidate's actual band.
-        if resume_bucket:
-            return experience_bucket_matches(resume_bucket, parsed)
+        # Resume-derived seniority beats the blanket 5+ rule: the candidate
+        # must MEET the job's required minimum (not band-overlap it).
+        if resume_years is not None:
+            return candidate_qualifies(resume_years, parsed)
         return experience_at_least(5, parsed)
 
     if not title_matches(title, title_slug):
         return False
+    if resume_years is not None:
+        return candidate_qualifies(resume_years, parsed)
     return experience_bucket_matches(experience_bucket, parsed)

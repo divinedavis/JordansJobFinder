@@ -108,10 +108,10 @@ SENIOR_JOB = dict(
 )
 
 
-def test_resume_bucket_overrides_saved_bucket(signed_in_client, db_session):
+def test_resume_years_override_saved_bucket(signed_in_client, db_session):
     """A user whose saved search says 0-2 but whose resume shows 8 years must
-    match senior jobs (resume wins)."""
-    from app.sync import _search_matches_job, _resume_buckets_by_user
+    match senior jobs (resume wins), using QUALIFICATION semantics."""
+    from app.sync import _search_matches_job, _resume_years_by_user
 
     user, search = _user_and_search(db_session)
     assert search is not None
@@ -119,25 +119,32 @@ def test_resume_bucket_overrides_saved_bucket(signed_in_client, db_session):
     db_session.commit()
     _add_resume(db_session, user.id, 8)
 
-    buckets = _resume_buckets_by_user(db_session)
-    assert buckets[user.id] == "7-9"
+    years = _resume_years_by_user(db_session)
+    assert years[user.id] == 8
 
     from app.matching import match_job_for_user
 
-    # With the resume band (7-9), an 8+ years senior job matches.
+    # 8 years of experience meets an "8+ years" requirement.
     assert match_job_for_user(
-        search.title_slug, buckets[user.id],
+        search.title_slug, "7-9",
         SENIOR_JOB["title"], SENIOR_JOB["description"],
         200000, 240000, user.email,
-        resume_bucket=buckets[user.id],
+        resume_years=8,
     )
-    # A genuinely junior resume (0-2 band) must NOT be shown an 8+ years job,
-    # even on the PM track's open scope.
+    # Regression (empty-board bug): a 10-year candidate must ALSO match an
+    # "8+ years" job — band overlap wrongly rejected this and blanked boards.
+    assert match_job_for_user(
+        search.title_slug, "10+",
+        SENIOR_JOB["title"], SENIOR_JOB["description"],
+        200000, 240000, user.email,
+        resume_years=10,
+    )
+    # A genuinely junior resume (2 years) must NOT be shown an 8+ years job.
     assert not match_job_for_user(
         search.title_slug, "0-2",
         SENIOR_JOB["title"], SENIOR_JOB["description"],
         200000, 240000, user.email,
-        resume_bucket="0-2",
+        resume_years=2,
     )
     # No resume at all keeps the PM open-scope behavior (5+ years rule).
     assert match_job_for_user(
@@ -145,6 +152,19 @@ def test_resume_bucket_overrides_saved_bucket(signed_in_client, db_session):
         SENIOR_JOB["title"], SENIOR_JOB["description"],
         200000, 240000, user.email,
     )
+
+
+def test_candidate_qualifies_semantics():
+    from app.matching import candidate_qualifies
+    from app.parsing import ParsedExperience
+
+    assert candidate_qualifies(10, ParsedExperience(8, None))
+    assert candidate_qualifies(10, ParsedExperience(3, 5))
+    assert candidate_qualifies(5, ParsedExperience(5, 8))
+    assert not candidate_qualifies(4, ParsedExperience(5, 8))
+    assert not candidate_qualifies(10, ParsedExperience(12, None))
+    # Unparseable requirement stays excluded (pre-resume behavior).
+    assert not candidate_qualifies(10, ParsedExperience(None, None))
 
 
 def test_no_resume_falls_back_to_saved_bucket(signed_in_client, db_session):
@@ -166,10 +186,10 @@ def test_unparseable_resume_falls_back(signed_in_client, db_session):
     _add_resume(db_session, user.id, None)
 
     from app.experience import effective_experience_bucket
-    from app.sync import _resume_buckets_by_user
+    from app.sync import _resume_years_by_user
 
     assert effective_experience_bucket(db_session, search) == "7-9"
-    assert user.id not in _resume_buckets_by_user(db_session)
+    assert user.id not in _resume_years_by_user(db_session)
 
 
 # ── Dashboard banner ──────────────────────────────────────────────────────

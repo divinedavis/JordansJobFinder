@@ -183,10 +183,8 @@ def preview_matches(saved_search) -> list[dict]:
 
     cutoff = _board_cutoff(saved_search.vertical)
     cities = {c for c in (saved_search.cities or []) if c}
-    resume_bucket = bucket_for_years(
-        resume_years_for_user(get_db(), saved_search.user_id)
-    )
-    experience_bucket = resume_bucket or saved_search.experience_bucket
+    resume_years = resume_years_for_user(get_db(), saved_search.user_id)
+    experience_bucket = bucket_for_years(resume_years) or saved_search.experience_bucket
     matches = []
     for job in normalized_shared_jobs():
         posted_at = job.get("posted_at")
@@ -216,7 +214,7 @@ def preview_matches(saved_search) -> list[dict]:
             job.get("salary_min"),
             job.get("salary_max"),
             getattr(saved_search.user, "email", None),
-            resume_bucket=resume_bucket,
+            resume_years=resume_years,
         ):
             continue
         job["display_city"] = city_label or job.get("location", "")

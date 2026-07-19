@@ -302,11 +302,15 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
   and stores the rounded total on `BaseResume.years_experience` at upload time.
   Deterministic — no AI call. `bucket_for_years()` (moved here from
   interview.py) maps years → the 0-2/3-6/7-9/10+ bands.
-- **Resume wins over the manual picker**: sync + preview matching derive the
-  bucket from the resume when present; the saved-search experience picker is
-  only shown to (and used for) users with no resume / no parseable dates.
-  On the PM track's open scope, a resume bucket replaces the blanket
-  `experience_at_least(5)` rule (`resume_bucket` kwarg on `match_job_for_user`).
+- **Resume wins over the manual picker**: sync + preview matching use the
+  resume years when present; the saved-search experience picker is only shown
+  to (and used for) users with no resume / no parseable dates.
+- **Qualification semantics, NOT band overlap** (`candidate_qualifies()` /
+  `resume_years` kwarg on `match_job_for_user`): a job matches when its
+  required MINIMUM years <= the candidate's years. Band overlap was shipped
+  first and blanked senior users' boards — a 10-year candidate vs "8+ years
+  required" doesn't overlap the 10+ band. Jobs with unparseable requirements
+  stay excluded, as before.
 - Uploading a resume recomputes years and immediately calls
   `rebuild_matches_for_user`. Dashboard shows a banner: "based on your resume —
   about X years of experience — these are the jobs for you"; users without a
