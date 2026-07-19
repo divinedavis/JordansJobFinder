@@ -20,6 +20,7 @@ def main():
             "sync-shared-jobs",
             "rebuild-matches",
             "run-daily-sync",
+            "backfill-resume-years",
         ],
         help="Command to execute",
     )
@@ -44,6 +45,27 @@ def main():
         with app.app_context():
             count = rebuild_matches()
         print(f"Created {count} job matches.")
+        return
+
+    if args.command == "backfill-resume-years":
+        # One-time backfill: estimate years for resumes uploaded before the
+        # years_experience column existed, then rebuild matches so boards
+        # reflect resume-derived seniority immediately.
+        from app.db import get_db
+        from app.experience import estimate_resume_years
+        from app.models import BaseResume
+
+        with app.app_context():
+            db = get_db()
+            updated = 0
+            for resume in db.query(BaseResume).all():
+                years = estimate_resume_years(resume.extracted_text)
+                if resume.years_experience != years:
+                    resume.years_experience = years
+                    updated += 1
+            db.commit()
+            matched = rebuild_matches()
+        print(f"Backfilled years on {updated} resumes; rebuilt {matched} matches.")
         return
 
     if args.command == "run-daily-sync":

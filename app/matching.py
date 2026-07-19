@@ -310,7 +310,13 @@ def match_job_for_user(
     salary_min: Optional[int] = None,
     salary_max: Optional[int] = None,
     user_email: Optional[str] = None,
+    resume_bucket: Optional[str] = None,
 ) -> bool:
+    """resume_bucket is the experience band derived from the user's resume
+    (None when they have no resume / no parseable dates). When present it is
+    the authoritative seniority signal: callers also pass it as
+    experience_bucket, and the PM open-scope branch below matches the job's
+    required years against it instead of the blanket 5+ rule."""
     vertical = TITLE_VERTICALS.get(title_slug, "pm")
     parsed = parse_experience_years(title, description)
 
@@ -367,11 +373,16 @@ def match_job_for_user(
 
     # PM/PgM (existing logic)
     if is_superuser_email(user_email):
-        return (
+        if not (
             title_matches_superuser_scope(title)
-            and experience_at_least(5, parsed)
             and salary_meets_minimum(salary_min, salary_max, 180000)
-        )
+        ):
+            return False
+        # Resume-derived seniority beats the blanket 5+ rule: match the job's
+        # required years against the candidate's actual band.
+        if resume_bucket:
+            return experience_bucket_matches(resume_bucket, parsed)
+        return experience_at_least(5, parsed)
 
     if not title_matches(title, title_slug):
         return False

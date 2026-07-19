@@ -274,6 +274,26 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
 - Dashboard renders a "Tailored Resume" button on every match card that has a TailoredResume row.
 - Required env: `ANTHROPIC_API_KEY=sk-ant-...` in `.env`. Optional: `ANTHROPIC_MODEL`, `RESUME_UPLOAD_DIR`, `RESUME_TAILORED_DIR`, `RESUME_MAX_UPLOAD_BYTES`.
 
+## Resume-Derived Experience Matching (2026-07-19)
+
+- `app/experience.py` — `estimate_resume_years()` date-parses employment ranges
+  ("Jan 2018 – Present", "03/2019 – 09/2022", "2014–2017") from the resume's
+  extracted text, merges overlapping intervals (concurrent roles count once),
+  and stores the rounded total on `BaseResume.years_experience` at upload time.
+  Deterministic — no AI call. `bucket_for_years()` (moved here from
+  interview.py) maps years → the 0-2/3-6/7-9/10+ bands.
+- **Resume wins over the manual picker**: sync + preview matching derive the
+  bucket from the resume when present; the saved-search experience picker is
+  only shown to (and used for) users with no resume / no parseable dates.
+  On the PM track's open scope, a resume bucket replaces the blanket
+  `experience_at_least(5)` rule (`resume_bucket` kwarg on `match_job_for_user`).
+- Uploading a resume recomputes years and immediately calls
+  `rebuild_matches_for_user`. Dashboard shows a banner: "based on your resume —
+  about X years of experience — these are the jobs for you"; users without a
+  resume see an upload prompt instead.
+- One-time backfill for pre-existing resumes: `python manage.py backfill-resume-years`
+  (also rebuilds all matches). SQLite migration is automatic in `init_db()`.
+
 ## Dashboard Behavior
 
 - Shows jobs from job_matches table (DB matches), falling back to preview_matches from shared_jobs.json

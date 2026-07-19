@@ -196,6 +196,9 @@ class BaseResume(TimestampMixin, Base):
     file_path: Mapped[str] = mapped_column(String(512))
     content_type: Mapped[str] = mapped_column(String(64))
     extracted_text: Mapped[str] = mapped_column(Text)
+    # Estimated total years of experience, date-parsed from extracted_text at
+    # upload time (app/experience.py). NULL when no date range was parseable.
+    years_experience: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="base_resume")
 

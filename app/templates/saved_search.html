@@ -35,15 +35,28 @@
         {% endfor %}
       </select>
 
-      <label for="experience_bucket">Experience Filter</label>
-      <select id="experience_bucket" name="experience_bucket" required {% if is_locked %}disabled{% endif %}>
-        <option value="">Select an experience bucket</option>
-        {% for option in experience_options %}
-          <option value="{{ option.slug }}" {% if saved_search and saved_search.experience_bucket == option.slug %}selected{% endif %}>
-            {{ option.label }}
-          </option>
-        {% endfor %}
-      </select>
+      {% if resume_years is not none %}
+        <label>Experience Level</label>
+        <p class="muted" style="margin-bottom: 14px;">
+          Detected from your resume: about <strong>{{ resume_years }} year{{ '' if resume_years == 1 else 's' }}</strong>
+          of experience. Jobs are matched to that level automatically &mdash; no filter to set.
+          Update it any time by <a href="{{ url_for('web.resume_page') }}">uploading a newer resume</a>.
+        </p>
+      {% else %}
+        <label for="experience_bucket">Experience Filter</label>
+        <select id="experience_bucket" name="experience_bucket" required {% if is_locked %}disabled{% endif %}>
+          <option value="">Select an experience bucket</option>
+          {% for option in experience_options %}
+            <option value="{{ option.slug }}" {% if saved_search and saved_search.experience_bucket == option.slug %}selected{% endif %}>
+              {{ option.label }}
+            </option>
+          {% endfor %}
+        </select>
+        <p class="muted" style="margin-bottom: 10px;">
+          Tip: <a href="{{ url_for('web.resume_page') }}">upload your resume</a> and we&rsquo;ll
+          set this automatically from your actual years of experience.
+        </p>
+      {% endif %}
 
       <p class="muted" style="margin-bottom: 10px;">
         Pick 3&ndash;{{ city_limit }} cities anywhere in the US (population 50k+).

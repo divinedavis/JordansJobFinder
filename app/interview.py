@@ -28,6 +28,7 @@ from .analytics import (
     _percentile,
     _usd_k,
 )
+from .experience import bucket_for_years
 
 logger = logging.getLogger(__name__)
 
@@ -139,18 +140,8 @@ def sanitize_plan(data: dict) -> dict:
     }
 
 
-def bucket_for_years(years) -> Optional[str]:
-    """Map raw years of experience onto the catalog experience buckets that
-    the market-research bands are keyed by."""
-    if years is None:
-        return None
-    if years < 3:
-        return "0-2"
-    if years < 7:
-        return "3-6"
-    if years < 10:
-        return "7-9"
-    return "10+"
+# bucket_for_years lives in app/experience.py (shared with matching); imported
+# above and re-exported here for existing callers/tests.
 
 
 def build_salary_expectation(job, plan, market_points, market_label,

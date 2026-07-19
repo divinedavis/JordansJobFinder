@@ -32,6 +32,23 @@
     </nav>
   </section>
 
+  {% if saved_search %}
+    <section class="panel" style="padding: 16px 22px;">
+      {% if resume_years is not none %}
+        <p style="margin: 0;">
+          <strong>Matched to your experience:</strong>
+          based on your resume &mdash; about <strong>{{ resume_years }} year{{ '' if resume_years == 1 else 's' }} of experience</strong> &mdash;
+          these are the jobs for you{% if resume_bucket %} ({{ resume_bucket }} years band){% endif %}.
+        </p>
+      {% else %}
+        <p style="margin: 0;">
+          <a href="{{ url_for('web.resume_page') }}">Upload your resume</a> and we&rsquo;ll read your years of
+          experience from it and match jobs to your level automatically.
+        </p>
+      {% endif %}
+    </section>
+  {% endif %}
+
   {% if not saved_search %}
     <section class="panel">
       <h2>Setting up your matches</h2>

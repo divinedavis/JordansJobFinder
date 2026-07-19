@@ -33,3 +33,10 @@ def init_db():
             columns = {column["name"] for column in inspect(conn).get_columns("users")}
             if "password_hash" not in columns:
                 conn.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255)"))
+            resume_columns = {
+                column["name"] for column in inspect(conn).get_columns("base_resumes")
+            }
+            if "years_experience" not in resume_columns:
+                conn.execute(
+                    text("ALTER TABLE base_resumes ADD COLUMN years_experience INTEGER")
+                )

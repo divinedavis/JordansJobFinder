@@ -52,6 +52,12 @@ from .payments import (
     sync_checkout_result,
 )
 from .results import group_matches_by_city, home_board_preview, load_db_matches, preview_matches
+from .experience import (
+    bucket_for_years,
+    effective_experience_bucket,
+    estimate_resume_years,
+    resume_years_for_user,
+)
 from .applications import applications_for_user, record_application
 from .analytics import (
     CITY_LABELS,
@@ -399,6 +405,7 @@ def dashboard():
     saved_search = user.saved_search_for(active_tab)
     matches = load_db_matches(saved_search) if saved_search else []
     preview = preview_matches(saved_search) if (saved_search and not matches) else []
+    resume_years = resume_years_for_user(db, user.id)
     return render_template(
         "dashboard.html",
         user=user,
@@ -410,6 +417,8 @@ def dashboard():
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,
         tab_order=tabs,
+        resume_years=resume_years,
+        resume_bucket=bucket_for_years(resume_years),
     )
 
 
@@ -567,6 +576,13 @@ def saved_search():
 
         title_slug = request.form.get("title_slug", "").strip()
         experience_bucket = request.form.get("experience_bucket", "").strip()
+        # Resume-derived seniority wins: when the user's resume has parseable
+        # years, the manual picker is hidden on the form and the bucket is
+        # filled from the resume (matching also derives live — this keeps the
+        # stored row consistent for users who later delete their resume).
+        derived_bucket = bucket_for_years(resume_years_for_user(db, user.id))
+        if derived_bucket:
+            experience_bucket = derived_bucket
         limit = city_limit_for(user, subscription)
 
         # Non-PM titles (finance/sales/IT/HR) select a whole track: the
@@ -655,6 +671,7 @@ def saved_search():
         saved_search=selected_search,
         title_options=title_choices(),
         experience_options=experience_choices(),
+        resume_years=resume_years_for_user(db, user.id),
         free_cities=DEFAULT_CITIES,
         city_slots=city_slots,
         city_limit=limit,
@@ -789,6 +806,7 @@ def resume_upload():
         return redirect(url_for("web.resume_page"))
 
     file_path = save_base_resume(user.id, upload.filename, raw, kind)
+    resume_years = estimate_resume_years(text)
     db = get_db()
     user = db.get(User, user.id)
     if user.base_resume:
@@ -802,6 +820,7 @@ def resume_upload():
         user.base_resume.file_path = file_path
         user.base_resume.content_type = upload.content_type or ""
         user.base_resume.extracted_text = text
+        user.base_resume.years_experience = resume_years
     else:
         db.add(BaseResume(
             user_id=user.id,
@@ -809,11 +828,26 @@ def resume_upload():
             file_path=file_path,
             content_type=upload.content_type or "",
             extracted_text=text,
+            years_experience=resume_years,
         ))
     # Invalidate any tailored resumes — they were built off the old base.
     db.query(TailoredResume).filter(TailoredResume.user_id == user.id).delete()
     db.commit()
-    flash("Resume uploaded. Tailored versions are generated when you download them.", "success")
+    # Matching keys off resume-derived years now, so refresh the board right
+    # away instead of waiting for the nightly rebuild.
+    try:
+        from .sync import rebuild_matches_for_user
+        rebuild_matches_for_user(user.id)
+    except Exception:
+        logger.exception("Match rebuild after resume upload failed user_id=%d", user.id)
+    if resume_years is not None:
+        flash(
+            f"Resume uploaded — we estimate about {resume_years} years of experience "
+            "and matched your board to that level.",
+            "success",
+        )
+    else:
+        flash("Resume uploaded. Tailored versions are generated when you download them.", "success")
     return redirect(url_for("web.resume_page"))
 
 
@@ -879,7 +913,7 @@ def interview_plan(job_id: int):
                 resume_text,
                 market_points=_salary_points_for(market_jobs),
                 market_label=CITY_LABELS.get(job.city, job.location or job.city),
-                fallback_bucket=search.experience_bucket if search else None,
+                fallback_bucket=effective_experience_bucket(db, search),
             )
             if not plan:
                 flash("Couldn't build the interview plan right now. Please try again.", "error")
@@ -1036,7 +1070,7 @@ def research():
         active_tab = tabs[0]
     saved_search = user.saved_search_for(active_tab)
     cities = list(saved_search.cities) if saved_search else []
-    experience_bucket = saved_search.experience_bucket if saved_search else None
+    experience_bucket = effective_experience_bucket(db, saved_search)
     data = build_market_research(
         db,
         cities,
