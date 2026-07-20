@@ -422,6 +422,87 @@ def run(*, title_filter=title_is_scm, vertical="scm", source_suffix="scm",
     return 0
 
 
+def run_multi(tracks) -> int:
+    """One pass over the employer union serving several role tracks at once.
+
+    ``tracks`` is a list of dicts: {title_filter, vertical, source_suffix,
+    search_terms, out_file, label}. Workday boards are queried once per
+    DEDUPED union search term and every posting is tested against every
+    track's title filter (a posting surfaced by an SCM term can still land
+    on the analyst board — the filter, not the term, decides membership).
+    Greenhouse boards are fetched once total instead of once per track.
+    This replaced three sequential full sweeps (scm/project/analyst) that
+    tripled the nightly chain's runtime (2026-07-20).
+    """
+    union_terms, seen_terms = [], set()
+    for track in tracks:
+        for term in track["search_terms"]:
+            if term not in seen_terms:
+                seen_terms.add(term)
+                union_terms.append(term)
+
+    per_track: dict[str, list] = {t["vertical"]: [] for t in tracks}
+
+    def _multi_filter(title):
+        return any(t["title_filter"](title) for t in tracks)
+
+    def _route(jobs):
+        for job in jobs:
+            for track in tracks:
+                if track["title_filter"](job["title"]):
+                    routed = dict(job)
+                    routed["vertical"] = track["vertical"]
+                    routed["source"] = re.sub(
+                        r"-[a-z]+$", f"-{track['source_suffix']}", routed["source"]
+                    )
+                    per_track[track["vertical"]].append(routed)
+
+    for name, tenant, ver, site in SCM_WORKDAY_COMPANIES:
+        print(f"[Workday] {name}…")
+        _route(scrape_workday(
+            name, tenant, ver, site, title_filter=_multi_filter,
+            vertical="multi", source_suffix="multi", search_terms=union_terms,
+        ))
+        time.sleep(0.4)
+    for name, token in SCM_GREENHOUSE_COMPANIES:
+        print(f"[Greenhouse] {name}…")
+        _route(scrape_greenhouse(
+            name, token, title_filter=_multi_filter,
+            vertical="multi", source_suffix="multi",
+        ))
+        time.sleep(0.3)
+
+    # Extra-ATS collectors are cheap relative to the board sweeps; run them
+    # per track so vertical tagging stays unambiguous.
+    for track in tracks:
+        print(f"[Extra ATS] {track['label']}…")
+        per_track[track["vertical"]].extend(collect_extra_jobs(
+            title_filter=track["title_filter"],
+            infer_city=infer_city,
+            within_recency=within_recency,
+            make_job=lambda **kw: make_job(vertical=track["vertical"], **kw),
+            source_suffix=track["source_suffix"],
+        ))
+
+    for track in tracks:
+        jobs = per_track[track["vertical"]]
+        seen, deduped = set(), []
+        for job in jobs:
+            if not job.get("url") or job["url"] in seen:
+                continue
+            seen.add(job["url"])
+            deduped.append(job)
+        track["out_file"].write_text(json.dumps(deduped, indent=2))
+        print(f"\nWrote {len(deduped)} {track['label']} jobs -> {track['out_file']}")
+        by_city = {}
+        for j in deduped:
+            by_city.setdefault(j["city"], 0)
+            by_city[j["city"]] += 1
+        for c, n in sorted(by_city.items()):
+            print(f"  {c}: {n}")
+    return 0
+
+
 def main() -> int:
     return run()
 

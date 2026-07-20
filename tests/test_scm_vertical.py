@@ -141,3 +141,66 @@ def test_scm_board_keeps_a_week(app, signed_in_client, db_session):
     ).one()
     matches = load_db_matches(search)
     assert any(m["id"] == job_id for m in matches), "5-day-old SCM job fell off the 7-day board"
+
+
+def test_run_multi_routes_one_sweep_to_all_tracks(monkeypatch, tmp_path):
+    """run_multi fetches boards once and routes each posting to every track
+    whose title filter matches (2026-07-20 runtime fix)."""
+    import scraper_analyst
+    import scraper_project
+    import scraper_scm
+
+    calls = {"workday": 0, "greenhouse": 0}
+
+    def fake_workday(name, tenant, ver, site, title_filter=None,
+                     vertical=None, source_suffix=None, search_terms=None):
+        calls["workday"] += 1
+        jobs = []
+        for title in ("Supply Chain Analyst", "Project Manager, Ops",
+                      "Data Analyst", "Chef de Cuisine"):
+            if title_filter(title):
+                jobs.append(scraper_scm.make_job(
+                    company=name, title=title,
+                    url=f"https://x.test/{name}/{title.replace(' ', '-')}",
+                    city="chicago", location="Chicago, IL",
+                    source=f"workday-{source_suffix}", posted_dt=None,
+                    posted_label="", vertical=vertical,
+                ))
+        return jobs
+
+    monkeypatch.setattr(scraper_scm, "scrape_workday", fake_workday)
+    monkeypatch.setattr(scraper_scm, "scrape_greenhouse",
+                        lambda *a, **k: calls.__setitem__("greenhouse", calls["greenhouse"] + 1) or [])
+    monkeypatch.setattr(scraper_scm, "collect_extra_jobs", lambda **k: [])
+    monkeypatch.setattr(scraper_scm, "SCM_WORKDAY_COMPANIES",
+                        [("Acme", "acme", 1, "External")])
+    monkeypatch.setattr(scraper_scm, "SCM_GREENHOUSE_COMPANIES", [("GH", "gh")])
+    monkeypatch.setattr(scraper_scm.time, "sleep", lambda *_: None)
+
+    out = {v: tmp_path / f"{v}.json" for v in ("scm", "project", "analyst")}
+    tracks = [
+        {"title_filter": scraper_scm.title_is_scm, "vertical": "scm",
+         "source_suffix": "scm", "search_terms": scraper_scm.SCM_SEARCH_TERMS,
+         "out_file": out["scm"], "label": "SCM"},
+        {"title_filter": scraper_project.title_is_project, "vertical": "project",
+         "source_suffix": "project",
+         "search_terms": scraper_project.PROJECT_SEARCH_TERMS,
+         "out_file": out["project"], "label": "Project"},
+        {"title_filter": scraper_analyst.title_is_analyst, "vertical": "analyst",
+         "source_suffix": "analyst",
+         "search_terms": scraper_analyst.ANALYST_SEARCH_TERMS,
+         "out_file": out["analyst"], "label": "Analyst"},
+    ]
+    assert scraper_scm.run_multi(tracks) == 0
+
+    import json as _json
+    # ONE Workday board sweep and ONE Greenhouse fetch served all 3 tracks.
+    assert calls == {"workday": 1, "greenhouse": 1}
+    scm_jobs = _json.loads(out["scm"].read_text())
+    project_jobs = _json.loads(out["project"].read_text())
+    analyst_jobs = _json.loads(out["analyst"].read_text())
+    assert [j["title"] for j in scm_jobs] == ["Supply Chain Analyst"]
+    assert [j["title"] for j in project_jobs] == ["Project Manager, Ops"]
+    assert [j["title"] for j in analyst_jobs] == ["Data Analyst"]
+    assert all(j["vertical"] == "analyst" for j in analyst_jobs)
+    assert all(j["source"] == "workday-analyst" for j in analyst_jobs)

@@ -21,8 +21,13 @@ A Flask web app + daily scraper that finds technical **Product Manager** and **P
 
 ## Cron Schedule (America/New_York)
 
-- **5:00 AM ET** — scraper.py runs (~40 min), scrapes all ATS platforms, writes shared_jobs.json
-- **6:00 AM ET** — manage.py run-daily-sync imports shared_jobs.json into DB, rebuilds user matches
+- **1:00 AM ET (05:00 UTC)** — single cron chain (moved from 5 AM 2026-07-20 so
+  the longer nationwide sweep finishes before morning): scraper.py →
+  scraper_finance.py → scraper_sales.py → scraper_it.py → scraper_hr.py →
+  scraper_ops.py (combined SCM+project+analyst, ONE sweep of the shared
+  employer union via scraper_scm.run_multi) → manage.py run-daily-sync.
+  Do NOT re-add the standalone scm/project/analyst entries — that's the
+  triple-sweep that blew the chain past 5 hours.
 
 ## Scraper Pipeline (scraper.py)
 
