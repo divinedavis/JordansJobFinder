@@ -277,12 +277,74 @@ assert set(TOP_20) | set(PA_REGIONAL) | set(SC_REGIONAL) == set(MATCH_ORDER)
 # the big metro. Before this split, dropping San Antonio turned every San
 # Antonio posting into a Dallas one instead of excluding it, and "Savannah, GA"
 # read as Atlanta.
+# Bare abbreviations are safe here ONLY because _is_bare_state() requires that
+# nothing word-like survives removing the token — "tx" alone would otherwise
+# match inside ordinary text.
 STATE_FALLBACK = {
-    "dallas": ("tx,", ", tx", "texas"),
-    "houston": ("tx,", ", tx", "texas"),
-    "atlanta": ("ga,", ", ga", "georgia"),
-    "phoenix": ("az,", ", az", "arizona"),
+    "dallas": ("texas", "tx"),
+    "houston": ("texas", "tx"),
+    "atlanta": ("georgia", "ga"),
+    "phoenix": ("arizona", "az"),
 }
+
+
+# Workday and friends spell states out ("Arlington, Virginia") while the
+# patterns above use postal abbreviations for disambiguation ("arlington, va").
+# Normalising one to the other here means every pattern gets both spellings for
+# free — without it, real DC-suburb postings were being dropped.
+_STATE_ABBR = {
+    "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar",
+    "california": "ca", "colorado": "co", "connecticut": "ct",
+    "delaware": "de", "florida": "fl", "georgia": "ga", "hawaii": "hi",
+    "idaho": "id", "illinois": "il", "indiana": "in", "iowa": "ia",
+    "kansas": "ks", "kentucky": "ky", "louisiana": "la", "maine": "me",
+    "maryland": "md", "massachusetts": "ma", "michigan": "mi",
+    "minnesota": "mn", "mississippi": "ms", "missouri": "mo",
+    "montana": "mt", "nebraska": "ne", "nevada": "nv",
+    "new hampshire": "nh", "new jersey": "nj", "new mexico": "nm",
+    "new york": "ny", "north carolina": "nc", "north dakota": "nd",
+    "ohio": "oh", "oklahoma": "ok", "oregon": "or", "pennsylvania": "pa",
+    "rhode island": "ri", "south carolina": "sc", "south dakota": "sd",
+    "tennessee": "tn", "texas": "tx", "utah": "ut", "vermont": "vt",
+    "virginia": "va", "washington": "wa", "west virginia": "wv",
+    "wisconsin": "wi", "wyoming": "wy",
+}
+# Longest first so "west virginia" isn't eaten by "virginia".
+_STATE_PAIRS = sorted(_STATE_ABBR.items(), key=lambda kv: -len(kv[0]))
+
+
+def normalize_states(text):
+    """Rewrite ", <state name>" as ", <abbr>" so both spellings match.
+
+    Only touches a state name that follows a comma, so a city genuinely called
+    Washington or Georgia is left alone.
+    """
+    for name, abbr in _STATE_PAIRS:
+        text = text.replace(f", {name}", f", {abbr}")
+    return text
+
+
+def _is_bare_state(text, tokens):
+    """True when `text` carries a state token and no actual place name.
+
+    The fallback exists for locations like ", TX" or "Texas" — a per-city
+    scrape where the posting simply didn't name a city. It must NOT fire for
+    "Lubbock, TX, 79407": that names a real place we don't cover, and claiming
+    it for Dallas puts a Panhandle job on the Dallas board (which is exactly
+    what happened to Xcel Energy's postings before 2026-07-21).
+
+    So: strip the state token and the zip digits, and require that nothing
+    word-like is left.
+    """
+    import re
+
+    for token in tokens:
+        if token not in text:
+            continue
+        remainder = re.sub(r"[^a-z]+", " ", text.replace(token, " "))
+        if not re.search(r"[a-z]{3,}", remainder):
+            return True
+    return False
 
 
 def matches_metro(location, slug, allow_state_fallback=False):
@@ -292,13 +354,13 @@ def matches_metro(location, slug, allow_state_fallback=False):
     """
     from metro_decoys import strip_decoys
 
-    text = strip_decoys((location or "").lower(), slug)
+    text = strip_decoys(normalize_states((location or "").lower()), slug)
     if not text:
         return False
     if any(pattern in text for pattern in PATTERNS.get(slug, ())):
         return True
     if allow_state_fallback:
-        return any(p in text for p in STATE_FALLBACK.get(slug, ()))
+        return _is_bare_state(text, STATE_FALLBACK.get(slug, ()))
     return False
 
 
@@ -310,7 +372,7 @@ def infer_metro(location, allowed=None):
     """
     from metro_decoys import strip_decoys
 
-    text = (location or "").lower()
+    text = normalize_states((location or "").lower())
     if not text:
         return ""
     for slug in MATCH_ORDER:

@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from greenhouse_urls import greenhouse_job_url  # noqa: E402
-from metro_decoys import strip_decoys  # noqa: E402
+from metros import infer_metro, matches_metro  # noqa: E402
 
 DB = ROOT / "jordansjobfinder.db"
 
@@ -104,15 +104,23 @@ def resolve_url(company, url, tokens):
 
 
 def resolve_city(location, city, vertical, matchers):
-    """(new_city, changed). new_city of "" means the posting should be dropped."""
-    loc = (location or "").lower()
-    # Only postings whose stored metro leaned on a decoy phrase are suspect.
-    if not loc or strip_decoys(loc, city) == loc:
+    """(new_city, changed). new_city of "" means the posting should be dropped.
+
+    The test is whether the location still SUPPORTS the stored metro, not
+    whether inference would pick the same one. That distinction matters for
+    multi-office postings: "Menlo Park, CA; New York, NY" stored as nyc is
+    correct and must be left alone, even though inference alone would answer
+    san-francisco (MATCH_ORDER decides, and it puts SF first). Re-inferring
+    those wholesale moved a pile of legitimate NYC jobs to San Francisco.
+
+    So: leave anything the location still supports; only re-infer the rows it
+    doesn't — Xcel Energy's "Lubbock, TX" sitting on the Dallas board.
+    """
+    if not location:
         return city, False
-    infer = matchers.get(vertical)
-    if infer is None:
+    if matches_metro(location, city):
         return city, False
-    new_city = infer(location) or ""
+    new_city = infer_metro(location)
     return new_city, new_city != city
 
 

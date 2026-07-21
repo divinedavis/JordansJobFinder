@@ -585,7 +585,7 @@ Their labels live on in `metros.RETIRED_LABELS` for DISPLAY ONLY so pre-existing
 rows and saved searches still render a city name — never add them back to
 `MATCH_ORDER`.
 
-Two traps this rewrite hit, both worth remembering:
+Three traps this rewrite hit, all worth remembering:
 
 - **Bare state tokens must never take part in inference.** Dallas used to carry
   `", tx"`/`"texas"`, so dropping San Antonio silently relabelled every San
@@ -597,6 +597,12 @@ Two traps this rewrite hit, both worth remembering:
   `[:limit]` took the first 3 of 29 and quietly dropped York PA off the HR
   board. `city_limit_for()` now returns the full count for everyone and
   `SALARY_OPTIONAL_CITIES` is derived from the registry rather than listed.
+- **Never re-infer a stored metro wholesale.** A multi-office posting
+  ("Menlo Park, CA; New York, NY") legitimately belongs to several metros, and
+  `infer_metro` answers with whichever comes first in `MATCH_ORDER` — so
+  re-inferring moved a pile of real NYC jobs to San Francisco. Repairs must ask
+  `matches_metro(location, stored_city)`: leave anything the location still
+  supports, and only touch rows it doesn't.
 
 Paid tiers are gone (owner's call): cities, AI interview prep and resume
 tailoring are free for any signed-in user. The Stripe plumbing (webhooks,
