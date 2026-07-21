@@ -43,10 +43,14 @@ def test_scm_scraper_infers_sc_and_nationwide_metros():
     # Nationwide expansion (2026-07-19).
     assert infer_city("Chicago, IL") == "chicago"
     assert infer_city("Phoenix, AZ") == "phoenix"
-    assert infer_city("San Antonio, TX") == "san-antonio"
+    # San Antonio was dropped on 2026-07-21 (outside the top 20).
+    assert infer_city("San Antonio, TX") == ""
     assert infer_city("Houston, TX") == "houston"
     assert infer_city("Glendale, AZ") == "phoenix"
     assert infer_city("Philadelphia, PA") == "philadelphia-pa"
+    assert infer_city("Boston, MA") == "boston"
+    assert infer_city("Seattle, WA") == "seattle"
+    assert infer_city("Denver, CO") == "denver"
     # Out of scope -> dropped.
     assert infer_city("Charlotte, NC") == ""
 
@@ -85,14 +89,17 @@ def test_scm_matches_without_salary(app):
     )
 
 
-def test_scm_default_cities_lead_with_major_metros():
-    from app.catalog import SCM_DEFAULT_CITIES
+def test_scm_covers_every_metro_including_south_carolina():
+    from app.catalog import ALL_CITY_LABELS, SCM_DEFAULT_CITIES
 
-    assert SCM_DEFAULT_CITIES[:3] == ["Chicago, IL", "Philadelphia, PA", "Houston, TX"]
-    assert "Charleston, SC" in SCM_DEFAULT_CITIES
+    assert list(SCM_DEFAULT_CITIES) == list(ALL_CITY_LABELS)
+    # SC is the track's original territory and must survive the expansion.
+    for sc in ("Charleston, SC", "Columbia, SC", "Greenville, SC",
+               "Rock Hill, SC", "Sumter, SC", "Florence, SC"):
+        assert sc in SCM_DEFAULT_CITIES
 
 
-def test_selecting_scm_adds_track_capped_to_free_limit(signed_in_client, db_session):
+def test_selecting_scm_adds_track_with_every_metro(signed_in_client, db_session):
     from app.models import SavedSearch, User
 
     resp = signed_in_client.post("/search", data={
@@ -106,8 +113,8 @@ def test_selecting_scm_adds_track_capped_to_free_limit(signed_in_client, db_sess
     search = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "scm"
     ).one()
-    # Free plan caps to the first 3 defaults (nationwide since 2026-07-19).
-    assert search.cities == ["Chicago, IL", "Philadelphia, PA", "Houston, TX"]
+    from app.catalog import ALL_CITY_LABELS
+    assert list(search.cities) == list(ALL_CITY_LABELS)
 
     body = signed_in_client.get("/dashboard?tab=scm").get_data(as_text=True)
     assert "Supply chain" in body

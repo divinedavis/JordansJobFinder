@@ -39,7 +39,9 @@ def test_valid_city_accepts_any_50k_city_and_legacy_labels(app):
 
     assert valid_city("Boise, ID")
     assert valid_city("Chattanooga, TN")
-    assert valid_city("Florida (other)")   # legacy vertical label
+    assert valid_city("Florida (other)")   # retired label on older searches
+    assert valid_city("Orlando, FL")       # retired metro, still on old rows
+    assert valid_city("Sumter, SC")        # under 50k, but a covered metro
     assert not valid_city("Atlantis, ZZ")
     assert not valid_city("Smallville, KS")
 
@@ -100,18 +102,28 @@ def test_search_matches_job_in_custom_city(signed_in_client, db_session):
 # ── Picker UI + save flow ─────────────────────────────────────────────────────
 
 
-def test_search_page_renders_state_first_picker(signed_in_client):
+def test_search_page_no_longer_renders_a_city_picker(signed_in_client):
+    """Regression: the picker was removed on 2026-07-21 when every board went
+    to the full metro set. Nothing should ask a user to choose markets."""
     body = signed_in_client.get("/search").get_data(as_text=True)
-    assert "data-city-pair" in body
-    assert 'data-role="state"' in body
-    assert "citypicker.js" in body
-    assert 'data-state="ID"' in body  # optgroups carry the state for the JS
+    for marker in ("data-city-pair", 'data-role="state"', "citypicker.js",
+                   'name="city_1"'):
+        assert marker not in body, f"city picker came back: {marker!r}"
+    # It should instead show what's covered, read-only.
+    assert "Where we look" in body
+    assert "New York, NY" in body
+    assert "Sumter, SC" in body
 
 
-def test_saving_three_custom_cities(signed_in_client, db_session):
+def test_saving_ignores_submitted_cities_and_stores_the_full_set(signed_in_client, db_session):
+    """Cities aren't user input any more. Even if someone posts city_N fields
+    (an old cached form, or a crafted request), the search gets full coverage —
+    never a three-city subset that would quietly shrink their board."""
+    from app.catalog import ALL_CITY_LABELS
     from app.models import SavedSearch, User
 
-    resp = signed_in_client.post("/search", data={"ack_lock": "1", 
+    resp = signed_in_client.post("/search", data={
+        "ack_lock": "1",
         "title_slug": "technical-product-manager",
         "experience_bucket": "7-9",
         "city_1": "Boise, ID",
@@ -124,7 +136,7 @@ def test_saving_three_custom_cities(signed_in_client, db_session):
     search = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
     ).one()
-    assert search.cities == ["Boise, ID", "Chattanooga, TN", "Madison, WI"]
+    assert list(search.cities) == list(ALL_CITY_LABELS)
 
 
 # ── One title per account (admin exempt) ──────────────────────────────────────

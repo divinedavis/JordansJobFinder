@@ -16,12 +16,10 @@
   <section class="panel">
     <div class="match-header"><div>
       <p class="match-kicker">Plan</p>
-      <h3 class="match-title">
-        {% if is_billing_exempt %}Owner{% elif city_limit == 10 %}Pro{% elif city_limit == 5 %}Plus{% else %}Free{% endif %}
-      </h3>
+      <h3 class="match-title">Everything, free</h3>
     </div></div>
     <div class="list" style="margin-top: 12px;">
-      <div class="list-item"><span>Cities</span><strong>{{ city_limit }}</strong></div>
+      <div class="list-item"><span>Markets covered</span><strong>All {{ city_limit }}</strong></div>
       <div class="list-item">
         <span>AI resume creations</span>
         <strong>
@@ -32,9 +30,9 @@
     </div>
     <div class="button-row" style="margin-top: 16px;">
       {% if not is_billing_exempt %}
-        <a class="button" href="{{ url_for('web.billing') }}">
-          {% if city_limit == 3 %}Upgrade{% else %}Change plan{% endif %}
-        </a>
+        {# The paid tiers were dropped 2026-07-21 — nothing left to upgrade to.
+           The portal link stays so anyone still on an old subscription can
+           cancel it. #}
         {% if has_stripe_customer %}
         <form method="post" action="{{ url_for('web.billing_portal') }}" style="display: inline-flex;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

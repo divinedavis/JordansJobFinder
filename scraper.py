@@ -20,7 +20,7 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from greenhouse_urls import greenhouse_job_url
-from metro_decoys import strip_decoys
+from metros import ALL_METROS, LABELS as METRO_LABELS, infer_metro, matches_metro
 
 from app.parsing import (
     format_salary_label,
@@ -46,78 +46,9 @@ SENIOR_TERMS      = [r"\bsenior\b", r"\bsr\b", r"\blead\b",
 EXCLUDE_SENIORITY = [r"senior vice", r"assistant vice", r"\bavp\b", r"\bsvp\b", r"\bgovernance\b",
                      r"\bdirector\b", r"\bmanaging director\b"]
 
-NYC_LOCS     = ["new york", "nyc", "manhattan", "brooklyn", "jersey city"]
-ATLANTA_LOCS = ["atlanta", "alpharetta", "buckhead", "sandy springs",
-                "dunwoody", "midtown", "ga,", ", ga", "georgia"]
-MIAMI_LOCS   = ["miami", "miami, fl", "miami fl", "miami, florida",
-                "miami florida", "miami beach", "miami-dade", "greater miami",
-                "south florida", "brickell", "coral gables", "doral",
-                "fort lauderdale", "ft lauderdale", "aventura", "boca raton"]
-
-DALLAS_LOCS  = ["dallas", "fort worth", "dfw", "plano", "irving",
-                "arlington", "frisco", "richardson", "addison",
-                "tx,", ", tx", "texas"]
-HOUSTON_LOCS = ["houston", "the woodlands", "sugar land", "katy",
-                "spring", "pasadena", "cypress", "pearland",
-                "humble", "baytown"]
-DC_LOCS      = ["washington", "d.c.", "dc", "arlington, va",
-                "mclean", "tysons", "reston", "bethesda",
-                "rockville", "silver spring", "fairfax",
-                "alexandria", "northern virginia", "nova"]
-# Specific LA-metro place names only (no broad ", ca"/"california" catch-all)
-# so Bay Area / San Diego roles aren't misclassified as Los Angeles.
-LA_LOCS      = ["los angeles", "l.a.", "greater los angeles", "socal",
-                "santa monica", "culver city", "long beach", "pasadena",
-                "burbank", "glendale", "el segundo", "marina del rey",
-                "playa vista", "venice, ca", "west hollywood", "hawthorne",
-                "gardena", "sherman oaks", "westwood", "century city",
-                "torrance", "manhattan beach", "redondo beach", "inglewood",
-                "van nuys", "studio city", "north hollywood", "woodland hills",
-                "santa clarita", "calabasas", "beverly hills", "ventura",
-                "newport beach", "irvine"]
-
-# Top-10-city metros added 2026-07-19. Specific place names only — no broad
-# state catch-alls — and every state-suffixed entry ("glendale, az",
-# "mesa, az") exists to beat a bare-name collision in a metro checked later
-# in PM_METROS (LA's bare "glendale"/"pasadena", Dallas's bare "arlington").
-CHICAGO_LOCS = ["chicago", "evanston", "naperville", "schaumburg",
-                "rosemont, il", "oak brook", "oakbrook", "deerfield, il",
-                "vernon hills", "lincolnshire", "northbrook",
-                "downers grove", "des plaines", "skokie", "itasca",
-                "hoffman estates", "lake forest, il"]
-PHOENIX_LOCS = ["phoenix", "scottsdale", "tempe", "chandler",
-                "mesa, az", "gilbert, az", "glendale, az", "peoria, az",
-                "goodyear, az"]
-SAN_ANTONIO_LOCS = ["san antonio", "new braunfels", "schertz", "windcrest",
-                    "live oak, tx"]
-SAN_DIEGO_LOCS = ["san diego", "la jolla", "carlsbad", "sorrento valley",
-                  "chula vista", "oceanside", "escondido", "encinitas",
-                  "del mar", "poway", "national city", "rancho bernardo",
-                  "mira mesa", "torrey pines"]
-JACKSONVILLE_LOCS = ["jacksonville", "ponte vedra", "st. johns, fl",
-                     "orange park, fl", "fernandina"]
-PHILADELPHIA_LOCS = ["philadelphia", "philly", "conshohocken",
-                     "king of prussia", "wayne, pa", "radnor", "malvern",
-                     "horsham", "camden, nj", "wilmington, de", "yardley",
-                     "chesterbrook", "plymouth meeting", "newtown square",
-                     "berwyn, pa", "west chester, pa", "blue bell",
-                     "fort washington, pa", "rosemont, pa"]
-
-CITY_LABELS = {
-    "nyc": "New York, NY",
-    "atlanta": "Atlanta, GA",
-    "miami": "Miami, FL",
-    "dallas": "Dallas, TX",
-    "houston": "Houston, TX",
-    "dc": "Washington, DC",
-    "la": "Los Angeles, CA",
-    "chicago": "Chicago, IL",
-    "phoenix": "Phoenix, AZ",
-    "san-antonio": "San Antonio, TX",
-    "san-diego": "San Diego, CA",
-    "jacksonville-fl": "Jacksonville, FL",
-    "philadelphia-pa": "Philadelphia, PA",
-}
+# Metro patterns, labels and match order all live in metros.py now — six
+# scrapers used to carry their own drifting copies of this table.
+CITY_LABELS = dict(METRO_LABELS)
 
 CITY_SEARCH = {
     "nyc": "New York",
@@ -145,11 +76,11 @@ MIN_SALARY   = 180_000
 # "extra" = a user-selected city beyond the built-in metros (state-grouped
 # picker); those markets rarely publish salaries, so they're salary-optional.
 # Every metro except NYC (deliberate $180K floor there) — postings without a
-# parseable salary still surface. Must include every PM_METROS slug or that
-# metro silently drops all no-salary postings (2026-07-19 lesson).
-SALARY_OPTIONAL_CITIES = {"atlanta", "miami", "dallas", "houston", "dc", "la",
-                          "chicago", "phoenix", "san-antonio", "san-diego",
-                          "jacksonville-fl", "philadelphia-pa", "extra"}
+# parseable salary still surface. DERIVED from the registry rather than listed:
+# a hand-maintained list silently drops every no-salary posting in any metro
+# someone forgets to add (the 2026-07-19 lesson, and it would have bitten again
+# the moment the nine new top-20 metros landed).
+SALARY_OPTIONAL_CITIES = (set(ALL_METROS) - {"nyc"}) | {"extra"}
 VALID_POST_DAYS = 2
 TECH_THRESHOLD  = 3
 TECH_SIGNALS = [
@@ -914,116 +845,57 @@ def is_target_role(title):
     return any(r in t for r in TARGET_ROLES)
 
 
-def _in_metro(text, code, locs):
-    """Substring-match a metro's place names, minus its decoys.
+def _metro_checker(slug):
+    """is_<metro>() shims kept for the per-city scrapers and existing tests.
 
-    Decoys are place names that merely contain the metro's token — see
-    metro_decoys.py. Without the strip, NYC's bare "manhattan" claims
-    "Manhattan Beach, CA" before LA ever gets a look.
+    Per-city callers already know which metro they're scraping, so they may use
+    the bare state tokens (", tx") that are unsafe during inference.
     """
-    return any(loc in strip_decoys(text.lower(), code) for loc in locs)
+    def check(text):
+        return matches_metro(text, slug, allow_state_fallback=True)
+    return check
 
 
-def is_nyc(text):
-    return _in_metro(text, "nyc", NYC_LOCS)
-
-
-def is_atlanta(text):
-    return _in_metro(text, "atlanta", ATLANTA_LOCS)
-
-
-def is_miami(text):
-    return _in_metro(text, "miami", MIAMI_LOCS)
-
-
-def is_dallas(text):
-    return _in_metro(text, "dallas", DALLAS_LOCS)
-
-
-def is_houston(text):
-    return _in_metro(text, "houston", HOUSTON_LOCS)
-
-
-def is_dc(text):
-    return _in_metro(text, "dc", DC_LOCS)
-
-
-def is_la(text):
-    return _in_metro(text, "la", LA_LOCS)
-
-
-def is_chicago(text):
-    return _in_metro(text, "chicago", CHICAGO_LOCS)
-
-
-def is_phoenix(text):
-    return _in_metro(text, "phoenix", PHOENIX_LOCS)
-
-
-def is_san_antonio(text):
-    return _in_metro(text, "san-antonio", SAN_ANTONIO_LOCS)
-
-
-def is_san_diego(text):
-    return _in_metro(text, "san-diego", SAN_DIEGO_LOCS)
-
-
-def is_jacksonville(text):
-    return _in_metro(text, "jacksonville-fl", JACKSONVILLE_LOCS)
-
-
-def is_philadelphia(text):
-    return _in_metro(text, "philadelphia-pa", PHILADELPHIA_LOCS)
+is_nyc = _metro_checker("nyc")
+is_atlanta = _metro_checker("atlanta")
+is_miami = _metro_checker("miami")
+is_dallas = _metro_checker("dallas")
+is_houston = _metro_checker("houston")
+is_dc = _metro_checker("dc")
+is_la = _metro_checker("la")
+is_chicago = _metro_checker("chicago")
+is_phoenix = _metro_checker("phoenix")
+is_san_diego = _metro_checker("san-diego")
+is_philadelphia = _metro_checker("philadelphia-pa")
+is_boston = _metro_checker("boston")
+is_riverside = _metro_checker("riverside")
+is_san_francisco = _metro_checker("san-francisco")
+is_detroit = _metro_checker("detroit")
+is_seattle = _metro_checker("seattle")
+is_minneapolis = _metro_checker("minneapolis")
+is_denver = _metro_checker("denver")
+is_tampa = _metro_checker("tampa-fl")
+is_baltimore = _metro_checker("baltimore-md")
 
 
 def location_ok(text, city):
-    if city == "nyc":
-        return is_nyc(text)
-    if city == "atlanta":
-        return is_atlanta(text)
-    if city == "miami":
-        return is_miami(text)
-    if city == "dallas":
-        return is_dallas(text)
-    if city == "houston":
-        return is_houston(text)
-    if city == "dc":
-        return is_dc(text)
-    if city == "la":
-        return is_la(text)
-    if city == "chicago":
-        return is_chicago(text)
-    if city == "phoenix":
-        return is_phoenix(text)
-    if city == "san-antonio":
-        return is_san_antonio(text)
-    if city == "san-diego":
-        return is_san_diego(text)
-    if city == "jacksonville-fl":
-        return is_jacksonville(text)
-    if city == "philadelphia-pa":
-        return is_philadelphia(text)
-    return False
+    """Whether a posting sits in `city`. Per-city scraping, so state tokens OK."""
+    return matches_metro(text, city, allow_state_fallback=True)
 
 
-# Metros covered by the multi-metro ($1B+) scrapers; first match wins, so the
-# order matters: the specific-named metros are checked BEFORE Dallas, whose
-# pattern list intentionally includes broad Texas catch-alls (", tx", "texas")
-# for per-city use. Without this ordering "Houston, TX" would match Dallas's
-# ", tx", and "Arlington, VA" would match Dallas's bare "arlington" before DC.
-# Phoenix precedes LA so "Glendale, AZ" beats LA's bare "glendale";
-# San Antonio precedes Dallas for the Texas catch-all; the six 2026-07-19
-# metros complete top-10-US-city coverage (with NYC/HOU/DAL).
-PM_METROS = ("nyc", "miami", "atlanta", "chicago", "phoenix", "san-antonio",
-             "san-diego", "jacksonville-fl", "philadelphia-pa", "la", "dc",
-             "houston", "dallas")
+# Every metro this app covers: the 20 largest US metros, the central/eastern PA
+# trio, and South Carolina's ten largest cities. Ordering (and the collision
+# rules behind it) live in metros.MATCH_ORDER.
+PM_METROS = ALL_METROS
+
 
 def infer_pm_city(text):
-    """Return the first supported metro whose pattern matches `text`, else None."""
-    for c in PM_METROS:
-        if location_ok(text, c):
-            return c
-    return None
+    """Return the first supported metro whose pattern matches `text`, else None.
+
+    None rather than "" for backwards compatibility with the callers and tests
+    that predate the registry.
+    """
+    return infer_metro(text) or None
 
 
 # City labels ("Boise, ID") that users picked in the state-grouped selector,

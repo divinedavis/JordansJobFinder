@@ -83,7 +83,8 @@ def test_selecting_analyst_adds_tab(signed_in_client, db_session):
     search = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "analyst"
     ).one()
-    assert search.cities == ["New York, NY", "Chicago, IL", "Dallas, TX"]
+    from app.catalog import ALL_CITY_LABELS
+    assert list(search.cities) == list(ALL_CITY_LABELS)
 
     body = signed_in_client.get("/dashboard?tab=analyst").get_data(as_text=True)
     assert "Data analyst, business analyst" in body

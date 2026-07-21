@@ -59,7 +59,10 @@ def test_it_vertical_matches_without_salary_or_experience(app):
 # ── City inference (scraper_it.py) ────────────────────────────────────────────
 
 
-def test_it_scraper_infers_pa_and_all_florida_cities():
+def test_it_scraper_covers_every_metro():
+    """The IT track was scoped to PA + every Florida metro for one user. Since
+    2026-07-21 every track shares the same 29 metros, so PA survives but the
+    Florida catch-alls (orlando-fl, florida-other) are gone."""
     from scraper_it import infer_city
 
     assert infer_city("Lancaster, PA") == "lancaster-pa"
@@ -67,14 +70,15 @@ def test_it_scraper_infers_pa_and_all_florida_cities():
     assert infer_city("Harrisburg, PA") == "harrisburg-pa"
     assert infer_city("Miami, FL") == "miami"
     assert infer_city("Tampa, FL") == "tampa-fl"
-    assert infer_city("Orlando, FL") == "orlando-fl"
-    assert infer_city("Jacksonville, FL") == "jacksonville-fl"
-    # Anywhere else in Florida lands in the catch-all — never dropped.
-    assert infer_city("Tallahassee, FL") == "florida-other"
     assert infer_city("Boca Raton, FL") == "miami"
-    # Outside the track's scope → no city → job skipped.
-    assert infer_city("New York, NY") == ""
-    assert infer_city("Dallas, TX") == ""
+    # Newly in scope for this track.
+    assert infer_city("New York, NY") == "nyc"
+    assert infer_city("Dallas, TX") == "dallas"
+    assert infer_city("Boston, MA") == "boston"
+    # Retired metros are excluded, not silently relabelled.
+    assert infer_city("Orlando, FL") == ""
+    assert infer_city("Jacksonville, FL") == ""
+    assert infer_city("Tallahassee, FL") == ""
 
 
 # ── Per-user tabs ─────────────────────────────────────────────────────────────
@@ -144,8 +148,8 @@ def test_it_board_keeps_a_week_of_jobs(app, signed_in_client, db_session):
     job = Job(
         source="test", company="Chewy", title="IT Program Manager",
         normalized_title="it program manager",
-        url="https://example.com/jobs/it-week-1", city="orlando-fl",
-        location="Orlando, FL", description="", vertical="it",
+        url="https://example.com/jobs/it-week-1", city="tampa-fl",
+        location="Tampa, FL", description="", vertical="it",
         is_technical=True, posted_at=five_days_ago,
     )
     db_session.add(job)
@@ -184,11 +188,12 @@ def test_it_search_matches_it_jobs_only(signed_in_client, db_session):
         url="https://example.com/jobs/it-2", city="tampa-fl",
         location="Tampa, FL", description="", vertical="it", is_technical=False,
     )
+    # Every metro is in scope now, so "wrong city" means one we don't cover.
     wrong_city = Job(
         source="test", company="Jabil", title="IT Program Manager",
         normalized_title="it program manager",
-        url="https://example.com/jobs/it-3", city="nyc",
-        location="New York, NY", description="", vertical="it", is_technical=True,
+        url="https://example.com/jobs/it-3", city="",
+        location="Boise, ID", description="", vertical="it", is_technical=True,
     )
     db_session.add_all([good, construction, wrong_city])
     db_session.commit()

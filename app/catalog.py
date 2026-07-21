@@ -1,5 +1,8 @@
 import os
 
+from metros import (LABELS as METRO_LABELS, PA_REGIONAL as METRO_PA,
+                    SC_REGIONAL as METRO_SC, TOP_20 as METRO_TOP_20)
+
 TITLE_OPTIONS = [
     {"slug": "technical-product-manager", "label": "Product Manager", "vertical": "pm"},
     {"slug": "technical-program-manager", "label": "Program Manager", "vertical": "pm"},
@@ -155,78 +158,30 @@ EXPERIENCE_BUCKETS = [
     {"slug": "10+", "label": "10+ years"},
 ]
 
-DEFAULT_CITIES = ["New York, NY", "Atlanta, GA", "Miami, FL"]
+# Every metro is covered for every user as of 2026-07-21 — the city picker is
+# gone, so these are no longer "options" so much as the fixed board layout.
+# Ordered by metro size (metros.ALL_METROS is match-order, not population), so
+# the dashboard groups big markets first.
 CITY_OPTIONS = [
-    {"slug": "new-york-ny", "label": "New York, NY"},
-    {"slug": "atlanta-ga", "label": "Atlanta, GA"},
-    {"slug": "miami-fl", "label": "Miami, FL"},
-    {"slug": "san-francisco-ca", "label": "San Francisco, CA"},
-    {"slug": "seattle-wa", "label": "Seattle, WA"},
-    {"slug": "austin-tx", "label": "Austin, TX"},
-    {"slug": "boston-ma", "label": "Boston, MA"},
-    {"slug": "los-angeles-ca", "label": "Los Angeles, CA"},
-    {"slug": "chicago-il", "label": "Chicago, IL"},
-    {"slug": "washington-dc", "label": "Washington, DC"},
-    {"slug": "dallas-tx", "label": "Dallas, TX"},
-    {"slug": "houston-tx", "label": "Houston, TX"},
-    {"slug": "york-pa", "label": "York, PA"},
-    {"slug": "lancaster-pa", "label": "Lancaster, PA"},
-    {"slug": "philadelphia-pa", "label": "Philadelphia, PA"},
-    {"slug": "harrisburg-pa", "label": "Harrisburg, PA"},
-    {"slug": "baltimore-md", "label": "Baltimore, MD"},
-    {"slug": "tampa-fl", "label": "Tampa, FL"},
-    {"slug": "orlando-fl", "label": "Orlando, FL"},
-    {"slug": "jacksonville-fl", "label": "Jacksonville, FL"},
-    {"slug": "florida-other", "label": "Florida (other)"},
-    {"slug": "charleston-sc", "label": "Charleston, SC"},
-    {"slug": "columbia-sc", "label": "Columbia, SC"},
-    {"slug": "greenville-sc", "label": "Greenville, SC"},
-    {"slug": "rock-hill-sc", "label": "Rock Hill, SC"},
+    {"slug": slug, "label": METRO_LABELS[slug]}
+    for slug in (*METRO_TOP_20, *METRO_PA, *METRO_SC)
 ]
-FINANCE_DEFAULT_CITIES = [
-    "New York, NY", "Atlanta, GA", "Miami, FL",
-    "Dallas, TX", "Houston, TX", "Washington, DC",
-    "York, PA", "Lancaster, PA", "Philadelphia, PA",
-    "Harrisburg, PA", "Baltimore, MD",
-]
-# Sales mirrors finance: same 11 metros.
-SALES_DEFAULT_CITIES = list(FINANCE_DEFAULT_CITIES)
-# IT project/program track: central/eastern PA plus every Florida metro (the
-# job just has to sit in one of these locations — HQ doesn't matter).
-IT_DEFAULT_CITIES = [
-    "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
-    "Miami, FL", "Tampa, FL", "Orlando, FL", "Jacksonville, FL",
-    "Florida (other)",
-]
-# HR coordinator track: the four PA metros, always — selecting the HR title
-# pins these cities (the 3-city picker on the form is PM-specific).
-# PA metros stay first (the track's original audience keeps its free-tier
-# cities); the nationwide metros added 2026-07-19 are reachable on paid
-# tiers or via a custom-city override.
-HR_DEFAULT_CITIES = [
-    "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
-    "New York, NY", "Chicago, IL", "Phoenix, AZ", "San Diego, CA",
-    "Houston, TX", "Dallas, TX",
-]
-# Data / Business Analyst track (2026-07-19): biggest analytics markets
-# first; free plan caps to the first 3.
-ANALYST_DEFAULT_CITIES = [
-    "New York, NY", "Chicago, IL", "Dallas, TX", "Atlanta, GA",
-    "Philadelphia, PA", "Phoenix, AZ", "Los Angeles, CA", "San Diego, CA",
-    "Houston, TX", "Washington, DC",
-]
-# Supply chain management track: nationwide major metros since 2026-07-19
-# (originally SC-only). Free plan caps to the first 3.
-# 2026-07-19: expanded nationwide (originally SC-only). Free plan caps to the
-# first 3; paid tiers reach deeper into the list.
-SCM_DEFAULT_CITIES = [
-    "Chicago, IL", "Philadelphia, PA", "Houston, TX", "Phoenix, AZ",
-    "Dallas, TX", "New York, NY", "Los Angeles, CA", "San Diego, CA",
-    "Jacksonville, FL", "Charleston, SC",
-]
-# Project management track: same four SC metros as SCM (pilot state). Free plan
-# caps to the first 3.
-PROJECT_DEFAULT_CITIES = list(SCM_DEFAULT_CITIES)
+ALL_CITY_LABELS = [item["label"] for item in CITY_OPTIONS]
+# Every user's saved search covers every metro. Kept as a name because a lot of
+# call sites still ask for "the default cities".
+DEFAULT_CITIES = list(ALL_CITY_LABELS)
+# Every track now covers every metro (2026-07-21). The per-vertical city sets
+# these names used to hold are gone along with the picker: each existed to
+# express "this track only serves these markets", and none of them do anymore.
+# The names survive because VERTICAL_DEFAULT_CITIES and several call sites
+# still reference them.
+FINANCE_DEFAULT_CITIES = list(ALL_CITY_LABELS)
+SALES_DEFAULT_CITIES = list(ALL_CITY_LABELS)
+IT_DEFAULT_CITIES = list(ALL_CITY_LABELS)
+HR_DEFAULT_CITIES = list(ALL_CITY_LABELS)
+ANALYST_DEFAULT_CITIES = list(ALL_CITY_LABELS)
+SCM_DEFAULT_CITIES = list(ALL_CITY_LABELS)
+PROJECT_DEFAULT_CITIES = list(ALL_CITY_LABELS)
 # Vertical -> fixed default city set used when a non-PM title is selected.
 VERTICAL_DEFAULT_CITIES = {
     "analyst": ANALYST_DEFAULT_CITIES,

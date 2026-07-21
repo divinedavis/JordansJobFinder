@@ -7,19 +7,18 @@
     <span class="eyebrow">One Saved Search Per User</span>
     <h1>{{ "Update" if saved_search else "Create" }} your saved search.</h1>
     <p style="margin-top: 14px; max-width: 60ch;">
-      Pick a title, your experience level, and 3&ndash;{{ city_limit }} cities on your current plan.
+      Pick a title and your experience level. Every market we cover is included.
     </p>
 
     {% if is_locked %}
       <div class="flash error" style="margin-top: 16px;">
         Your search is locked until <strong>{{ locked_until.strftime('%b %-d, %Y') }}</strong>.
-        Searches lock for 30 days after saving. Want to change it sooner or add more cities?
-        <a href="{{ url_for('web.billing') }}">Upgrade your plan</a> to unlock it now.
+        Searches lock for 30 days after saving.
       </div>
     {% else %}
       <p class="muted" style="margin-top: 12px; max-width: 60ch;">
         Heads up: once you save, your search <strong>locks for 30 days</strong>
-        (title, experience, and cities). It unlocks monthly — or upgrade anytime to change it sooner.
+        (title and experience level). It unlocks monthly.
       </p>
     {% endif %}
 
@@ -58,55 +57,29 @@
         </p>
       {% endif %}
 
-      <p class="muted" style="margin-bottom: 10px;">
-        Pick 3&ndash;{{ city_limit }} cities anywhere in the US (population 50k+).
-        Each card is one pick: choose the state first, then the city.
-        {% if city_limit == 3 %}
-          Need more? <a href="{{ url_for('web.billing') }}">Upgrade</a> to 5 cities
-          for $4.99/mo or 10 cities for $19.99/mo.
-        {% endif %}
+      <h2 style="margin-bottom: 6px;">Where we look</h2>
+      <p class="muted" style="margin-bottom: 12px;">
+        Every board covers all {{ covered_cities|length }} markets below &mdash; the
+        20 largest metros in the country, plus central Pennsylvania and South
+        Carolina. There is nothing to pick.
       </p>
-      <div class="grid three">
-        {% for slot in city_slots %}
-        {% set i = loop.index %}
-        <div data-city-pair class="card" style="padding: 16px;">
-          <h3 style="margin-bottom: 10px;">City {{ i }}</h3>
-          <label for="state_{{ i }}" class="muted" style="font-size: 12px;">State</label>
-          <select id="state_{{ i }}" data-role="state" aria-label="State for city {{ i }}"{% if is_locked %} disabled{% endif %}>
-            <option value="">All states</option>
-            {% for abbr, name in state_options %}
-              <option value="{{ abbr }}" {% if slot.state == abbr %}selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-          </select>
-          <label for="city_{{ i }}" class="muted" style="font-size: 12px;">City</label>
-          <select id="city_{{ i }}" name="city_{{ i }}" data-role="city"{% if i <= 3 %} required{% endif %}{% if is_locked %} disabled{% endif %}>
-            <option value="">{{ "Select a city" if i <= 3 else "Optional city" }}</option>
-            {% for abbr, name in state_options %}
-              <optgroup label="{{ name }}" data-state="{{ abbr }}">
-                {% for c in cities_by_state[abbr] %}
-                  <option value="{{ c }}, {{ abbr }}" {% if slot.value == c ~ ', ' ~ abbr %}selected{% endif %}>{{ c }}</option>
-                {% endfor %}
-              </optgroup>
-            {% endfor %}
-          </select>
-        </div>
+      <ul class="city-coverage" style="columns: 3; column-gap: 24px; margin-bottom: 18px; padding-left: 18px;">
+        {% for city in covered_cities %}
+          <li style="break-inside: avoid; margin-bottom: 2px;">{{ city }}</li>
         {% endfor %}
-      </div>
-      <script src="{{ url_for('static', filename='js/citypicker.js') }}" defer></script>
+      </ul>
 
       {% if not is_locked %}
       <label style="display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; font-weight: 500;">
         <input type="checkbox" name="ack_lock" value="1" required style="margin-top: 4px; width: auto;">
-        <span>I understand that saving will <strong>lock my job title, experience, and
-        cities for 30 days</strong>. I can't change them until the lock expires
-        (unless I upgrade my plan).</span>
+        <span>I understand that saving will <strong>lock my job title and
+        experience level for 30 days</strong>. I can't change them until the
+        lock expires.</span>
       </label>
       {% endif %}
 
       <div class="button-row">
-        {% if is_locked %}
-          <a class="button" href="{{ url_for('web.billing') }}">Upgrade to unlock</a>
-        {% else %}
+        {% if not is_locked %}
           <button class="button" type="submit">Confirm &amp; save (locks for 30 days)</button>
         {% endif %}
         <a class="button secondary" href="{{ url_for('web.profile') }}">Back to Profile</a>

@@ -24,18 +24,18 @@ def test_boeing_moved_from_percity_to_multi():
     assert any(t == "boeing" for _, t, _, _ in scraper.WORKDAY_MULTI)
 
 
-def test_charleston_extra_city_inference_tags_charleston():
-    """A multi-list posting in Charleston is tagged city='extra' only when a
-    user has 'Charleston, SC' on their saved search."""
+def test_charleston_is_a_first_class_metro():
+    """Charleston used to reach the board only through the 'extra city'
+    mechanism — a user had to pick it, and postings were tagged city='extra'.
+    Since 2026-07-21 it's one of the 29 built-in metros (SC top-10 keep-list),
+    so it resolves directly and no longer depends on anyone's saved search."""
     import scraper
 
-    scraper.ACTIVE_EXTRA_CITIES = ["Charleston, SC"]
-    assert scraper.infer_pm_city_or_extra("Charleston, SC") == "extra"
-    assert scraper.infer_pm_city_or_extra("North Charleston, SC") == "extra"
-    # Without the city active, a Charleston posting is dropped (returns None).
+    for active in (["Charleston, SC"], []):
+        scraper.ACTIVE_EXTRA_CITIES = active
+        assert scraper.infer_pm_city_or_extra("Charleston, SC") == "charleston-sc"
+        assert scraper.infer_pm_city_or_extra("North Charleston, SC") == "charleston-sc"
     scraper.ACTIVE_EXTRA_CITIES = []
-    assert scraper.infer_pm_city_or_extra("Charleston, SC") is None
-    # A built-in metro is unaffected either way.
     assert scraper.infer_pm_city_or_extra("New York, NY") == "nyc"
 
 

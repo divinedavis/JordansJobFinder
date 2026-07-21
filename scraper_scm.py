@@ -23,7 +23,7 @@ import requests
 
 from scraper_ats_extra import collect_extra_jobs
 from greenhouse_urls import greenhouse_job_url
-from metro_decoys import strip_decoys
+from metros import infer_metro
 from scraper_it import IT_GREENHOUSE_COMPANIES, IT_WORKDAY_COMPANIES
 from scraper_sales import first_truthy_date, parse_iso, parse_relative_posted
 from scraper_sc_employers import SC_GREENHOUSE_1B, SC_WORKDAY_1B
@@ -132,58 +132,6 @@ SCM_GREENHOUSE_COMPANIES = _merge(
 )
 
 # Metro-level SC inference. Order-independent (no overlaps between metros).
-CITY_LOCATION_PATTERNS = {
-    # SC metros first (original track scope; no overlaps with each other).
-    "charleston-sc":  ["charleston", "north charleston", "mount pleasant",
-                       "mt pleasant", "summerville", "ladson", "goose creek",
-                       "moncks corner", "hanahan", "daniel island", "ridgeville"],
-    "columbia-sc":    ["columbia, sc", "columbia sc", "lexington, sc",
-                       "west columbia", "cayce", "irmo", "blythewood",
-                       "richland county"],
-    "greenville-sc":  ["greenville, sc", "greenville sc", "spartanburg",
-                       "greer", "simpsonville", "mauldin", "anderson, sc",
-                       "easley", "duncan, sc", "upstate"],
-    "rock-hill-sc":   ["rock hill", "fort mill", "york, sc", "york county, sc",
-                       "tega cay", "clover, sc"],
-    # Nationwide metros (2026-07-19 expansion). Same ordering rules as
-    # scraper.py PM_METROS: specific metros before Dallas (whose list carries
-    # broad ", tx"/"texas" catch-alls); Phoenix before LA so "glendale, az"
-    # beats LA's bare "glendale".
-    "nyc":            ["new york", "nyc", "manhattan", "brooklyn", "jersey city"],
-    "miami":          ["miami", "miami beach", "fort lauderdale", "boca raton",
-                       "doral", "coral gables", "south florida"],
-    "atlanta":        ["atlanta", "alpharetta", "sandy springs", "dunwoody"],
-    "chicago":        ["chicago", "evanston", "naperville", "schaumburg",
-                       "rosemont, il", "oak brook", "deerfield, il",
-                       "vernon hills", "lincolnshire", "northbrook",
-                       "downers grove", "des plaines", "skokie", "itasca",
-                       "hoffman estates", "lake forest, il"],
-    "phoenix":        ["phoenix", "scottsdale", "tempe", "chandler",
-                       "mesa, az", "gilbert, az", "glendale, az",
-                       "peoria, az", "goodyear, az"],
-    "san-antonio":    ["san antonio", "new braunfels", "schertz", "windcrest"],
-    "san-diego":      ["san diego", "la jolla", "carlsbad", "sorrento valley",
-                       "chula vista", "oceanside", "escondido", "encinitas",
-                       "poway", "rancho bernardo"],
-    "jacksonville-fl": ["jacksonville", "ponte vedra", "orange park, fl"],
-    "philadelphia-pa": ["philadelphia", "philly", "conshohocken",
-                        "king of prussia", "wayne, pa", "radnor", "malvern",
-                        "horsham", "camden, nj", "wilmington, de",
-                        "chesterbrook", "plymouth meeting", "blue bell",
-                        "west chester, pa", "newtown square"],
-    "la":             ["los angeles", "santa monica", "culver city",
-                       "long beach", "burbank", "el segundo", "torrance",
-                       "irvine", "newport beach", "woodland hills",
-                       "manhattan beach", "beverly hills"],
-    "dc":             ["washington", "d.c.", "arlington, va", "mclean",
-                       "tysons", "reston", "bethesda", "rockville",
-                       "alexandria", "fairfax"],
-    "houston":        ["houston", "the woodlands", "sugar land", "katy",
-                       "pearland", "baytown"],
-    "dallas":         ["dallas", "fort worth", "dfw", "plano", "irving",
-                       "frisco", "richardson", "addison", "tx,", ", tx",
-                       "texas"],
-}
 
 SCM_SEARCH_TERMS = [
     "supply chain", "logistics", "procurement", "sourcing", "buyer",
@@ -228,14 +176,16 @@ def within_recency(posted_dt):
 
 
 def infer_city(location):
-    loc = (location or "").lower()
-    for code, patterns in CITY_LOCATION_PATTERNS.items():
-        # Blank out place names that only *contain* this metro's token, so
-        # NYC's bare "manhattan" can't claim "Manhattan Beach, CA".
-        candidate = strip_decoys(loc, code)
-        if any(p in candidate for p in patterns):
-            return code
-    return ""
+    """Map an ATS location string to a supported metro code, or "" if none.
+
+    Callers MUST skip postings that return "" — there is no silent fallback to
+    the company's HQ, or e.g. Vanguard's Melbourne office floods Philadelphia.
+
+    Every vertical covers the same 29 metros as of 2026-07-21 (the 20 largest
+    US metros plus the PA trio and South Carolina); the patterns and their
+    collision rules live in metros.py.
+    """
+    return infer_metro(location)
 
 
 def make_job(*, company, title, url, city, location, source, posted_dt,

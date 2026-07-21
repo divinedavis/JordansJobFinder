@@ -22,10 +22,20 @@ def valid_experience_bucket(bucket: str) -> bool:
 
 
 def valid_city(city: str) -> bool:
-    # Any US city above 50k population (state-grouped picker), plus the
-    # legacy metro labels some existing searches still carry.
+    """Whether a saved search may carry this city label.
+
+    The state-grouped picker is gone, but this still has to accept three
+    things: the metros we cover, any 50k+ US city (older rows chosen through
+    the picker), and RETIRED metro labels — a search written before
+    2026-07-21 can still hold "Orlando, FL" or "Florida (other)", and it must
+    validate rather than blocking the user out of their own settings page.
+    """
+    from metros import RETIRED_LABELS
+
     from .uscities import valid_city_labels
-    return city in valid_city_labels() or city in CITY_LABELS.values()
+    return (city in valid_city_labels()
+            or city in CITY_LABELS.values()
+            or city in RETIRED_LABELS.values())
 
 
 def default_cities() -> list[str]:
@@ -48,12 +58,12 @@ def validate_saved_search(
         return SearchValidationResult(False, "Choose a supported title from the list.")
     if not valid_experience_bucket(experience_bucket):
         return SearchValidationResult(False, "Choose a valid experience bucket.")
-    # At least 3 cities keeps the board useful; the ceiling comes from the
-    # account's plan (3 free / 5 / 10 via the city-tier subscriptions).
+    # At least 3 cities keeps the board useful. There is no longer a paid
+    # ceiling — callers pass max_cities=len(the full metro set).
     if len(cities) < current_app.config["PAID_CITY_LIMIT"]:
         return SearchValidationResult(False, "Pick at least three cities.")
     if len(cities) > max_cities:
-        return SearchValidationResult(False, f"Your plan allows up to {max_cities} cities.")
+        return SearchValidationResult(False, f"At most {max_cities} cities.")
     if len(set(city.lower() for city in cities)) != len(cities):
         return SearchValidationResult(False, "Cities must be unique.")
     if any(not valid_city(city) for city in cities):

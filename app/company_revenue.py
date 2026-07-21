@@ -7,6 +7,16 @@ city/variant suffixes some scraper employer lists carry ("Accenture DAL") and
 of light punctuation/casing differences between the scraped posting's company
 name and the key. Companies with no meaningful/known revenue are simply absent
 (the card shows nothing).
+
+**Subsidiaries carry their PARENT's revenue** (owner's rule, 2026-07-21). What
+a candidate is judging is the scale and backing of the employer behind the job,
+and a wholly-owned subsidiary's own book usually isn't disclosed anyway. The
+parent is named in the string — '$403B (Alphabet)' on a Waymo card — so nobody
+reads it as the subsidiary's own revenue. Applies to Waymo (Alphabet), Flatiron
+Health (Roche), Benefitfocus (Voya) and Toyota NA (Toyota Motor Corp).
+
+Watch for names that only *look* like subsidiaries: the "Gemini" here is the
+Winklevoss crypto exchange, not Google Gemini, and is independently public.
 """
 import re
 
@@ -115,7 +125,9 @@ REVENUE: dict[str, str] = {
     'Bank of America': '$100B',
     'Barclays': '$33B',
     'Becton Dickinson': '$20B',
-    'Benefitfocus': '~$260M',
+    # Subsidiary — Voya's FY2025 revenue (the scraper config is godirect/
+    # voya_jobs; Benefitfocus' own book was ~$260M before the acquisition).
+    'Benefitfocus': '$8.2B (Voya)',
     'Bill.com': '$1.3B',
     'Bird': '~$100M',
     'BlackRock': '$20B',
@@ -481,9 +493,14 @@ REVENUE: dict[str, str] = {
     'ClickHouse': '~$250M (est.)',
     'Culture Amp': '~$230M (est.)',
     'Faraday Future': '$0.5M',
-    # Roche never breaks Flatiron out; public estimates span $375M–$1.2B, so
-    # this is the one genuinely uncertain call in the backfill.
-    'Flatiron Health': '~$530M (est.)',
+    # Subsidiary — see the parent-company rule below. Roche never breaks
+    # Flatiron out (estimates spanned $375M–$1.2B), so the parent figure is
+    # both the owner's policy and the only solid number available.
+    'Flatiron Health': '~$68B (Roche)',
+    # NOT Google Gemini. This is the Winklevoss crypto exchange (NASDAQ: GEMI)
+    # — the greenhouse token "gemini" serves its trading / treasury /
+    # compliance roles in NYC and Miami. It is independently public, not an
+    # Alphabet company, so the parent-company rule does not apply.
     'Gemini': '$180M',
     'Group 1 Automotive': '$22.6B',
     'IMC Trading': '$3.1B',
@@ -505,7 +522,8 @@ REVENUE: dict[str, str] = {
     # TMC's North America geographic segment — Toyota Motor North America
     # files no standalone financials.
     'Toyota': '$140B',
-    'Waymo': '~$280M (est.)',
+    # Subsidiary — Alphabet's FY2025 revenue, not Waymo's own ~$280M.
+    'Waymo': '$403B (Alphabet)',
     'Meta': '$201B',
     # Wayve is deliberately absent: its latest Companies House accounts
     # describe it as pre-revenue R&D, and the module's convention is that

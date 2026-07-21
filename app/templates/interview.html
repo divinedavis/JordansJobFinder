@@ -27,16 +27,6 @@
         <button class="button" type="submit">Build my interview prep</button>
       </form>
       <script src="{{ url_for('static', filename='js/interview.js') }}" defer></script>
-    {% else %}
-      <p style="margin-top: 14px; max-width: 64ch;">
-        AI interview prep — a company background brief, the questions you
-        should ask, and salary expectations for this exact role — is a
-        <strong>Pro</strong> feature.
-      </p>
-      <div class="button-row" style="margin-top: 14px;">
-        <a class="button" href="{{ url_for('web.billing') }}">Upgrade to Pro ($19.99/mo)</a>
-        <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Dashboard</a>
-      </div>
     {% endif %}
   </section>
 

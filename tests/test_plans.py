@@ -23,9 +23,14 @@ def _sub(db_session, email="quota@example.com"):
 # ── City cap (the reported bug) ───────────────────────────────────────────────
 
 
-def test_non_pm_track_caps_cities_to_free_limit(signed_in_client, db_session):
-    """Selecting Corporate Finance on a free plan must seed only 3 cities, not
-    the finance track's full 11-metro default (this was the dashboard >3 bug)."""
+def test_non_pm_track_gets_every_metro(signed_in_client, db_session):
+    """Selecting a non-PM track seeds the full metro set.
+
+    This used to cap to the plan's 3 cities. That cap is what silently dropped
+    York PA off the HR board when the metro list grew to 29, so the guard now
+    runs the other way: the track must get everything.
+    """
+    from app.catalog import ALL_CITY_LABELS
     from app.models import SavedSearch, User
 
     signed_in_client.post("/search", data={"ack_lock": "1", 
@@ -35,7 +40,7 @@ def test_non_pm_track_caps_cities_to_free_limit(signed_in_client, db_session):
     search = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "finance"
     ).one()
-    assert len(search.cities) == 3
+    assert list(search.cities) == list(ALL_CITY_LABELS)
 
 
 # ── 30-day search lock ────────────────────────────────────────────────────────
@@ -64,7 +69,10 @@ def test_saving_locks_search_for_30_days(signed_in_client, db_session):
     assert "locked" in resp.get_data(as_text=True).lower()
     db_session.expire_all()
     search = user.saved_search
-    assert search.cities == ["New York, NY", "Atlanta, GA", "Miami, FL"]
+    # Cities are no longer part of what locks — coverage is always complete.
+    from app.catalog import ALL_CITY_LABELS
+    assert list(search.cities) == list(ALL_CITY_LABELS)
+    assert search.experience_bucket == "7-9", "locked search was still edited"
 
 
 # ── AI-resume quota ───────────────────────────────────────────────────────────

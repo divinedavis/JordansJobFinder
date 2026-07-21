@@ -21,7 +21,7 @@ import requests
 
 from scraper_ats_extra import collect_extra_jobs
 from greenhouse_urls import greenhouse_job_url
-from metro_decoys import strip_decoys
+from metros import infer_metro
 from scraper_finance import (
     FINANCE_GREENHOUSE_COMPANIES,
     FINANCE_WORKDAY_COMPANIES,
@@ -77,16 +77,6 @@ IT_GREENHOUSE_COMPANIES = _merge_unique(
 # Location patterns per city slug. Order matters: the generic Florida
 # catch-all MUST be checked last so the named FL metros claim their postings
 # first (same trick as Dallas-last in scraper.py's infer_pm_city).
-CITY_LOCATION_PATTERNS = {
-    "lancaster-pa":    ["lancaster, pa", "lancaster county"],
-    "philadelphia-pa": ["philadelphia", "philly", "malvern", "horsham", "blue bell", "wayne, pa", "valley forge", "king of prussia"],
-    "harrisburg-pa":   ["harrisburg", "camp hill", "mechanicsburg", "hershey, pa"],
-    "miami":           ["miami", "fort lauderdale", "boca raton", "west palm", "doral", "coral gables"],
-    "tampa-fl":        ["tampa", "st. petersburg", "saint petersburg", "clearwater", "brandon, fl"],
-    "orlando-fl":      ["orlando", "lake mary", "maitland"],
-    "jacksonville-fl": ["jacksonville"],
-    "florida-other":   [", fl", " fl ", "florida"],
-}
 
 IT_SEARCH_TERMS = [
     "it project manager",
@@ -142,14 +132,16 @@ def within_recency(posted_dt):
 
 
 def infer_city(location):
-    loc = (location or "").lower()
-    for code, patterns in CITY_LOCATION_PATTERNS.items():
-        # Blank out place names that only *contain* this metro's token, so
-        # NYC's bare "manhattan" can't claim "Manhattan Beach, CA".
-        candidate = strip_decoys(loc, code)
-        if any(p in candidate for p in patterns):
-            return code
-    return ""
+    """Map an ATS location string to a supported metro code, or "" if none.
+
+    Callers MUST skip postings that return "" — there is no silent fallback to
+    the company's HQ, or e.g. Vanguard's Melbourne office floods Philadelphia.
+
+    Every vertical covers the same 29 metros as of 2026-07-21 (the 20 largest
+    US metros plus the PA trio and South Carolina); the patterns and their
+    collision rules live in metros.py.
+    """
+    return infer_metro(location)
 
 
 def make_job(*, company, title, url, city, location, source, posted_dt, posted_label):

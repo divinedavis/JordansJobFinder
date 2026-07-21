@@ -18,14 +18,21 @@ def test_infer_pm_city_maps_known_locations():
 
 def test_infer_pm_city_returns_none_for_unsupported():
     assert scraper.infer_pm_city("Remote - Canada") is None
-    assert scraper.infer_pm_city("Seattle, WA") is None
     assert scraper.infer_pm_city("") is None
+    # Seattle became supported on 2026-07-21 (top-20 expansion).
+    assert scraper.infer_pm_city("Seattle, WA") == "seattle"
+    # Still unsupported: outside the top 20 and both keep-lists.
+    assert scraper.infer_pm_city("Boise, ID") is None
+    assert scraper.infer_pm_city("Omaha, NE") is None
 
 
 def test_infer_pm_city_handles_multi_location_strings():
-    # Greenhouse boards often list several offices in one string; first
-    # supported metro should win.
-    assert scraper.infer_pm_city("San Francisco, CA | New York, NY") == "nyc"
+    # Greenhouse boards often list several offices in one string. Resolution is
+    # by metros.MATCH_ORDER, NOT by position in the string — the posting is
+    # genuinely in both markets, so either is correct and a fixed order keeps
+    # the result stable across runs.
+    assert scraper.infer_pm_city("San Francisco, CA | New York, NY") == "san-francisco"
+    assert scraper.infer_pm_city("Austin, TX | New York, NY") == "nyc"
 
 
 def test_multi_lists_are_nonempty_and_well_formed():
@@ -58,21 +65,22 @@ def test_infer_pm_city_new_top10_metros():
     assert scraper.infer_pm_city("Deerfield, IL") == "chicago"
     assert scraper.infer_pm_city("Phoenix, AZ") == "phoenix"
     assert scraper.infer_pm_city("Scottsdale, AZ") == "phoenix"
-    assert scraper.infer_pm_city("San Antonio, TX") == "san-antonio"
     assert scraper.infer_pm_city("San Diego, CA") == "san-diego"
     assert scraper.infer_pm_city("Carlsbad, CA") == "san-diego"
-    assert scraper.infer_pm_city("Jacksonville, FL") == "jacksonville-fl"
-    assert scraper.infer_pm_city("Ponte Vedra Beach, FL") == "jacksonville-fl"
     assert scraper.infer_pm_city("Philadelphia, PA") == "philadelphia-pa"
     assert scraper.infer_pm_city("Conshohocken, PA") == "philadelphia-pa"
 
 
 def test_new_metro_ordering_beats_catchalls():
-    # San Antonio must win over Dallas's ", tx"/"texas" catch-alls.
-    assert scraper.infer_pm_city("San Antonio, Texas") == "san-antonio"
-    # Glendale AZ must win over LA's bare "glendale"; bare Glendale stays LA.
+    # San Antonio and Jacksonville were dropped on 2026-07-21. They must be
+    # EXCLUDED, not swallowed by Dallas's / Florida's old state catch-alls —
+    # those tokens now live in metros.STATE_FALLBACK, off during inference.
+    assert scraper.infer_pm_city("San Antonio, Texas") is None
+    assert scraper.infer_pm_city("San Antonio, TX") is None
+    assert scraper.infer_pm_city("Jacksonville, FL") is None
+    # Glendale AZ must win over LA's "glendale, ca".
     assert scraper.infer_pm_city("Glendale, AZ") == "phoenix"
-    assert scraper.infer_pm_city("Glendale") == "la"
+    assert scraper.infer_pm_city("Glendale, CA") == "la"
     # Pre-existing guarantees still hold.
     assert scraper.infer_pm_city("Arlington, VA") == "dc"
     assert scraper.infer_pm_city("Houston, TX") == "houston"

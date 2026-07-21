@@ -324,5 +324,19 @@ def infer_metro(location, allowed=None):
     return ""
 
 
+# Metros this app no longer scrapes. Kept for DISPLAY ONLY so job rows and
+# saved searches written before 2026-07-21 still render a city name instead of
+# a blank while they age off the board. Never add these to MATCH_ORDER.
+RETIRED_LABELS = {
+    "san-antonio": "San Antonio, TX",
+    "jacksonville-fl": "Jacksonville, FL",
+    "orlando-fl": "Orlando, FL",
+    "florida-other": "Florida (other)",
+}
+
+# What the UI should use to turn a stored slug into text.
+DISPLAY_LABELS = {**RETIRED_LABELS, **LABELS}
+
+
 def label_for(slug):
-    return LABELS.get(slug, "")
+    return DISPLAY_LABELS.get(slug, "")

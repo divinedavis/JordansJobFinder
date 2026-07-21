@@ -571,6 +571,38 @@ All should return 200 or 302. Any 500 means the change broke something — fix i
 
 Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-pager -n 30
 
+## Metro Coverage — top 20 + PA + SC (2026-07-21)
+
+**Every board covers all 29 metros for every user. There is no city picker and
+no paid tier.** `metros.py` is the single source of truth: the 20 largest US
+metros, the central/eastern PA trio (York/Lancaster/Harrisburg — the only
+metros the regional ATS platforms reach, and the IT track's original audience),
+and South Carolina's ten largest cities (eight already sat inside the four SC
+metros; only Sumter and Florence were new).
+
+Dropped the same day: San Antonio, Jacksonville, Orlando, `florida-other`.
+Their labels live on in `metros.RETIRED_LABELS` for DISPLAY ONLY so pre-existing
+rows and saved searches still render a city name — never add them back to
+`MATCH_ORDER`.
+
+Two traps this rewrite hit, both worth remembering:
+
+- **Bare state tokens must never take part in inference.** Dallas used to carry
+  `", tx"`/`"texas"`, so dropping San Antonio silently relabelled every San
+  Antonio posting as Dallas rather than excluding it, and "Savannah, GA" had
+  been reading as Atlanta all along. They now live in `metros.STATE_FALLBACK`,
+  opt-in via `matches_metro(..., allow_state_fallback=True)`, for per-city
+  scraping where the caller already knows the metro.
+- **Anything that slices the city list truncates coverage.** The free tier's
+  `[:limit]` took the first 3 of 29 and quietly dropped York PA off the HR
+  board. `city_limit_for()` now returns the full count for everyone and
+  `SALARY_OPTIONAL_CITIES` is derived from the registry rather than listed.
+
+Paid tiers are gone (owner's call): cities, AI interview prep and resume
+tailoring are free for any signed-in user. The Stripe plumbing (webhooks,
+billing portal) is deliberately still wired so existing subscribers can cancel;
+it gates nothing. `tests/test_city_tiers.py` guards against the caps returning.
+
 ## Shared Scraper Helpers (2026-07-21)
 
 Two root-level modules every scraper imports. Both exist because the same bug

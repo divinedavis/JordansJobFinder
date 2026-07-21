@@ -23,7 +23,7 @@ import requests
 
 from scraper_ats_extra import collect_extra_jobs
 from greenhouse_urls import greenhouse_job_url
-from metro_decoys import strip_decoys
+from metros import infer_metro
 from scraper_it import IT_GREENHOUSE_COMPANIES, IT_WORKDAY_COMPANIES
 from scraper_sales import first_truthy_date, parse_iso, parse_relative_posted
 from corporate_filter import is_corporate_role
@@ -107,43 +107,6 @@ HR_WORKDAY_COMPANIES = list(IT_WORKDAY_COMPANIES) + [
 ]
 HR_GREENHOUSE_COMPANIES = list(IT_GREENHOUSE_COMPANIES)
 
-CITY_LOCATION_PATTERNS = {
-    "york-pa":         ["york, pa", "york county"],
-    "lancaster-pa":    ["lancaster, pa", "lancaster county"],
-    # Penn Medicine's Workday lists campus names, not "Philadelphia, PA" —
-    # HUP / Perelman / Pennsylvania Hospital postings must still land.
-    "philadelphia-pa": ["philadelphia", "philly", "malvern", "horsham", "blue bell", "wayne, pa", "valley forge", "king of prussia",
-                        "hup", "perelman", "pennsylvania hospital", "penn presbyterian", "university city"],
-    "harrisburg-pa":   ["harrisburg", "camp hill", "mechanicsburg", "hershey, pa"],
-    # Nationwide metros (2026-07-19). Ordering rules follow scraper.py
-    # PM_METROS: specific metros before Dallas's ", tx"/"texas" catch-alls;
-    # Phoenix before LA so "glendale, az" beats LA's bare "glendale".
-    "nyc":            ["new york", "nyc", "manhattan", "brooklyn", "jersey city"],
-    "miami":          ["miami", "miami beach", "fort lauderdale", "boca raton",
-                       "doral", "coral gables"],
-    "atlanta":        ["atlanta", "alpharetta", "sandy springs", "dunwoody"],
-    "chicago":        ["chicago", "evanston", "naperville", "schaumburg",
-                       "rosemont, il", "oak brook", "deerfield, il",
-                       "vernon hills", "lincolnshire", "northbrook",
-                       "downers grove", "des plaines", "skokie"],
-    "phoenix":        ["phoenix", "scottsdale", "tempe", "chandler",
-                       "mesa, az", "gilbert, az", "glendale, az", "peoria, az"],
-    "san-antonio":    ["san antonio", "new braunfels", "schertz", "windcrest"],
-    "san-diego":      ["san diego", "la jolla", "carlsbad", "chula vista",
-                       "oceanside", "escondido", "encinitas", "poway"],
-    "jacksonville-fl": ["jacksonville", "ponte vedra", "orange park, fl"],
-    "la":             ["los angeles", "santa monica", "culver city",
-                       "long beach", "burbank", "el segundo", "torrance",
-                       "irvine", "newport beach", "beverly hills"],
-    "dc":             ["washington", "d.c.", "arlington, va", "mclean",
-                       "tysons", "reston", "bethesda", "rockville",
-                       "alexandria", "fairfax"],
-    "houston":        ["houston", "the woodlands", "sugar land", "katy",
-                       "pearland", "baytown"],
-    "dallas":         ["dallas", "fort worth", "dfw", "plano", "irving",
-                       "frisco", "richardson", "addison", "tx,", ", tx",
-                       "texas"],
-}
 
 HR_SEARCH_TERMS = [
     "hr coordinator",
@@ -184,14 +147,16 @@ def within_recency(posted_dt):
 
 
 def infer_city(location):
-    loc = (location or "").lower()
-    for code, patterns in CITY_LOCATION_PATTERNS.items():
-        # Blank out place names that only *contain* this metro's token, so
-        # NYC's bare "manhattan" can't claim "Manhattan Beach, CA".
-        candidate = strip_decoys(loc, code)
-        if any(p in candidate for p in patterns):
-            return code
-    return ""
+    """Map an ATS location string to a supported metro code, or "" if none.
+
+    Callers MUST skip postings that return "" — there is no silent fallback to
+    the company's HQ, or e.g. Vanguard's Melbourne office floods Philadelphia.
+
+    Every vertical covers the same 29 metros as of 2026-07-21 (the 20 largest
+    US metros plus the PA trio and South Carolina); the patterns and their
+    collision rules live in metros.py.
+    """
+    return infer_metro(location)
 
 
 def make_job(*, company, title, url, city, location, source, posted_dt, posted_label):

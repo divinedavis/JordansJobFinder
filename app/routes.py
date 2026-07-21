@@ -22,6 +22,7 @@ from sqlalchemy import select as sa_select
 from flask import send_file
 
 from .catalog import (
+    ALL_CITY_LABELS,
     DEFAULT_CITIES,
     TITLE_LABELS,
     TITLE_VERTICALS,
@@ -161,19 +162,22 @@ def ensure_subscription(user: User, db):
 
 
 def city_limit_for(user, subscription) -> int:
-    """How many cities this account's saved search may hold: 3 free, 5 or 10
-    via the paid tiers. The owner account always gets the maximum."""
-    if is_admin_email(user.email):
-        return 10
-    return max(3, subscription.city_limit or 3)
+    """How many metros an account covers — all of them, for everyone.
+
+    Cities stopped being a paid feature on 2026-07-21 when the picker was
+    removed and every board went to the full metro set. Kept as a function
+    because a dozen call sites still ask, and because the answer is now
+    "however many metros exist" rather than a stored number.
+    """
+    return len(ALL_CITY_LABELS)
 
 
 def is_pro(user, subscription) -> bool:
-    """Pro ($19.99) tier — 10 cities — or the owner account. Gates the AI
-    interview-prep feature."""
-    if is_admin_email(user.email):
-        return True
-    return (subscription.city_limit or 3) >= 10
+    """Everyone. The paid tiers were dropped on 2026-07-21 — AI interview prep
+    and unlimited resumes are free for any signed-in user. The Stripe plumbing
+    is still here (webhooks, portal) so existing subscribers can cancel, but
+    nothing is gated behind it."""
+    return True
 
 
 SEARCH_LOCK_DAYS = 30
@@ -586,9 +590,9 @@ def saved_search():
             experience_bucket = derived_bucket
         limit = city_limit_for(user, subscription)
 
-        # Non-PM titles (finance/sales/IT/HR) select a whole track: the
-        # vertical's search is created/updated with its pinned city set,
-        # capped to the account's plan limit (cities are a paid feature).
+        # Non-PM titles (finance/sales/IT/HR) select a whole track. Every
+        # track covers every metro now, so there is no city set to choose or
+        # cap — only the title and experience level vary.
         vertical = TITLE_VERTICALS.get(title_slug, "pm")
 
         # One job title per account: choosing a title REPLACES any other
@@ -609,7 +613,7 @@ def saved_search():
                 db.add(search)
             search.title_slug = title_slug
             search.experience_bucket = experience_bucket
-            search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])[:limit]
+            search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])
             search.is_paid_city_override = False
             _enforce_single_title()
             _lock_search(subscription)
@@ -619,16 +623,15 @@ def saved_search():
                 rebuild_matches_for_user(user.id)
             except Exception:
                 logger.exception("Match rebuild after track add failed user_id=%d", user.id)
-            flash(f"Your dashboard now tracks {TITLE_LABELS.get(title_slug, title_slug)}. Cities locked for 30 days.", "success")
+            flash(f"Your dashboard now tracks {TITLE_LABELS.get(title_slug, title_slug)}.", "success")
             return redirect(url_for("web.dashboard", tab=vertical))
 
-        raw_cities = [
-            request.form.get(f"city_{i}", "").strip() for i in range(1, limit + 1)
-        ]
-        selected_cities = [city_from_slug(value) for value in raw_cities if value]
+        # No city picker since 2026-07-21 — every board covers every metro, so
+        # the PM branch only validates title + experience.
+        selected_cities = list(ALL_CITY_LABELS)
 
         validation = validate_saved_search(
-            title_slug, experience_bucket, selected_cities, max_cities=limit
+            title_slug, experience_bucket, selected_cities, max_cities=len(selected_cities)
         )
         if not validation.ok:
             flash(validation.error, "error")
@@ -644,7 +647,7 @@ def saved_search():
         search.title_slug = title_slug
         search.experience_bucket = experience_bucket
         search.cities = list(selected_cities)
-        search.is_paid_city_override = len(selected_cities) > 3
+        search.is_paid_city_override = False
         _enforce_single_title()
         _lock_search(subscription)
         db.commit()
@@ -653,19 +656,12 @@ def saved_search():
             rebuild_matches_for_user(user.id)
         except Exception:
             logger.exception("Match rebuild after search edit failed user_id=%d", user.id)
-        flash("Saved search updated. Your cities are locked for 30 days.", "success")
+        flash("Saved search updated.", "success")
         return redirect(url_for("web.dashboard"))
 
     selected_search = user.saved_search
-    # State-then-city picker slots (any US city above 50k population); the
-    # slot count follows the account's plan: 3 free, 5 or 10 paid.
-    limit = city_limit_for(user, subscription)
-    selected = list(selected_search.cities) if selected_search else list(DEFAULT_CITIES)
-    selected = selected[:limit] + [""] * max(0, limit - len(selected))
-    city_slots = [
-        {"value": selected[i], "state": split_label(selected[i])[1]}
-        for i in range(limit)
-    ]
+    # The picker is gone: every board covers every metro, so the form shows the
+    # coverage list read-only instead of asking anyone to choose.
     return render_template(
         "saved_search.html",
         user=user,
@@ -673,15 +669,7 @@ def saved_search():
         title_options=title_choices(),
         experience_options=experience_choices(),
         resume_years=resume_years_for_user(db, user.id),
-        free_cities=DEFAULT_CITIES,
-        city_slots=city_slots,
-        city_limit=limit,
-        state_options=state_choices(),
-        cities_by_state=cities_by_state(),
-        # NOTE: gate on is_admin_email (the single owner), NOT is_superuser_email
-        # — the latter returns True for every signed-in user (open job scope), so
-        # using it here would hand the paid custom-city feature to everyone.
-        can_use_custom_cities=subscription.city_override_active or is_admin_email(user.email),
+        covered_cities=ALL_CITY_LABELS,
         is_superuser=is_superuser_email(user.email),
         is_locked=search_locked(user, subscription),
         locked_until=subscription.search_locked_until,

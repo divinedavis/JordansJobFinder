@@ -53,3 +53,19 @@ def test_every_configured_employer_has_a_revenue_row():
         if revenue_for(n) is None and n not in allowed_without_revenue
     )
     assert not missing, f"employers with no revenue row: {missing}"
+
+
+def test_subsidiaries_report_parent_revenue():
+    """Owner's rule: a wholly-owned subsidiary shows its parent's revenue, with
+    the parent named so the number isn't misread as the subsidiary's own."""
+    assert revenue_for("Waymo") == "$403B (Alphabet)"
+    assert "Roche" in revenue_for("Flatiron Health")
+    assert "Voya" in revenue_for("Benefitfocus")
+
+
+def test_gemini_is_the_crypto_exchange_not_google():
+    """The greenhouse token 'gemini' is the Winklevoss exchange (NASDAQ: GEMI),
+    which is independently public — the parent-company rule must not pull
+    Alphabet's revenue in here just because of the name."""
+    assert revenue_for("Gemini") == "$180M"
+    assert "Alphabet" not in revenue_for("Gemini")

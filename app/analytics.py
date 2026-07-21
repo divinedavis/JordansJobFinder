@@ -9,6 +9,8 @@ Two pure-ish helpers that the Analytics and Research tabs render:
   per market (city) so the user can see what each market pays and what to ask
   for given their experience level.
 """
+from metros import DISPLAY_LABELS as METRO_DISPLAY_LABELS
+
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from math import ceil, floor
@@ -20,32 +22,10 @@ from .parsing import parse_salary
 
 # City slug (as stored on Job.city / AppliedJob.city) -> human label. Mirrors
 # the maps in results.py / sync.py; kept local so this module stays standalone.
-CITY_LABELS = {
-    "nyc": "New York, NY",
-    "atlanta": "Atlanta, GA",
-    "miami": "Miami, FL",
-    "dallas": "Dallas, TX",
-    "houston": "Houston, TX",
-    "dc": "Washington, DC",
-    "la": "Los Angeles, CA",
-    "chicago": "Chicago, IL",
-    "phoenix": "Phoenix, AZ",
-    "san-antonio": "San Antonio, TX",
-    "san-diego": "San Diego, CA",
-    "york-pa": "York, PA",
-    "lancaster-pa": "Lancaster, PA",
-    "philadelphia-pa": "Philadelphia, PA",
-    "harrisburg-pa": "Harrisburg, PA",
-    "baltimore-md": "Baltimore, MD",
-    "tampa-fl": "Tampa, FL",
-    "orlando-fl": "Orlando, FL",
-    "jacksonville-fl": "Jacksonville, FL",
-    "florida-other": "Florida (other)",
-    "charleston-sc": "Charleston, SC",
-    "columbia-sc": "Columbia, SC",
-    "greenville-sc": "Greenville, SC",
-    "rock-hill-sc": "Rock Hill, SC",
-}
+# Slug -> display name. Sourced from the metro registry so the label for a
+# metro is defined once; retired metros stay in DISPLAY_LABELS so old rows
+# still render a city name while they age off the board.
+CITY_LABELS = dict(METRO_DISPLAY_LABELS)
 _LABEL_TO_SLUG = {label: slug for slug, label in CITY_LABELS.items()}
 
 VERTICAL_LABELS = {

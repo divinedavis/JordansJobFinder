@@ -1,3 +1,5 @@
+from metros import DISPLAY_LABELS as METRO_DISPLAY_LABELS
+
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
@@ -12,32 +14,10 @@ from .matching import choose_cities, location_matches_city, match_job_for_user
 from .models import BaseResume, Job, JobMatch, TailoredResume
 
 
-CITY_LABELS = {
-    "nyc": "New York, NY",
-    "atlanta": "Atlanta, GA",
-    "miami": "Miami, FL",
-    "dallas": "Dallas, TX",
-    "houston": "Houston, TX",
-    "dc": "Washington, DC",
-    "la": "Los Angeles, CA",
-    "chicago": "Chicago, IL",
-    "phoenix": "Phoenix, AZ",
-    "san-antonio": "San Antonio, TX",
-    "san-diego": "San Diego, CA",
-    "york-pa": "York, PA",
-    "lancaster-pa": "Lancaster, PA",
-    "philadelphia-pa": "Philadelphia, PA",
-    "harrisburg-pa": "Harrisburg, PA",
-    "baltimore-md": "Baltimore, MD",
-    "tampa-fl": "Tampa, FL",
-    "orlando-fl": "Orlando, FL",
-    "jacksonville-fl": "Jacksonville, FL",
-    "florida-other": "Florida (other)",
-    "charleston-sc": "Charleston, SC",
-    "columbia-sc": "Columbia, SC",
-    "greenville-sc": "Greenville, SC",
-    "rock-hill-sc": "Rock Hill, SC",
-}
+# Slug -> display name. Sourced from the metro registry so the label for a
+# metro is defined once; retired metros stay in DISPLAY_LABELS so old rows
+# still render a city name while they age off the board.
+CITY_LABELS = dict(METRO_DISPLAY_LABELS)
 
 
 def _display_city(job: dict) -> str:

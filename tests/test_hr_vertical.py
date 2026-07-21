@@ -63,6 +63,9 @@ def test_hr_scraper_covers_pa_metros_first():
     assert infer_city("York, PA") == "york-pa"
     assert infer_city("Lancaster, PA") == "lancaster-pa"
     assert infer_city("Philadelphia, PA") == "philadelphia-pa"
+    assert infer_city("Boston, MA") == "boston"
+    assert infer_city("Seattle, WA") == "seattle"
+    assert infer_city("Denver, CO") == "denver"
     assert infer_city("Harrisburg, PA") == "harrisburg-pa"
     assert infer_city("Hershey, PA") == "harrisburg-pa"
     # Nationwide since 2026-07-19; out-of-scope towns still drop.
@@ -70,43 +73,30 @@ def test_hr_scraper_covers_pa_metros_first():
     assert infer_city("Boise, ID") == ""
 
 
-def test_hr_default_cities_keep_pa_first():
-    """PA metros stay first (original audience keeps free-tier cities);
-    nationwide metros follow (2026-07-19)."""
-    from app.catalog import HR_DEFAULT_CITIES
+def test_hr_covers_every_metro():
+    """HR used to be pinned to the four PA metros (its original audience), then
+    to a PA-first nationwide list. Every track covers every metro since
+    2026-07-21 — but PA must still be IN the set, which is what broke when the
+    free-tier cap sliced the first 3 off a 29-metro list."""
+    from app.catalog import ALL_CITY_LABELS, HR_DEFAULT_CITIES
 
-    assert HR_DEFAULT_CITIES[:4] == [
-        "York, PA", "Lancaster, PA", "Philadelphia, PA", "Harrisburg, PA",
-    ]
-    assert "Chicago, IL" in HR_DEFAULT_CITIES
+    assert list(HR_DEFAULT_CITIES) == list(ALL_CITY_LABELS)
+    for pa in ("York, PA", "Lancaster, PA", "Harrisburg, PA"):
+        assert pa in HR_DEFAULT_CITIES
 
-
-# ── Select-a-track flow ───────────────────────────────────────────────────────
-
-
-def test_selecting_hr_title_adds_hr_tab_with_pa_cities(signed_in_client, db_session):
+def test_selecting_hr_title_adds_hr_tab_with_every_metro(signed_in_client, db_session):
+    from app.catalog import ALL_CITY_LABELS
     from app.models import SavedSearch, User
 
-    resp = signed_in_client.post("/search", data={"ack_lock": "1", 
-        "title_slug": "hr-coordinator",
-        "experience_bucket": "7-9",
+    signed_in_client.post("/search", data={
+        "ack_lock": "1", "title_slug": "hr-coordinator", "experience_bucket": "3-6",
     })
-    assert resp.status_code == 302
-    assert "tab=hr" in resp.headers["Location"]
-
     user = db_session.query(User).filter(User.email == "user@example.com").one()
     search = db_session.query(SavedSearch).filter(
         SavedSearch.user_id == user.id, SavedSearch.vertical == "hr"
     ).one()
-    assert search.title_slug == "hr-coordinator"
-    # Free plan caps cities at 3, so HR's 4-metro default is trimmed to the
-    # first three (cities are a paid feature now).
-    assert search.cities == ["York, PA", "Lancaster, PA", "Philadelphia, PA"]
-
-    body = signed_in_client.get("/dashboard?tab=hr").get_data(as_text=True)
-    assert "HR coordinator, generalist, and specialist roles" in body
-    assert "?tab=hr" in body
-
+    assert list(search.cities) == list(ALL_CITY_LABELS)
+    assert "York, PA" in search.cities
 
 def test_hr_search_matches_hr_jobs_in_pa(signed_in_client, db_session):
     from app.models import Job, JobMatch, User
@@ -164,7 +154,8 @@ def test_hr_scraper_infers_nationwide_metros():
 
     assert infer_city("Chicago, IL") == "chicago"
     assert infer_city("Phoenix, AZ") == "phoenix"
-    assert infer_city("San Antonio, TX") == "san-antonio"
+    # San Antonio was dropped on 2026-07-21 (outside the top 20).
+    assert infer_city("San Antonio, TX") == ""
     assert infer_city("Glendale, AZ") == "phoenix"
     assert infer_city("Philadelphia, PA") == "philadelphia-pa"
     assert infer_city("Houston, TX") == "houston"

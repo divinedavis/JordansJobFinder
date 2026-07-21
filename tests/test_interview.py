@@ -183,21 +183,23 @@ def test_salary_expectation_none_when_no_signal(db_session):
 # ── Pro gate ──────────────────────────────────────────────────────────────────
 
 
-def test_free_user_cannot_generate_plan(signed_in_client, db_session):
+def test_interview_prep_is_free_for_every_signed_in_user(signed_in_client, db_session, monkeypatch):
+    """The Pro gate was removed with the paid tiers on 2026-07-21. A plain
+    account must be able to generate a plan, not get bounced to /billing."""
     from app.models import InterviewPlan
 
+    monkeypatch.setattr("app.interview.generate_interview_plan",
+                        lambda job_arg, resume_text="", **kw: _fake_plan())
     job_id = _seed_job(db_session).id
     resp = signed_in_client.post(f"/interview/{job_id}", follow_redirects=False)
     assert resp.status_code == 302
-    assert "/billing" in resp.headers["Location"]
-    assert db_session.query(InterviewPlan).count() == 0
+    assert "/billing" not in resp.headers["Location"]
+    assert db_session.query(InterviewPlan).count() == 1
 
 
-def test_free_user_sees_upgrade_cta(signed_in_client, db_session):
-    job_id = _seed_job(db_session).id
-    body = signed_in_client.get(f"/interview/{job_id}").get_data(as_text=True)
-    assert "Pro" in body
-    assert "Upgrade to Pro" in body
+def test_interview_page_shows_no_upgrade_cta(signed_in_client, db_session):
+    body = signed_in_client.get(f"/interview/{_seed_job(db_session).id}").get_data(as_text=True)
+    assert "Upgrade to Pro" not in body
 
 
 # ── Generation, caching, legacy regeneration ─────────────────────────────────

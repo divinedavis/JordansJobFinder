@@ -15,7 +15,7 @@ import requests
 
 from scraper_ats_extra import collect_extra_jobs
 from greenhouse_urls import greenhouse_job_url
-from metro_decoys import strip_decoys
+from metros import infer_metro
 from corporate_filter import is_corporate_role
 
 # Only keep jobs posted within this window.
@@ -207,19 +207,6 @@ SALES_GREENHOUSE_COMPANIES = [
 
 # Locations that count for each city code (substring match against the ATS
 # location string). Same map as scraper_finance.py — keep them in sync.
-CITY_LOCATION_PATTERNS = {
-    "nyc":             ["new york", "manhattan", " nyc", "ny,", " ny "],
-    "atlanta":         ["atlanta", "ga,", " ga "],
-    "miami":           ["miami", "fl,", " fl "],
-    "dallas":          ["dallas", "plano", "frisco", "irving"],
-    "houston":         ["houston"],
-    "dc":              ["washington, dc", "washington dc", "arlington", "alexandria", "mclean", "reston"],
-    "york-pa":         ["york, pa", "york county"],
-    "lancaster-pa":    ["lancaster, pa", "lancaster county"],
-    "philadelphia-pa": ["philadelphia", "philly", "malvern", "horsham", "blue bell", "wayne, pa", "valley forge", "king of prussia"],
-    "harrisburg-pa":   ["harrisburg", "camp hill", "mechanicsburg", "hershey, pa"],
-    "baltimore-md":    ["baltimore", "owings mills", "columbia, md", "owings, md", "towson"],
-}
 
 SALES_SEARCH_TERMS = [
     "sales development",
@@ -320,14 +307,16 @@ def within_recency(posted_dt):
 
 
 def infer_city(location):
-    loc = (location or "").lower()
-    for code, patterns in CITY_LOCATION_PATTERNS.items():
-        # Blank out place names that only *contain* this metro's token, so
-        # NYC's bare "manhattan" can't claim "Manhattan Beach, CA".
-        candidate = strip_decoys(loc, code)
-        if any(p in candidate for p in patterns):
-            return code
-    return ""
+    """Map an ATS location string to a supported metro code, or "" if none.
+
+    Callers MUST skip postings that return "" — there is no silent fallback to
+    the company's HQ, or e.g. Vanguard's Melbourne office floods Philadelphia.
+
+    Every vertical covers the same 29 metros as of 2026-07-21 (the 20 largest
+    US metros plus the PA trio and South Carolina); the patterns and their
+    collision rules live in metros.py.
+    """
+    return infer_metro(location)
 
 
 def make_job(*, company, title, url, city, location, source, posted_dt, posted_label):
