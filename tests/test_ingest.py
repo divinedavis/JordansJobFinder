@@ -78,6 +78,11 @@ def test_blocked_company_is_dropped_from_ingest(monkeypatch):
     monkeypatch.setattr(ingest, "load_hr_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_scm_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_project_jobs", lambda: [])
+    # Every loader in normalized_shared_jobs() must be stubbed — an unstubbed
+    # one reads the real shared_jobs_*.json off disk and floods the assertion
+    # with production companies (load_analyst_jobs was missed when the analyst
+    # vertical landed, so this test silently read that feed for two days).
+    monkeypatch.setattr(ingest, "load_analyst_jobs", lambda: [])
 
     companies = {job["company"] for job in ingest.normalized_shared_jobs()}
     assert companies == {"Postman"}
@@ -123,3 +128,23 @@ def test_upsert_survives_duplicate_url_in_one_batch(app, monkeypatch):
         assert db.scalar(select(func.count()).select_from(Job)) == 1
         row = db.scalar(select(Job))
         assert row.title == "Territory Sales Associate (Winter Haven, FL)"
+
+
+def test_every_feed_loader_is_covered_by_the_blocklist_test():
+    """Guard: the blocklist test must stub EVERY loader normalized_shared_jobs
+    calls. When the analyst vertical was added its loader was left unstubbed,
+    so that test quietly read the real shared_jobs_analyst.json off disk and
+    only failed once a non-blocked company appeared in it.
+    """
+    import inspect
+    import re
+
+    from app import ingest
+
+    called = set(re.findall(r"\b(load_\w+_jobs)\(\)",
+                            inspect.getsource(ingest.normalized_shared_jobs)))
+    stubbed = set(re.findall(r'"(load_\w+_jobs)"',
+                             inspect.getsource(test_blocked_company_is_dropped_from_ingest)))
+    assert called - stubbed == set(), (
+        f"unstubbed feed loaders in the blocklist test: {sorted(called - stubbed)}"
+    )

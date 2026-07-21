@@ -22,6 +22,8 @@ from pathlib import Path
 import requests
 
 from scraper_ats_extra import collect_extra_jobs
+from greenhouse_urls import greenhouse_job_url
+from metro_decoys import strip_decoys
 from scraper_it import IT_GREENHOUSE_COMPANIES, IT_WORKDAY_COMPANIES
 from scraper_sales import first_truthy_date, parse_iso, parse_relative_posted
 from scraper_sc_employers import SC_GREENHOUSE_1B, SC_WORKDAY_1B
@@ -228,7 +230,10 @@ def within_recency(posted_dt):
 def infer_city(location):
     loc = (location or "").lower()
     for code, patterns in CITY_LOCATION_PATTERNS.items():
-        if any(p in loc for p in patterns):
+        # Blank out place names that only *contain* this metro's token, so
+        # NYC's bare "manhattan" can't claim "Manhattan Beach, CA".
+        candidate = strip_decoys(loc, code)
+        if any(p in candidate for p in patterns):
             return code
     return ""
 
@@ -363,7 +368,7 @@ def scrape_greenhouse(name, token, title_filter=title_is_scm,
             continue
         label = posted_dt.date().isoformat() if posted_dt else ""
         found.append(make_job(
-            company=name, title=title, url=job.get("absolute_url", ""),
+            company=name, title=title, url=greenhouse_job_url(job, token),
             city=city, location=location, source=f"greenhouse-{source_suffix}",
             posted_dt=posted_dt, posted_label=label, vertical=vertical,
         ))

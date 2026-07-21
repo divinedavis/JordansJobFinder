@@ -19,6 +19,9 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+from greenhouse_urls import greenhouse_job_url
+from metro_decoys import strip_decoys
+
 from app.parsing import (
     format_salary_label,
     normalize_numeric_language,
@@ -911,69 +914,66 @@ def is_target_role(title):
     return any(r in t for r in TARGET_ROLES)
 
 
+def _in_metro(text, code, locs):
+    """Substring-match a metro's place names, minus its decoys.
+
+    Decoys are place names that merely contain the metro's token — see
+    metro_decoys.py. Without the strip, NYC's bare "manhattan" claims
+    "Manhattan Beach, CA" before LA ever gets a look.
+    """
+    return any(loc in strip_decoys(text.lower(), code) for loc in locs)
+
+
 def is_nyc(text):
-    t = text.lower()
-    return any(loc in t for loc in NYC_LOCS)
+    return _in_metro(text, "nyc", NYC_LOCS)
 
 
 def is_atlanta(text):
-    t = text.lower()
-    return any(loc in t for loc in ATLANTA_LOCS)
+    return _in_metro(text, "atlanta", ATLANTA_LOCS)
 
 
 def is_miami(text):
-    t = text.lower()
-    return any(loc in t for loc in MIAMI_LOCS)
+    return _in_metro(text, "miami", MIAMI_LOCS)
 
 
 def is_dallas(text):
-    t = text.lower()
-    return any(loc in t for loc in DALLAS_LOCS)
+    return _in_metro(text, "dallas", DALLAS_LOCS)
 
 
 def is_houston(text):
-    t = text.lower()
-    return any(loc in t for loc in HOUSTON_LOCS)
+    return _in_metro(text, "houston", HOUSTON_LOCS)
 
 
 def is_dc(text):
-    t = text.lower()
-    return any(loc in t for loc in DC_LOCS)
+    return _in_metro(text, "dc", DC_LOCS)
 
 
 def is_la(text):
-    t = text.lower()
-    return any(loc in t for loc in LA_LOCS)
+    return _in_metro(text, "la", LA_LOCS)
 
 
 def is_chicago(text):
-    t = text.lower()
-    return any(loc in t for loc in CHICAGO_LOCS)
+    return _in_metro(text, "chicago", CHICAGO_LOCS)
 
 
 def is_phoenix(text):
-    t = text.lower()
-    return any(loc in t for loc in PHOENIX_LOCS)
+    return _in_metro(text, "phoenix", PHOENIX_LOCS)
 
 
 def is_san_antonio(text):
-    t = text.lower()
-    return any(loc in t for loc in SAN_ANTONIO_LOCS)
+    return _in_metro(text, "san-antonio", SAN_ANTONIO_LOCS)
 
 
 def is_san_diego(text):
-    t = text.lower()
-    return any(loc in t for loc in SAN_DIEGO_LOCS)
+    return _in_metro(text, "san-diego", SAN_DIEGO_LOCS)
 
 
 def is_jacksonville(text):
-    t = text.lower()
-    return any(loc in t for loc in JACKSONVILLE_LOCS)
+    return _in_metro(text, "jacksonville-fl", JACKSONVILLE_LOCS)
 
 
 def is_philadelphia(text):
-    t = text.lower()
-    return any(loc in t for loc in PHILADELPHIA_LOCS)
+    return _in_metro(text, "philadelphia-pa", PHILADELPHIA_LOCS)
 
 
 def location_ok(text, city):
@@ -1585,7 +1585,7 @@ def scrape_greenhouse_company(name, token, city):
     for job in jobs:
         title    = job.get("title", "")
         location = job.get("location", {}).get("name", "")
-        job_url  = job.get("absolute_url", "")
+        job_url  = greenhouse_job_url(job, token)
         updated  = job.get("updated_at", "")[:10]
         content  = BeautifulSoup(job.get("content", ""), "html.parser").get_text(" ")
 
@@ -1669,7 +1669,7 @@ def scrape_greenhouse_multi(name, token):
     for job in jobs:
         title    = job.get("title", "")
         location = job.get("location", {}).get("name", "")
-        job_url  = job.get("absolute_url", "")
+        job_url  = greenhouse_job_url(job, token)
         updated  = job.get("updated_at", "")[:10]
         content  = BeautifulSoup(job.get("content", ""), "html.parser").get_text(" ")
 
