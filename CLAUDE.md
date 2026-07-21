@@ -571,12 +571,48 @@ All should return 200 or 302. Any 500 means the change broke something — fix i
 
 Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-pager -n 30
 
+## Shared Scraper Helpers (2026-07-21)
+
+Two root-level modules every scraper imports. Both exist because the same bug
+class kept reappearing in six duplicated copies of the same logic.
+
+- **metro_decoys.py** — place names that merely *contain* a metro's token but
+  belong to another market. Every city matcher here is a substring test, so
+  NYC's bare `"manhattan"` matched "Manhattan Beach, CA" (Skechers' HQ) and
+  "Brooklyn Park, MN" (Target, Medtronic). `strip_decoys(loc, code)` blanks a
+  metro's decoys before that metro's patterns run, so LA still matches
+  "manhattan beach" normally. **Fix collisions by adding a decoy, not by
+  reordering the metro list** — ordering only works when the true metro is
+  checked first, which can't hold for every metro at once.
+- **greenhouse_urls.py** — `greenhouse_job_url(job, token)` replaces raw
+  `absolute_url`. Boards that redirect to a company careers site return
+  `<site>/jobs/search?gh_jid=<id>`, which deep-links only while that site
+  publishes the req; otherwise "View Role" opens the whole job index. Probes
+  once with HEAD and falls back to Greenhouse's hosted application page. It is
+  deliberately reluctant — a 4xx keeps the company URL, because these sites
+  WAF-block the droplet while serving browsers fine (same trap as the probe
+  recipe above).
+
+`scripts/backfill_metro_and_urls.py` repairs postings already on the board for
+both bugs. **It fixes the shared_jobs*.json feeds first** — see the gotcha
+below.
+
 ## Known Gotchas
 
 - **SQLite stores naive datetimes** — never compare timezone-aware datetimes directly against DB columns. Strip tzinfo or use naive cutoffs.
 - **shared_jobs.json dates ARE timezone-aware** (ISO format with +00:00) — strip tzinfo before comparing with naive cutoffs.
 - **Workday detail pages contain garbage numbers** — the salary parser caps at $2M and the scraper discards salaries below $180K.
 - **The scraper overwrites shared_jobs.json each run** — the sync cron must run AFTER the scraper finishes (currently 1 hour gap).
+- **The shared_jobs*.json feeds outrank the DB** — `run-daily-sync` re-upserts
+  every posting from those files, so a hand-edit to a `jobs` row is silently
+  reverted on the next sync. Any data repair must fix the feed too (or delete
+  the row outright). Rewriting a posting's URL also strands its old row, since
+  the upsert keys on URL — delete the old one or the board shows it twice.
+- **Test stubs must cover every feed loader** — `normalized_shared_jobs()` calls
+  one `load_*_jobs()` per vertical. An unstubbed one reads the real JSON off
+  disk; that's how the ingest blocklist test quietly read production data for
+  two days. `tests/test_ingest.py` has a guard that fails when a new loader is
+  added without a stub.
 
 ## Common Commands
 
