@@ -461,6 +461,55 @@ REVENUE: dict[str, str] = {
     'Xcel Energy': '$14B',
     'ZipRecruiter': '$475M',
     'ZoomInfo': '$1.2B',
+
+    # ── Backfill of the 30 configured employers that had no row (2026-07-21) ──
+    # Every one was scraped and shown with a blank size hint. Researched
+    # against FY2025 filings where public; private firms carry the best
+    # credible estimate and the '(est.)' marker. Keys are the CANONICAL name —
+    # _canonical() strips the config's "NA"/"Campus" suffixes first, so
+    # "Toyota NA" resolves to 'Toyota' and "M&T Bank Campus" to 'M&T Bank'.
+    'Astranis': '~$11M (est.)',
+    'Aurora': '$3M',
+    'Boulevard': '~$71M (est.)',
+    # NOTE: the greenhouse token "branch" is Branch Messenger, NOT the
+    # Branch Metrics (branch.io) this entry was presumably meant to track.
+    # All three Branches are far under $1B, so the size hint is right either
+    # way — but the employer config is probably pointing at the wrong company.
+    'Branch': '~$130M (est.)',
+    'Cheniere Energy': '$20B',
+    'ClassPass': '~$120M (est.)',
+    'ClickHouse': '~$250M (est.)',
+    'Culture Amp': '~$230M (est.)',
+    'Faraday Future': '$0.5M',
+    # Roche never breaks Flatiron out; public estimates span $375M–$1.2B, so
+    # this is the one genuinely uncertain call in the backfill.
+    'Flatiron Health': '~$530M (est.)',
+    'Gemini': '$180M',
+    'Group 1 Automotive': '$22.6B',
+    'IMC Trading': '$3.1B',
+    'Imply': '~$63M (est.)',
+    # Nothing disclosed; aggregators say $0.5–1.2B, insiders imply several
+    # billion. Treated as $1B+ but it's the weakest call on this list.
+    'Jump Trading': '~$2B (est.)',
+    'Kinder Morgan': '$17B',
+    'Kirby': '$3.4B',
+    'M&T Bank': '$9.7B',
+    'Mythical Games': '~$60M (est.)',
+    'NOV': '$8.7B',
+    'Nuro': '~$190M (est.)',
+    'Oceaneering': '$2.8B',
+    'Patterson-UTI': '$4.8B',
+    'Quanta Services': '$28B',
+    'Relativity Space': '~$270M (est.)',
+    'Temporal': '~$60M (est.)',
+    # TMC's North America geographic segment — Toyota Motor North America
+    # files no standalone financials.
+    'Toyota': '$140B',
+    'Waymo': '~$280M (est.)',
+    'Meta': '$201B',
+    # Wayve is deliberately absent: its latest Companies House accounts
+    # describe it as pre-revenue R&D, and the module's convention is that
+    # companies with no meaningful revenue carry no row at all.
 }
 
 
@@ -477,6 +526,26 @@ def _canonical(name: str) -> str:
     return " ".join(parts).strip()
 
 
+def _candidates(name: str):
+    """Every progressively-stripped form of a name, longest first.
+
+    Stripping straight to the shortest form loses matches when a real part of
+    the name is also a suffix token: "HP Inc HOU" drops HOU *and* Inc down to
+    "HP", which has no row, so HP's $53B never rendered. Trying each step means
+    the 'HP Inc' key is found on the way past.
+    """
+    seen = []
+    parts = (name or "").split()
+    while parts:
+        candidate = " ".join(parts).strip()
+        if candidate and candidate not in seen:
+            seen.append(candidate)
+        if len(parts) == 1 or parts[-1].lower().strip(".,") not in _SUFFIX_TOKENS:
+            break
+        parts = parts[:-1]
+    return seen
+
+
 # Normalized index so a scraped "BNY" resolves to the "BNY Mellon" key, etc.
 _NORM_INDEX = {_norm(k): v for k, v in REVENUE.items()}
 
@@ -485,10 +554,11 @@ def revenue_for(company: str):
     """Return the revenue string for a company, or None if unknown."""
     if not company:
         return None
-    for key in (company, _canonical(company)):
+    candidates = _candidates(company)
+    for key in candidates:
         if key in REVENUE:
             return REVENUE[key]
-    for key in (company, _canonical(company)):
+    for key in candidates:
         hit = _NORM_INDEX.get(_norm(key))
         if hit:
             return hit
