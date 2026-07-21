@@ -22,6 +22,7 @@ def main():
             "run-daily-sync",
             "backfill-resume-years",
             "migrate-project-searches",
+            "migrate-full-metro-coverage",
         ],
         help="Command to execute",
     )
@@ -96,6 +97,31 @@ def main():
             db.commit()
             matched = rebuild_matches()
         print(f"Converted {converted}, dropped {dropped} project searches; rebuilt {matched} matches.")
+        return
+
+    if args.command == "migrate-full-metro-coverage":
+        # 2026-07-21: the city picker is gone and every board covers every
+        # metro. New searches are seeded with the full set, but rows written
+        # before today still carry whatever the old picker (and the free
+        # tier's 3-city cap) left them with — so without this, existing users
+        # keep seeing 3 or 4 metros while the code believes they see 29.
+        from app.catalog import ALL_CITY_LABELS
+        from app.db import get_db
+        from app.models import SavedSearch
+
+        full = list(ALL_CITY_LABELS)
+        with app.app_context():
+            db = get_db()
+            widened = 0
+            for search in db.query(SavedSearch).all():
+                if list(search.cities or []) != full:
+                    search.cities = list(full)
+                    search.is_paid_city_override = False
+                    widened += 1
+            db.commit()
+            matched = rebuild_matches()
+        print(f"Widened {widened} saved searches to all {len(full)} metros; "
+              f"rebuilt {matched} matches.")
         return
 
     if args.command == "run-daily-sync":

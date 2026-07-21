@@ -121,3 +121,14 @@ def test_pa_trio_survives():
                         ("Lancaster, PA", "lancaster-pa"),
                         ("Harrisburg, PA", "harrisburg-pa")]:
         assert infer_metro(city) == metro, city
+
+
+def test_migration_command_is_registered():
+    """The full-metro-coverage migration must stay available: saved searches
+    written before 2026-07-21 carry the old 3-city sets, and without running it
+    those users keep seeing 3 metros while the code believes they see 29."""
+    import pathlib
+
+    source = (pathlib.Path(__file__).resolve().parent.parent / "manage.py").read_text()
+    assert '"migrate-full-metro-coverage"' in source
+    assert source.count('"migrate-full-metro-coverage"') >= 2  # choice + branch
