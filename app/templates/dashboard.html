@@ -57,18 +57,23 @@
       <p>Your job board is being prepared. The next daily sync (5&ndash;6 AM ET) will populate your matches.</p>
     </section>
   {% else %}
-    <section class="panel">
+    <section class="panel" data-board-tab="{{ active_tab }}">
       <h2>Current Board</h2>
       {% if matches %}
         {% for city, city_matches in grouped_matches.items() %}
-          <div class="match-section">
-            <div class="match-header">
+          {# <details> so collapsing works with JS disabled; collapse.js only
+             adds the remembering. #}
+          <details class="match-section" data-city-section="{{ city }}" open>
+            <summary class="match-header">
               <div>
                 <p class="match-kicker">{{ city }}</p>
                 <h3 class="match-title">{{ city }}</h3>
               </div>
-              <strong class="match-count">{{ city_matches|length }}</strong>
-            </div>
+              <span class="match-header-right">
+                <strong class="match-count">{{ city_matches|length }}</strong>
+                <span class="match-chevron" aria-hidden="true"></span>
+              </span>
+            </summary>
             {% if city_matches %}
               <div class="match-cards">
                 {% for match in city_matches %}
@@ -110,7 +115,7 @@
             {% else %}
               <p class="muted">No current matches in this city.</p>
             {% endif %}
-          </div>
+          </details>
         {% endfor %}
       {% elif preview_matches %}
         <div class="list">
@@ -131,4 +136,5 @@
     </section>
   {% endif %}
   <script src="{{ url_for('static', filename='js/applied.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/collapse.js') }}" defer></script>
 {% endblock %}

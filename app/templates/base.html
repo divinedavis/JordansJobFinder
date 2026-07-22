@@ -331,6 +331,44 @@
       align-items: end;
       margin-bottom: 16px;
     }
+    /* City sections are <details>; the header is the <summary>. Replace the
+       native disclosure triangle with a chevron that matches the type. */
+    summary.match-header {
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+    summary.match-header::-webkit-details-marker { display: none; }
+    summary.match-header::marker { content: ""; }
+    summary.match-header:hover .match-title { text-decoration: underline; }
+    summary.match-header:focus-visible {
+      outline: 2px solid var(--accent, #2f5bea);
+      outline-offset: 4px;
+      border-radius: 6px;
+    }
+    .match-header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .match-chevron {
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid rgba(29, 36, 51, 0.45);
+      border-bottom: 2px solid rgba(29, 36, 51, 0.45);
+      transform: rotate(45deg) translate(-2px, -2px);
+      transition: transform 120ms ease;
+    }
+    details[open] > summary .match-chevron {
+      transform: rotate(-135deg) translate(-2px, -2px);
+    }
+    /* A collapsed section shouldn't keep the header's bottom gap. */
+    details.match-section:not([open]) > summary.match-header {
+      margin-bottom: 0;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .match-chevron { transition: none; }
+    }
     .match-kicker {
       color: var(--muted);
       font-size: 12px;
