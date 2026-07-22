@@ -5,7 +5,7 @@ def _add_pm_job(db_session, url="https://example.com/jobs/seed"):
     """A PM job that passes the open-access superuser scope (PM title, 5+ yrs)."""
     from app.models import Job
     job = Job(
-        source="test", company="Acme", title="Senior Product Manager",
+        source="test", company="Datadog", title="Senior Product Manager",
         normalized_title="senior product manager",
         url=url, city="nyc", location="New York, NY",
         description="We need a product manager with 8 years of experience.",

@@ -61,6 +61,7 @@ REVENUE: dict[str, str] = {
     'Morningstar': '$2.3B',
     'Neurocrine Biosciences': '$2.4B',
     'Northern Trust': '$8.3B',
+    'Nucor': '$32B',
     'Oaktree Capital': '~$2.5B (est.)',
     'PGA Tour': '~$1.9B',
     'Pacific Life': '~$10B',
@@ -526,8 +527,43 @@ REVENUE: dict[str, str] = {
     'Waymo': '$403B (Alphabet)',
     'Meta': '$201B',
     # Wayve is deliberately absent: its latest Companies House accounts
-    # describe it as pre-revenue R&D, and the module's convention is that
-    # companies with no meaningful revenue carry no row at all.
+    # (FYE 31 Aug 2024) carry no turnover line at all — only £18.2M other
+    # income against a £62.1M pre-tax loss. Aggregator claims of "$208M ARR"
+    # have no basis in the filed accounts.
+
+    # ── Backfill for the $1B revenue gate (2026-07-22) ───────────────────────
+    # Everything the gate could see but had no figure for. Public companies
+    # are FY2025 reported; private ones carry the best sourced estimate.
+    'Armstrong World Industries': '$1.6B',
+    'Clearwater Analytics': '$730M',
+    'DGA Security Systems': '~$20M (est.)',
+    'Dentsply Sirona': '$3.7B',
+    'Digital Turbine': '$570M',
+    # Bank revenue = net interest income $1,036M + fee income $277M.
+    'Fulton Bank': '$1.3B',
+    'Fulton Financial': '$1.3B',
+    # Private; published estimates range $0.7B–$3.3B, so this is a midpoint.
+    'Gopuff': '~$2B (est.)',
+    # GAAP revenue, which for a PEO is ~90% benefits/insurance pass-through
+    # (S-1: $982.7M total, only $87.4M subscription). The ~$400M figures on
+    # the aggregators are the subscription/ARR view, not GAAP revenue.
+    'Justworks': '~$2B (est.)',
+    'McCormick & Company': '$6.8B',
+    'The Hershey Company': '$11.7B',
+    # System-wide. The parent-entity Form 990 shows only $921M and badly
+    # understates the system; Moody's cited $3.5B for FY2022.
+    'WellSpan Health': '~$4B (est.)',
+    'Constellation Energy': '$26B',
+    'Exelon': '$24B',
+    # NOT a Pactiv/Novolex unit — distributed out of Pactiv Evergreen in 2020
+    # to Packaging Finance Ltd, so nobody publishes its figures.
+    'Graham Packaging': '~$2B (est.)',
+    # Borderline and worth knowing: statutory 2025 net premiums earned $953M
+    # plus $92M investment income ≈ $1.045B. The $787M on the aggregators is
+    # its stale 2022 number. NOT Penn Entertainment (the casino company).
+    'Penn National Insurance': '$1.0B',
+    # Voith Group FY2024/25 (ended 30 Sep 2025), €4,846M continuing ops.
+    'Voith': '~$5.3B (Voith Group)',
 }
 
 
@@ -553,7 +589,9 @@ def _candidates(name: str):
     the 'HP Inc' key is found on the way past.
     """
     seen = []
-    parts = (name or "").split()
+    # Some feeds append the ticker: "Clearwater Analytics (CWAN)".
+    base = re.sub(r"\s*\([A-Z0-9.\-]{1,6}\)\s*$", "", (name or "").strip())
+    parts = base.split()
     while parts:
         candidate = " ".join(parts).strip()
         if candidate and candidate not in seen:
@@ -566,6 +604,28 @@ def _candidates(name: str):
 
 # Normalized index so a scraped "BNY" resolves to the "BNY Mellon" key, etc.
 _NORM_INDEX = {_norm(k): v for k, v in REVENUE.items()}
+
+
+# Magnitude suffixes as they appear in the strings above.
+_MAGNITUDE = {"K": 1e-6, "M": 1e-3, "B": 1.0, "T": 1000.0}
+
+
+def revenue_billions(company: str):
+    """Annual revenue in billions of dollars, or None when unknown.
+
+    Parses the display string, so it inherits the parent-company rule — Waymo
+    reports Alphabet's $403B — and the '~'/'(est.)' markers are ignored: an
+    estimate is still the best number available.
+    """
+    import re as _re
+
+    raw = revenue_for(company)
+    if not raw:
+        return None
+    match = _re.search(r"\$\s*([\d.]+)\s*([KMBT])", raw, _re.IGNORECASE)
+    if not match:
+        return None
+    return float(match.group(1)) * _MAGNITUDE[match.group(2).upper()]
 
 
 def revenue_for(company: str):

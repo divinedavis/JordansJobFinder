@@ -2,6 +2,7 @@ from typing import Optional
 
 from corporate_filter import is_corporate_role
 from .catalog import ADMIN_EMAILS_SET, CITY_LABELS, TITLE_KEYWORDS, TITLE_VERTICALS
+from .company_revenue import revenue_billions
 
 EXCLUDE_TITLES = ["governance"]
 # Companies the user never wants to see on the dashboard, matched
@@ -37,6 +38,35 @@ def _title_excluded(normalized: str) -> bool:
 
 def company_excluded(company: str) -> bool:
     return normalize_text(company) in EXCLUDE_COMPANIES
+
+
+# Employers must clear $1B in revenue — EXCEPT in central/eastern PA. Those
+# three metros have no $1B+ employer with a scrapable careers site of their
+# own; they are reached only through the regional ATS platforms in
+# scraper_ats_extra.py (Fulton Bank, WellSpan, Armstrong, Dentsply). Applying
+# the bar there would empty the boards rather than raise their quality.
+REVENUE_EXEMPT_METROS = frozenset({"york-pa", "lancaster-pa", "harrisburg-pa"})
+MIN_EMPLOYER_REVENUE_B = 1.0
+
+
+def employer_revenue_ok(company: str, city: str) -> bool:
+    """Whether an employer clears the revenue bar for the metro it's posting in.
+
+    Unknown revenue FAILS outside the exempt metros. That's deliberate: the
+    owner's rule is that revenue is required, so a missing figure is a data gap
+    to fill, not a free pass. `tests/test_company_revenue.py` fails the build
+    when a configured employer has no revenue row, which is what keeps this
+    from quietly hiding jobs.
+    """
+    if city in REVENUE_EXEMPT_METROS:
+        return True
+    billions = revenue_billions(company)
+    return billions is not None and billions >= MIN_EMPLOYER_REVENUE_B
+
+
+def job_excluded(company: str, city: str) -> bool:
+    """One gate for both reasons a posting never reaches a board."""
+    return company_excluded(company) or not employer_revenue_ok(company, city)
 
 
 def title_matches(title: str, selected_slug: str) -> bool:

@@ -609,6 +609,38 @@ tailoring are free for any signed-in user. The Stripe plumbing (webhooks,
 billing portal) is deliberately still wired so existing subscribers can cancel;
 it gates nothing. `tests/test_city_tiers.py` guards against the caps returning.
 
+## $1B Revenue Bar (2026-07-22)
+
+Employers must clear **$1B in annual revenue** — except in **York, Lancaster
+and Harrisburg PA**, which are exempt. Those three metros have no $1B+
+employer with a scrapable careers site of their own; they're reached only
+through the regional platforms in scraper_ats_extra.py, so the bar would empty
+those boards rather than improve them.
+
+`matching.job_excluded(company, city)` is the single gate — name blocklist OR
+revenue bar — applied at ingest AND in `sync._search_matches_job` so a stale
+row can't linger. `company_revenue.revenue_billions()` parses the display
+string, so it inherits the parent-company rule (Waymo clears on Alphabet's
+$403B) and treats estimates as real figures.
+
+**Unknown revenue FAILS outside the exempt metros.** A missing figure is a data
+gap to fill, not a free pass — and `tests/test_company_revenue.py` fails the
+build when a configured employer has no revenue row, which is what stops the
+bar from quietly hiding jobs. Every employer in the jobs table currently
+resolves.
+
+Two gotchas the backfill turned up:
+- **Penn National Insurance** (~$1.0B, Harrisburg mutual insurer) is NOT Penn
+  Entertainment, the $6.7B casino operator. Aggregators also report a stale
+  2022 figure for it.
+- **Justworks** carries GAAP revenue (~$2B), which for a PEO is ~90%
+  benefits/insurance pass-through. The ~$400M figures on the aggregators are
+  the subscription/ARR view.
+
+Related: `normalized_shared_jobs()` falls back to the legacy static file only
+when the feeds were empty to begin with. "The bar rejected every posting" is a
+real result and must not resurrect stale legacy data.
+
 ## Shared Scraper Helpers (2026-07-21)
 
 Two root-level modules every scraper imports. Both exist because the same bug

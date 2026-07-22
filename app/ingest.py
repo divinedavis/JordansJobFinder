@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from .matching import company_excluded, normalize_text
+from .matching import job_excluded, normalize_text
 from .parsing import format_salary_label, parse_experience_years, parse_salary
 
 
@@ -147,7 +147,7 @@ def normalized_legacy_jobs() -> list[dict]:
     return [
         normalize_legacy_job(job)
         for job in load_legacy_jobs()
-        if not company_excluded(job.get("company", ""))
+        if not job_excluded(job.get("company", ""), job.get("city", ""))
     ]
 
 
@@ -178,14 +178,18 @@ def normalized_shared_jobs() -> list[dict]:
     scm_jobs = [_normalize_one(j, "scm") for j in load_scm_jobs()]
     project_jobs = [_normalize_one(j, "project") for j in load_project_jobs()]
     analyst_jobs = [_normalize_one(j, "analyst") for j in load_analyst_jobs()]
+    scraped = (pm_jobs + finance_jobs + sales_jobs + it_jobs + hr_jobs
+               + scm_jobs + project_jobs + analyst_jobs)
+    scraped_any = bool(scraped)
     combined = [
         job
-        for job in (
-            pm_jobs + finance_jobs + sales_jobs + it_jobs + hr_jobs
-            + scm_jobs + project_jobs + analyst_jobs
-        )
-        if not company_excluded(job.get("company", ""))
+        for job in scraped
+        if not job_excluded(job.get("company", ""), job.get("city", ""))
     ]
-    if combined:
+    # Fall back to the legacy static file only when the feeds produced NOTHING
+    # to begin with. "Every posting was filtered out" is a real result and must
+    # not silently resurrect stale legacy data — a plausible outcome now that
+    # the $1B revenue bar can empty a small feed.
+    if combined or scraped_any:
         return combined
     return normalized_legacy_jobs()

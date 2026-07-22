@@ -23,7 +23,7 @@ def _seed_user_search_job(db_session):
                 "Dallas, TX", "Houston, TX", "Washington, DC"],
     ))
     job = Job(
-        source="test", company="Acme", title="Senior Product Manager",
+        source="test", company="Datadog", title="Senior Product Manager",
         normalized_title="senior product manager",
         url="https://example.com/jobs/applied-1", city="nyc",
         location="New York, NY", description="Looking for a senior PM.",
@@ -104,7 +104,7 @@ def test_record_application_is_idempotent_and_keeps_first_date(app, db_session):
     # SQLite returns naive datetimes — compare the wall-clock value, not tzinfo.
     got = rows[0].applied_at.replace(tzinfo=None)
     assert got == first.replace(tzinfo=None), f"date moved to {got}"
-    assert rows[0].company == "Acme"
+    assert rows[0].company == "Datadog"
 
 
 def test_prune_old_applications(app, db_session):

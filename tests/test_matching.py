@@ -269,3 +269,57 @@ def test_sub_1b_employers_are_excluded_by_name():
     assert company_excluded("Faire")
     assert company_excluded("faire")
     assert not company_excluded("Fairechild")  # exact match, not substring
+
+
+# ── $1B revenue bar, with the central-PA exemption ───────────────────────────
+
+def test_pa_metros_are_exempt_from_the_revenue_bar():
+    """York/Lancaster/Harrisburg have no $1B+ employer with a careers site of
+    their own — they're reached only through the regional ATS platforms. The
+    bar would empty those boards rather than improve them."""
+    from app.matching import employer_revenue_ok, job_excluded
+
+    for city in ("york-pa", "lancaster-pa", "harrisburg-pa"):
+        assert employer_revenue_ok("Some Small Regional Employer", city)
+        assert not job_excluded("Some Small Regional Employer", city)
+
+
+def test_other_metros_require_a_billion():
+    from app.matching import employer_revenue_ok
+
+    assert employer_revenue_ok("Meta", "nyc")            # $201B
+    assert employer_revenue_ok("Fox Corp", "nyc")        # $14B (blocked by name, not revenue)
+    assert not employer_revenue_ok("Faire", "nyc")       # ~$700M
+    assert not employer_revenue_ok("Aurora", "nyc")      # $3M
+    assert not employer_revenue_ok("Duolingo", "chicago")  # $750M
+
+
+def test_unknown_revenue_fails_outside_the_exempt_metros():
+    """Revenue is required, so a missing figure is a data gap to fix — not a
+    free pass. The company_revenue guard test is what surfaces the gap."""
+    from app.matching import employer_revenue_ok
+
+    assert not employer_revenue_ok("Totally Unknown Co", "nyc")
+    assert employer_revenue_ok("Totally Unknown Co", "york-pa")
+
+
+def test_subsidiary_clears_the_bar_on_its_parents_revenue():
+    from app.matching import employer_revenue_ok
+
+    assert employer_revenue_ok("Waymo", "nyc")           # $403B (Alphabet)
+    assert employer_revenue_ok("Flatiron Health", "nyc")  # ~$68B (Roche)
+
+
+def test_borderline_values_are_handled():
+    from app.company_revenue import revenue_billions
+
+    assert revenue_billions("Box") == 1.0                # exactly $1B — passes
+    assert revenue_billions("Aurora") == 0.003           # $3M, not $3B
+    assert revenue_billions("Faraday Future") < 0.001    # $0.5M
+
+
+def test_name_only_exclusions_still_apply_in_exempt_metros():
+    """A blocked company stays blocked even where revenue isn't required."""
+    from app.matching import job_excluded
+
+    assert job_excluded("Google", "york-pa")

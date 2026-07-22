@@ -12,7 +12,7 @@ from .db import get_db
 from .experience import bucket_for_years
 from .ingest import normalized_shared_jobs
 from .matching import (
-    company_excluded,
+    job_excluded,
     location_matches_city,
     match_job_for_user,
     title_is_it_pm,
@@ -56,8 +56,8 @@ def _search_matches_job(search, job, user_email, resume_years=None) -> bool:
     resume_years overrides search.experience_bucket when the user has a
     resume with parseable years (resume-derived seniority wins)."""
     # Excluded employers never surface, even if a stale Job row lingers in the
-    # DB from before the company was added to EXCLUDE_COMPANIES.
-    if company_excluded(job.company or ""):
+    # DB from before the company was blocked or the revenue bar was applied.
+    if job_excluded(job.company or "", job.city or ""):
         return False
     if job.vertical != search.vertical:
         # Combined selection: the Product/Program Manager track also covers

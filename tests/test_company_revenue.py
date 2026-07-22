@@ -69,3 +69,29 @@ def test_gemini_is_the_crypto_exchange_not_google():
     Alphabet's revenue in here just because of the name."""
     assert revenue_for("Gemini") == "$180M"
     assert "Alphabet" not in revenue_for("Gemini")
+
+
+def test_ticker_suffix_is_stripped():
+    """Some feeds append the ticker: "Clearwater Analytics (CWAN)"."""
+    assert revenue_for("Clearwater Analytics (CWAN)") == revenue_for("Clearwater Analytics")
+    assert revenue_for("Clearwater Analytics (CWAN)") is not None
+
+
+def test_regional_pa_employers_have_figures():
+    """These reach York/Lancaster/Harrisburg and nothing else does. They're
+    exempt from the revenue bar, but the size hint on the card should still be
+    right, and several of them also post in non-exempt metros where the bar
+    does apply (Hershey in Dallas, Armstrong in NYC)."""
+    for company in ("Armstrong World Industries", "Dentsply Sirona",
+                    "Fulton Bank", "WellSpan Health", "The Hershey Company",
+                    "Penn National Insurance", "Graham Packaging", "Voith"):
+        assert revenue_for(company), company
+
+
+def test_penn_national_insurance_is_not_the_casino_company():
+    """Penn National Insurance is a Harrisburg mutual insurer (~$1.0B).
+    Penn Entertainment, formerly Penn National Gaming, is a $6.7B casino
+    operator — a different company that the name invites confusing it with."""
+    from app.company_revenue import revenue_billions
+
+    assert 0.9 < revenue_billions("Penn National Insurance") < 1.5

@@ -55,22 +55,29 @@ def test_normalize_leaves_posted_at_none_when_label_unparseable():
 
 def test_blocked_company_is_dropped_from_ingest(monkeypatch):
     """Regression: jobs from a blocklisted company (e.g. Scale AI) must never
-    reach the dashboard, regardless of which scraper feed surfaced them."""
+    reach the dashboard, regardless of which scraper feed surfaced them.
+
+    Entries carry a city because the revenue bar is per-metro. Postman
+    (~$200M) is here to prove the bar bites independently of the name list;
+    Datadog ($2.7B) is the only posting that should survive both gates.
+    """
     from app import ingest
 
     monkeypatch.setattr(ingest, "load_shared_jobs", lambda: [
-        {"company": "Scale AI", "title": "Product Manager", "url": "https://x/1"},
-        {"company": "scale ai", "title": "Program Manager", "url": "https://x/2"},
-        {"company": "Google", "title": "Program Manager", "url": "https://x/3"},
-        {"company": "google", "title": "Product Manager", "url": "https://x/4"},
-        {"company": "Celonis", "title": "Product Manager", "url": "https://x/5"},
-        {"company": "celonis", "title": "Program Manager", "url": "https://x/6"},
-        {"company": "TJX", "title": "Program Manager", "url": "https://x/8"},
-        {"company": "tjx", "title": "Product Manager", "url": "https://x/9"},
-        {"company": "PagerDuty", "title": "Product Manager", "url": "https://x/10"},
-        {"company": "Etsy", "title": "Program Manager", "url": "https://x/11"},
-        {"company": "Broadridge", "title": "Product Manager", "url": "https://x/12"},
-        {"company": "Postman", "title": "Product Manager", "url": "https://x/7"},
+        {"company": "Scale AI", "title": "Product Manager", "url": "https://x/1", "city": "nyc"},
+        {"company": "scale ai", "title": "Program Manager", "url": "https://x/2", "city": "nyc"},
+        {"company": "Google", "title": "Program Manager", "url": "https://x/3", "city": "nyc"},
+        {"company": "google", "title": "Product Manager", "url": "https://x/4", "city": "nyc"},
+        {"company": "Celonis", "title": "Product Manager", "url": "https://x/5", "city": "nyc"},
+        {"company": "celonis", "title": "Program Manager", "url": "https://x/6", "city": "nyc"},
+        {"company": "TJX", "title": "Program Manager", "url": "https://x/8", "city": "nyc"},
+        {"company": "tjx", "title": "Product Manager", "url": "https://x/9", "city": "nyc"},
+        {"company": "PagerDuty", "title": "Product Manager", "url": "https://x/10", "city": "nyc"},
+        {"company": "Etsy", "title": "Program Manager", "url": "https://x/11", "city": "nyc"},
+        {"company": "Broadridge", "title": "Product Manager", "url": "https://x/12", "city": "nyc"},
+        # Not name-blocked, but ~$200M — the revenue bar must drop it.
+        {"company": "Postman", "title": "Product Manager", "url": "https://x/7", "city": "nyc"},
+        {"company": "Datadog", "title": "Product Manager", "url": "https://x/13", "city": "nyc"},
     ])
     monkeypatch.setattr(ingest, "load_finance_jobs", lambda: [])
     monkeypatch.setattr(ingest, "load_sales_jobs", lambda: [])
@@ -85,7 +92,7 @@ def test_blocked_company_is_dropped_from_ingest(monkeypatch):
     monkeypatch.setattr(ingest, "load_analyst_jobs", lambda: [])
 
     companies = {job["company"] for job in ingest.normalized_shared_jobs()}
-    assert companies == {"Postman"}
+    assert companies == {"Datadog"}
 
 
 def test_upsert_survives_duplicate_url_in_one_batch(app, monkeypatch):
@@ -148,3 +155,26 @@ def test_every_feed_loader_is_covered_by_the_blocklist_test():
     assert called - stubbed == set(), (
         f"unstubbed feed loaders in the blocklist test: {sorted(called - stubbed)}"
     )
+
+
+
+def test_filtering_everything_out_does_not_resurrect_legacy_jobs(monkeypatch):
+    """Regression: normalized_shared_jobs() falls back to the legacy static
+    file when it has nothing. That fallback must fire only when the FEEDS were
+    empty — "the revenue bar rejected every posting" is a real result, and
+    silently serving stale legacy data instead would be worse than an empty
+    board."""
+    from app import ingest
+
+    for loader in ("load_finance_jobs", "load_sales_jobs", "load_it_jobs",
+                   "load_hr_jobs", "load_scm_jobs", "load_project_jobs",
+                   "load_analyst_jobs"):
+        monkeypatch.setattr(ingest, loader, lambda: [])
+    # A feed with content, all of it below the revenue bar.
+    monkeypatch.setattr(ingest, "load_shared_jobs", lambda: [
+        {"company": "Postman", "title": "Product Manager", "url": "https://x/1", "city": "nyc"},
+    ])
+    monkeypatch.setattr(ingest, "normalized_legacy_jobs",
+                        lambda: [{"company": "SHOULD NOT APPEAR"}])
+
+    assert ingest.normalized_shared_jobs() == []
