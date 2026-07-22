@@ -258,3 +258,14 @@ def test_finance_department_ic_titles_match():
         assert title_is_entry_level_finance(title), title
     for title in ("Director of Compliance", "VP, Risk Management"):
         assert not title_is_entry_level_finance(title), title
+
+
+def test_sub_1b_employers_are_excluded_by_name():
+    """Faire (~$700M) was excluded by hand on 2026-07-22. The list is manual —
+    company_revenue.py is display-only and nothing filters on it — so a new
+    sub-$1B employer keeps surfacing until someone adds it here."""
+    from app.matching import company_excluded
+
+    assert company_excluded("Faire")
+    assert company_excluded("faire")
+    assert not company_excluded("Fairechild")  # exact match, not substring

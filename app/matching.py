@@ -7,7 +7,9 @@ EXCLUDE_TITLES = ["governance"]
 # Companies the user never wants to see on the dashboard, matched
 # case-insensitively against the normalized company name.
 EXCLUDE_COMPANIES = {"scale ai", "google", "celonis", "tjx", "pagerduty",
-                     "etsy", "broadridge", "asana", "fox corp"}
+                     "etsy", "broadridge", "asana", "fox corp",
+                     # Sub-$1B revenue (~$700M est.) — see company_revenue.py.
+                     "faire"}
 # Management titles are never IC finance/sales roles — always excluded.
 FINANCE_MANAGEMENT_NEGATIVE = (
     "staff vp", "vp ", " vp", "director", "head of", "chief",
