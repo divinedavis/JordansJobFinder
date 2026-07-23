@@ -57,6 +57,13 @@ def create_app() -> Flask:
         "login": ("8/minute", None),
         "resume_download_tailored": ("30/hour", None),
         "resume_upload": ("10/hour", None),
+        # Fix #12 (OWASP LLM10 — unbounded LLM cost): each interview-plan POST is
+        # a paid Anthropic call, is_pro() is now open to everyone, and no credit
+        # is consumed — so a signed-in user could enumerate job_ids and trigger
+        # unlimited spend under the loose global default. Limit the POST that
+        # generates the plan to the same 30/hour the tailored-resume LLM path
+        # uses; GET (viewing the cached plan) is unaffected.
+        "interview_plan": ("30/hour", ["POST"]),
         "feedback": ("10/hour", ["POST"]),
     }
     for endpoint, (limit, methods) in route_limits.items():

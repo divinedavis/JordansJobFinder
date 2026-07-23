@@ -237,6 +237,29 @@ def test_prompt_caps_exist_and_are_sane():
     assert "untrusted" in RESUME_PROMPT
 
 
+# ── LLM cost abuse guard (OWASP LLM10) ────────────────────────────────────────
+
+
+def test_interview_plan_post_is_rate_limited(app):
+    """Fix #12: /interview/<job_id> POST triggers a paid Anthropic call, is_pro()
+    is open to everyone, and no credit is spent — so the endpoint must carry an
+    explicit rate limit (not just the loose global default) to cap LLM spend.
+    Guards the interview LLM path exactly like the tailored-resume path."""
+    from app import limiter
+
+    decorated = limiter.limit_manager._decorated_limits
+    key = "app.routes.interview_plan.interview_plan"
+    assert key in decorated, "interview_plan lost its explicit rate limit"
+
+    limits = [lim for group in decorated[key] for lim in group]
+    assert limits, "interview_plan has no decorated limit"
+    # The generate POST is what costs money; it must be capped to 30/hour and
+    # scoped to POST so viewing a cached plan (GET) stays unthrottled.
+    lim = limits[0]
+    assert str(lim.limit) == "30 per 1 hour"
+    assert lim.methods == ("post",)
+
+
 # ── Production SECRET_KEY guard ───────────────────────────────────────────────
 
 
