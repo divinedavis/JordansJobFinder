@@ -23,6 +23,7 @@ import requests
 
 from scraper_ats_extra import collect_extra_jobs
 from greenhouse_urls import greenhouse_job_url
+from job_enrich import enrich_job, html_to_text, workday_detail
 from metros import infer_metro
 from scraper_it import IT_GREENHOUSE_COMPANIES, IT_WORKDAY_COMPANIES
 from scraper_sales import first_truthy_date, parse_iso, parse_relative_posted
@@ -182,21 +183,6 @@ def make_job(*, company, title, url, city, location, source, posted_dt, posted_l
     }
 
 
-def _workday_detail_locations(tenant, wd_ver, site, ext_path):
-    """Real cities for 'N Locations' postings (same fix as scraper_it)."""
-    api = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{ext_path}"
-    try:
-        resp = requests.get(api, headers=HEADERS, timeout=15)
-        if resp.status_code != 200:
-            return []
-        info = resp.json().get("jobPostingInfo") or {}
-        locations = [info.get("location") or ""]
-        locations.extend(info.get("additionalLocations") or [])
-        return [loc for loc in locations if loc]
-    except Exception:
-        return []
-
-
 _MULTI_LOCATION_RE = re.compile(r"^\d+\s+locations$", re.IGNORECASE)
 
 
@@ -234,8 +220,11 @@ def scrape_workday(name, tenant, wd_ver, site):
                     continue
                 ext_path = job.get("externalPath", "")
                 city = infer_city(location)
+                detail = None
                 if not city and _MULTI_LOCATION_RE.match((location or "").strip()):
-                    for loc in _workday_detail_locations(tenant, wd_ver, site, ext_path):
+                    # The same fetch carries the description.
+                    detail = workday_detail(tenant, wd_ver, site, ext_path)
+                    for loc in detail["locations"]:
                         city = infer_city(loc)
                         if city:
                             location = loc
@@ -243,11 +232,15 @@ def scrape_workday(name, tenant, wd_ver, site):
                 if not city:
                     continue
                 url = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/en-US/{site}{ext_path}"
-                found.append(make_job(
+                record = make_job(
                     company=name, title=title, url=url, city=city,
                     location=location, source="workday-hr",
                     posted_dt=posted_dt, posted_label=posted_label,
-                ))
+                )
+                # Only survivors of title/recency/city get the detail request.
+                if detail is None:
+                    detail = workday_detail(tenant, wd_ver, site, ext_path)
+                found.append(enrich_job(record, detail["description"]))
             offset += 20
             if offset >= total or not postings:
                 break
@@ -284,11 +277,13 @@ def scrape_greenhouse(name, token):
         if not within_recency(posted_dt):
             continue
         label = posted_dt.date().isoformat() if posted_dt else ""
-        found.append(make_job(
+        record = make_job(
             company=name, title=title, url=greenhouse_job_url(job, token),
             city=city, location=location, source="greenhouse-hr",
             posted_dt=posted_dt, posted_label=label,
-        ))
+        )
+        # content=true was already requested — no extra request to enrich.
+        found.append(enrich_job(record, html_to_text(job.get("content") or "")))
     return found
 
 

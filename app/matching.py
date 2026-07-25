@@ -318,6 +318,13 @@ def experience_at_least(minimum_years: int, parsed: ParsedExperience) -> bool:
     return low >= minimum_years or (high is not None and high >= minimum_years)
 
 
+# The PM track's pay floor. scraper.py has enforced it since the beginning by
+# DROPPING a sub-floor salary from a PM posting rather than dropping the job —
+# the job stays on the board with no salary shown. Enrichment has to honour
+# that, or newly-parsed low salaries would quietly delete PM board rows.
+PM_MIN_SALARY = 180_000
+
+
 def salary_meets_minimum(
     salary_min: Optional[int],
     salary_max: Optional[int],
@@ -481,7 +488,7 @@ def match_job_for_user(
     if is_superuser_email(user_email):
         if not (
             title_matches_superuser_scope(title)
-            and salary_meets_minimum(salary_min, salary_max, 180000)
+            and salary_meets_minimum(salary_min, salary_max, PM_MIN_SALARY)
         ):
             return False
         # Resume-derived seniority beats the blanket 5+ rule: the candidate

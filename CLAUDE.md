@@ -355,6 +355,53 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
 - Salary only displayed when a real value exists (no placeholder text)
 - Jobs grouped by city
 
+## Salary Enrichment — every vertical (job_enrich.py, 2026-07-25)
+
+Only scraper.py (PM) ever fetched a posting body, so **every** finance / sales /
+IT / HR / SCM / project / analyst job reached the board with no pay range even
+when the posting published one — 1,756 of 1,989 rows. `job_enrich.py` is the
+shared fix; each vertical scraper calls `enrich_job()` on its scraped records.
+
+- **Workday**: `job_enrich.workday_detail()` fetches the CXS detail endpoint
+  (description + locations in one call, cached per run because the same posting
+  comes back under several search terms). It replaced the duplicated
+  `_workday_detail_locations` in scm/it/hr. **Only title+recency+city survivors
+  are fetched** — enriching before the filters would multiply the scrape by the
+  size of the whole board. Cost is ~1 extra GET per surviving posting.
+- **Greenhouse / Lever**: free — those APIs already return the description
+  (`content=true` was requested all along and thrown away).
+- **iCIMS / SuccessFactors**: reuse the detail page already fetched for the
+  date (`_icims_detail` / `_sf_detail` now return `(date, text)`).
+- **Not covered**: Oracle (list API carries no description) and Citi RSS
+  (client-rendered postings). Those still show no salary.
+
+**Salary comes from `parsing.parse_salary_in_context`, never bare amounts.** A
+description is dense with numbers that aren't pay; a wrong range on the card is
+worse than an empty one. `_salary_from_context` now prefers an explicitly
+written range ("$150,000 - $190,000", "between $132,200 and $220,400") over
+loose amounts in the same window, then a pair, then a lone amount — a sign-on
+bonus near the top used to win over the real range further down.
+
+**The PM $180K floor (`matching.PM_MIN_SALARY`) must be honoured by anything
+that adds a salary.** scraper.py has always dropped a sub-floor salary from a
+PM posting rather than dropping the job, so the job stays on the board with no
+salary shown. Publishing a newly-parsed low salary instead makes the job fail
+`salary_meets_minimum` and vanish — a deletion dressed up as a display fix.
+`ingest._normalize_one` and `scripts/backfill_salaries.py` both apply the rule.
+Other verticals have no floor and publish whatever the posting says. IT and
+project jobs riding the PM board bypass the PM gates entirely (`sync.
+_search_matches_job`), so their salaries are always safe to show.
+
+`ingest._normalize_one` also self-heals: a feed entry with a description but no
+salary gets one parsed at sync time, which covers any platform not yet wired up
+and means re-syncing an old feed picks up ranges the board was missing.
+
+Backfill for postings scraped before this: `python scripts/backfill_salaries.py
+[--days 14] [--all] [--dry-run]`. It re-fetches Workday + hosted-Greenhouse
+postings and **writes the shared_jobs*.json feeds as well as the DB** — feeds
+outrank the DB, so a DB-only repair is reverted by the next sync.
+Tests: `tests/test_job_enrich.py`.
+
 ## Dashboard City Filter (2026-07-25)
 
 The board carries a collapsible **Cities** filter (checkbox per city, Apply +

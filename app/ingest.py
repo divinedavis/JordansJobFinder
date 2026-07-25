@@ -4,8 +4,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from .matching import job_excluded, normalize_text
-from .parsing import format_salary_label, parse_experience_years, parse_salary
+from .matching import PM_MIN_SALARY, job_excluded, normalize_text
+from .parsing import (
+    format_salary_label,
+    parse_experience_years,
+    parse_salary,
+    parse_salary_in_context,
+)
 
 
 
@@ -165,6 +170,21 @@ def _normalize_one(job: dict, default_vertical: str) -> dict:
     # found_at (which is bumped every scrape) and a stale job looks fresh.
     if not parsed.get("posted_at"):
         parsed["posted_at"] = parse_posted_datetime(parsed.get("posted_label"))
+    # Self-heal: a feed that carries a description but no salary gets one
+    # parsed here. The scrapers do this at scrape time (job_enrich); this is
+    # the backstop for a platform that isn't wired up yet, and it means a
+    # re-sync of an old feed picks up the pay range the board was missing.
+    if parsed.get("salary_min") is None and not parsed.get("salary_label"):
+        bounds = parse_salary_in_context(parsed.get("description") or "")
+        # A sub-floor salary on a PM posting is dropped, not published — the
+        # same rule scraper.py has always applied. Publishing it here would
+        # make the job fail the PM track's salary gate and vanish from the
+        # board, which is a deletion dressed up as a display fix.
+        if bounds and parsed.get("vertical", default_vertical) == "pm" and bounds[1] < PM_MIN_SALARY:
+            bounds = None
+        if bounds:
+            parsed["salary_label"] = format_salary_label(bounds)
+            parsed["salary_min"], parsed["salary_max"] = bounds
     parsed.setdefault("vertical", default_vertical)
     return parsed
 

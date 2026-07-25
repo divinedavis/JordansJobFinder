@@ -83,19 +83,50 @@ def _extract_amounts(text: str) -> list[int]:
     return amounts
 
 
+# Two amounts written as one range. Dashes and "to" join a range on their own;
+# "and" only counts after "between", or "$100,000 salary and $20,000 bonus"
+# would read as a range starting at the bonus.
+_AMOUNT = r"(?:USD\s*)?\$\s*[\d,]+(?:\.\d+)?\s*[kKmM]?"
+DASH_RANGE_PATTERN = re.compile(rf"{_AMOUNT}\s*(?:-|–|—|to|through)\s*{_AMOUNT}", re.I)
+BETWEEN_RANGE_PATTERN = re.compile(rf"between\s+{_AMOUNT}\s+and\s+{_AMOUNT}", re.I)
+
+
+def _explicit_range(text: str):
+    """A pay range the posting wrote as a range, e.g. "$150,000 - $190,000" or
+    "between $132,200 and $220,400"."""
+    for pattern in (DASH_RANGE_PATTERN, BETWEEN_RANGE_PATTERN):
+        for match in pattern.finditer(text):
+            amounts = _extract_amounts(match.group(0))
+            if len(amounts) >= 2:
+                return min(amounts), max(amounts)
+    return None
+
+
 def _salary_from_context(text: str):
     """Find salary from text near compensation keywords — best for raw HTML."""
     salary_context = re.compile(
         r"(?:salary|compensation|pay|base|annual|range|usd)[^\n]{0,120}",
         re.I,
     )
+    pair = single = None
     for match in salary_context.finditer(text):
         snippet = match.group(0)
+        # An explicitly written range is the strongest read — take it and stop.
+        explicit = _explicit_range(snippet)
+        if explicit:
+            return explicit
         amounts = _extract_amounts(snippet)
+        # Two loose amounts in one window are often a range split by wording,
+        # but they're also how "sign-on bonus of $60,000 … range $150,000 -
+        # $190,000" reads, so keep scanning for an explicit range first. A lone
+        # amount is weaker still — a bonus target looks like a flat salary.
         if len(amounts) >= 2:
-            return min(amounts), max(amounts)
-        if len(amounts) == 1:
-            return amounts[0], amounts[0]
+            if pair is None:
+                pair = (min(amounts), max(amounts))
+        elif len(amounts) == 1 and single is None:
+            single = (amounts[0], amounts[0])
+    if pair or single:
+        return pair or single
 
     range_pattern = re.compile(
         r"(?:USD)?\$\s*[\d,]+(?:\.\d+)?\s*[-\u2013\u2014]\s*(?:USD)?\$\s*[\d,]+(?:\.\d+)?",
@@ -123,6 +154,22 @@ def parse_salary(text: str):
     if len(amounts) == 1:
         return amounts[0], amounts[0]
     return None
+
+
+def parse_salary_in_context(text: str):
+    """Salary from a full job description — amounts must sit near a
+    compensation keyword.
+
+    Deliberately narrower than `parse_salary`, which falls back to any dollar
+    amount in the text: a whole posting is dense with numbers (contract values,
+    benefit caps, revenue figures), and one of those rendered as a pay range is
+    worse than showing nothing. Descriptions over 5K chars take this path in
+    `parse_salary` anyway; this makes it the rule for descriptions of any size.
+    """
+    normalized = normalize_numeric_language(text).replace(".00", "")
+    if not normalized:
+        return None
+    return _salary_from_context(normalized)
 
 
 def format_salary_label(bounds) -> str:

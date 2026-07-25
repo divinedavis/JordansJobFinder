@@ -23,6 +23,8 @@ from types import SimpleNamespace
 
 import requests
 
+from job_enrich import enrich_job, html_to_text
+
 # SuccessFactors / iCIMS / Oracle reject the bot-ish UA the Workday path uses;
 # they serve full HTML/JSON only to a browser-shaped User-Agent.
 BROWSER_UA = (
@@ -183,10 +185,15 @@ def scrape_lever(ctx, name, handle):
         posted_dt = _parse_epoch_ms(post.get("createdAt"))
         if not ctx.within_recency(posted_dt):
             continue
-        found.append(ctx.make_job(
+        record = ctx.make_job(
             company=name, title=title, url=post.get("hostedUrl", ""), city=city,
             location=location, source=ctx.source("lever"), posted_dt=posted_dt,
             posted_label=posted_dt.date().isoformat() if posted_dt else "",
+        )
+        # The postings API already carries the description — free enrichment.
+        found.append(enrich_job(
+            record,
+            post.get("descriptionPlain") or html_to_text(post.get("description") or ""),
         ))
     return found
 
@@ -233,18 +240,20 @@ def scrape_phenom(ctx, name, base):
     return found
 
 
-def _icims_detail_date(href):
+def _icims_detail(href):
     """iCIMS list pages carry no date; the detail page (also needs in_iframe=1)
-    has a JSON-LD datePosted. Returns a UTC datetime or None."""
+    has a JSON-LD datePosted. Returns (UTC datetime or None, page text) — the
+    text is the posting body, which is where the pay range lives, and it costs
+    nothing extra since the page is already being fetched for the date."""
     url = href if "in_iframe=1" in href else href + ("&" if "?" in href else "?") + "in_iframe=1"
     try:
         r = requests.get(url, headers=_H, timeout=20)
         if r.status_code != 200:
-            return None
+            return None, ""
         m = re.search(r'"datePosted"\s*:\s*"([^"]+)"', r.text)
-        return _parse_iso(m.group(1)) if m else None
+        return (_parse_iso(m.group(1)) if m else None), html_to_text(r.text)
     except Exception:
-        return None
+        return None, ""
 
 
 def scrape_icims(ctx, name, subdomain):
@@ -284,33 +293,38 @@ def scrape_icims(ctx, name, subdomain):
             if not city:
                 continue
             href = a["href"].split("?")[0]
-            posted_dt = _icims_detail_date(href)
+            posted_dt, detail_text = _icims_detail(href)
             if not ctx.within_recency(posted_dt):
                 continue
-            found.append(ctx.make_job(
+            record = ctx.make_job(
                 company=name, title=title, url=href, city=city,
                 location=location or desc[:80], source=ctx.source("icims"),
                 posted_dt=posted_dt,
                 posted_label=posted_dt.date().isoformat() if posted_dt else "",
-            ))
+            )
+            found.append(enrich_job(record, detail_text, desc))
         pr += 1
         time.sleep(0.3)
     return found
 
 
-def _sf_detail_date(host, href):
-    """SuccessFactors sites that omit the list date (Voith, McCormick) expose it
-    on the detail page as <meta itemprop=datePosted>."""
+def _sf_detail(host, href):
+    """One SuccessFactors posting: (datePosted or None, page text).
+
+    Sites that omit the list date (Voith, McCormick) expose it here as
+    <meta itemprop=datePosted>; the page text is the posting body, which is
+    where the pay range lives. Fetched only for title+city survivors.
+    """
     from bs4 import BeautifulSoup
     url = href if href.startswith("http") else host + href
     try:
         r = requests.get(url, headers=_H, timeout=20)
         if r.status_code != 200:
-            return None
+            return None, ""
         meta = BeautifulSoup(r.text, "html.parser").select_one('meta[itemprop="datePosted"]')
-        return _parse_sf_meta(meta.get("content")) if meta else None
+        return (_parse_sf_meta(meta.get("content")) if meta else None), html_to_text(r.text)
     except Exception:
-        return None
+        return None, ""
 
 
 # SF boards return results newest-first, so once we see an inline date older
@@ -363,15 +377,17 @@ def scrape_successfactors(ctx, name, host, page_size):
             if not city:
                 continue
             href = a["href"]
-            posted_dt = inline_dt if inline_dt is not None else _sf_detail_date(host, href)
+            detail_dt, detail_text = _sf_detail(host, href)
+            posted_dt = inline_dt if inline_dt is not None else detail_dt
             if not ctx.within_recency(posted_dt):
                 continue
-            found.append(ctx.make_job(
+            record = ctx.make_job(
                 company=name, title=title, url=host + href, city=city,
                 location=location, source=ctx.source("successfactors"),
                 posted_dt=posted_dt,
                 posted_label=posted_dt.date().isoformat() if posted_dt else "",
-            ))
+            )
+            found.append(enrich_job(record, detail_text))
         pages += 1
         startrow = (startrow or 0) + page_size
         if stop or startrow >= total:

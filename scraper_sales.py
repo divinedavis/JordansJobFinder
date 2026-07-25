@@ -15,6 +15,7 @@ import requests
 
 from scraper_ats_extra import collect_extra_jobs
 from greenhouse_urls import greenhouse_job_url
+from job_enrich import enrich_job, html_to_text, workday_detail
 from metros import infer_metro
 from corporate_filter import is_corporate_role
 
@@ -379,11 +380,14 @@ def scrape_workday(name, tenant, wd_ver, site):
                     continue
                 ext_path = job.get("externalPath", "")
                 url = f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com/en-US/{site}{ext_path}"
-                found.append(make_job(
+                record = make_job(
                     company=name, title=title, url=url, city=city,
                     location=location, source="workday-sales",
                     posted_dt=posted_dt, posted_label=posted_label,
-                ))
+                )
+                # Only survivors of title/recency/city get the detail request.
+                found.append(enrich_job(
+                    record, workday_detail(tenant, wd_ver, site, ext_path)["description"]))
             offset += 20
             if offset >= total or not postings:
                 break
@@ -420,11 +424,13 @@ def scrape_greenhouse(name, token):
         if not within_recency(posted_dt):
             continue
         label = posted_dt.date().isoformat() if posted_dt else ""
-        found.append(make_job(
+        record = make_job(
             company=name, title=title, url=greenhouse_job_url(job, token),
             city=city, location=location, source="greenhouse-sales",
             posted_dt=posted_dt, posted_label=label,
-        ))
+        )
+        # content=true was already requested — no extra request to enrich.
+        found.append(enrich_job(record, html_to_text(job.get("content") or "")))
     return found
 
 
