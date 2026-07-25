@@ -52,7 +52,15 @@ from .payments import (
     stripe_configured,
     sync_checkout_result,
 )
-from .results import group_matches_by_city, home_board_preview, load_db_matches, preview_matches
+from .results import (
+    city_filter_options,
+    group_matches_by_city,
+    hidden_city_labels,
+    home_board_preview,
+    load_db_matches,
+    preview_matches,
+    visible_city_groups,
+)
 from .experience import (
     bucket_for_years,
     effective_experience_bucket,
@@ -411,13 +419,24 @@ def dashboard():
     matches = load_db_matches(saved_search) if saved_search else []
     preview = preview_matches(saved_search) if (saved_search and not matches) else []
     resume_years = resume_years_for_user(db, user.id)
+    # The city filter is applied at render time only — the matches themselves
+    # stay built, so re-selecting a city is instant and the nightly rebuild
+    # never has to know about it.
+    hidden_cities = hidden_city_labels(saved_search)
+    all_groups = group_matches_by_city(matches) if matches else {}
+    grouped = visible_city_groups(all_groups, hidden_cities)
+    filter_options = city_filter_options(all_groups, hidden_cities)
+    if hidden_cities:
+        preview = [m for m in preview if m.get("display_city") not in hidden_cities]
     return render_template(
         "dashboard.html",
         user=user,
         saved_search=saved_search,
         matches=matches,
         preview_matches=preview,
-        grouped_matches=group_matches_by_city(matches) if matches else {},
+        grouped_matches=grouped,
+        city_filter_options=filter_options,
+        selected_city_count=sum(1 for row in filter_options if row["selected"]),
         title_labels=TITLE_LABELS,
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,
@@ -425,6 +444,59 @@ def dashboard():
         resume_years=resume_years,
         resume_bucket=bucket_for_years(resume_years),
     )
+
+
+# A display label ("Philadelphia, PA") — long enough for any metro label, short
+# enough that the stored list can't be used as a scratch pad. The option cap is
+# well above the 29-metro registry but bounds a hand-crafted POST.
+MAX_CITY_LABEL_LEN = 128
+MAX_CITY_FILTER_OPTIONS = 200
+
+
+@web.post("/dashboard/cities")
+def dashboard_city_filter():
+    """Save which cities this board shows.
+
+    Plain checkbox form + redirect so it works with JS disabled. The submitted
+    `known_city` values are the options the page offered; anything among them
+    the user left unchecked becomes the stored deselected set. Labels are kept
+    as-is rather than validated against the metro registry — the board groups
+    by display label, and a retired metro still renders its old label, so
+    rejecting unknown labels would make those sections unfilterable.
+    """
+    user = require_user()
+    if not user:
+        return redirect(url_for("web.sign_in"))
+
+    db = get_db()
+    user = db.get(User, user.id)
+    tabs = user_verticals(user)
+    tab = request.form.get("tab", "")
+    if tab not in tabs:
+        tab = tabs[0]
+
+    saved_search = user.saved_search_for(tab)
+    if saved_search:
+        def _labels(field):
+            seen = []
+            for value in request.form.getlist(field)[:MAX_CITY_FILTER_OPTIONS]:
+                label = (value or "").strip()[:MAX_CITY_LABEL_LEN]
+                if label and label not in seen:
+                    seen.append(label)
+            return seen
+
+        if (request.form.get("action") or "").strip() == "select-all":
+            hidden = []
+        else:
+            selected = set(_labels("city"))
+            hidden = [label for label in _labels("known_city") if label not in selected]
+
+        # Reassign rather than mutate — SQLAlchemy doesn't track in-place edits
+        # to a plain JSON column, so an append alone would never be persisted.
+        saved_search.hidden_cities = hidden
+        db.commit()
+
+    return redirect(url_for("web.dashboard", tab=tab))
 
 
 @web.get("/matches")

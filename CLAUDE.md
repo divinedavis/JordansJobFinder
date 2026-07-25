@@ -355,6 +355,29 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
 - Salary only displayed when a real value exists (no placeholder text)
 - Jobs grouped by city
 
+## Dashboard City Filter (2026-07-25)
+
+The board carries a collapsible **Cities** filter (checkbox per city, Apply +
+Select all) above the sections. Saved on `saved_searches.hidden_cities` (JSON,
+auto-migrated in `init_db`), so it survives refresh / re-login / a new device —
+unlike the collapse state, which is per-device localStorage.
+
+- **Stored as the DESELECTED set, not the selected one.** A metro that starts
+  producing jobs later then shows up by default instead of being suppressed by
+  a filter saved months ago. `results.hidden_city_labels` coerces NULL (rows
+  predating the column) and blanks away.
+- **Display-only** — applied at render time in `routes.dashboard`
+  (`visible_city_groups` / `city_filter_options`). Matches are still built and
+  stored, so re-selecting is instant and the nightly rebuild is unaffected.
+- The POST (`/dashboard/cities` → `routes.dashboard_city_filter`) reads
+  `known_city` (every option the page offered) alongside the checked `city`
+  values; a city the form never offered can't be filtered out. Labels are kept
+  as submitted — validating against the metro registry would make retired-metro
+  sections unfilterable — but are trimmed to 128 chars / 200 options.
+- A deselected city with no jobs today still appears in the filter, otherwise
+  filtering out a quiet market would be irreversible.
+- Tests: `tests/test_city_filter.py`.
+
 ## Analytics + Research Tabs
 
 Two nav tabs built on existing data (no schema changes), logic in `app/analytics.py`:

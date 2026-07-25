@@ -117,6 +117,13 @@ class SavedSearch(TimestampMixin, Base):
     title_slug: Mapped[str] = mapped_column(String(64), index=True)
     experience_bucket: Mapped[str] = mapped_column(String(16))
     cities: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # Cities the user hid from this board (display labels, e.g. "Dallas, TX").
+    # Display-only: matches are still built and stored, the board just doesn't
+    # render the section. Kept per (user, vertical) because each vertical has
+    # its own board, and server-side rather than in localStorage so the choice
+    # follows the user across devices (unlike the collapse state).
+    # Rows created before the column existed read back NULL — treat as empty.
+    hidden_cities: Mapped[list[str]] = mapped_column(JSON, default=list)
     is_paid_city_override: Mapped[bool] = mapped_column(Boolean, default=False)
     change_count: Mapped[int] = mapped_column(Integer, default=0)
 

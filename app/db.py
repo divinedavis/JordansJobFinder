@@ -40,3 +40,11 @@ def init_db():
                 conn.execute(
                     text("ALTER TABLE base_resumes ADD COLUMN years_experience INTEGER")
                 )
+            search_columns = {
+                column["name"] for column in inspect(conn).get_columns("saved_searches")
+            }
+            if "hidden_cities" not in search_columns:
+                # Existing rows read back NULL; every caller coerces to [].
+                conn.execute(
+                    text("ALTER TABLE saved_searches ADD COLUMN hidden_cities JSON")
+                )

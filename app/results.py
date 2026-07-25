@@ -50,6 +50,44 @@ def group_matches_by_city(matches: list[dict]) -> dict:
     return grouped
 
 
+def hidden_city_labels(saved_search) -> list[str]:
+    """The cities this board's owner filtered out, cleaned. NULL/None for
+    searches that predate the column, and blanks are dropped so an empty label
+    can never swallow a real section.
+
+    Stored as the DESELECTED set rather than the selected one on purpose: a
+    metro that starts producing jobs later shows up by default instead of
+    being silently suppressed by a filter saved months ago.
+    """
+    if not saved_search:
+        return []
+    return [c for c in (saved_search.hidden_cities or []) if c]
+
+
+def visible_city_groups(grouped: dict, hidden: list[str]) -> dict:
+    """The city sections to render — everything the user hasn't deselected."""
+    hidden_names = {c for c in (hidden or []) if c}
+    return {city: rows for city, rows in grouped.items() if city not in hidden_names}
+
+
+def city_filter_options(grouped: dict, hidden: list[str]) -> list[dict]:
+    """Checkbox rows for the city filter, alphabetical.
+
+    Covers every city on the board plus any deselected city with no jobs today
+    — otherwise filtering out a quiet market would leave no way to re-select it.
+    """
+    hidden_names = [c for c in (hidden or []) if c]
+    cities = sorted(set(grouped) | set(hidden_names), key=lambda c: c.lower())
+    return [
+        {
+            "city": city,
+            "count": len(grouped.get(city, [])),
+            "selected": city not in hidden_names,
+        }
+        for city in cities
+    ]
+
+
 # Board freshness window per vertical. IT project/program roles in the PA/FL
 # metros post far less often than the national tracks — a 2-day window leaves
 # that board nearly empty, so it keeps a week.

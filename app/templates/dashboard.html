@@ -59,6 +59,42 @@
   {% else %}
     <section class="panel" data-board-tab="{{ active_tab }}">
       <h2>Current Board</h2>
+
+      {% if city_filter_options %}
+        {# Which cities this board shows. Saved on the account, so it survives
+           a refresh, a new sign-in, and a different device. #}
+        <details class="city-filter"{% if selected_city_count < city_filter_options|length %} open{% endif %}>
+          <summary class="city-filter-summary">
+            Cities &mdash; showing {{ selected_city_count }} of {{ city_filter_options|length }}
+          </summary>
+          <form method="post" action="{{ url_for('web.dashboard_city_filter') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="tab" value="{{ active_tab }}">
+            <div class="city-filter-grid">
+              {% for option in city_filter_options %}
+                <label class="city-filter-option">
+                  {# known_city tells the server which options this page
+                     offered, so unchecked ones can be read as deselected. #}
+                  <input type="hidden" name="known_city" value="{{ option.city }}">
+                  <input type="checkbox" name="city" value="{{ option.city }}"{% if option.selected %} checked{% endif %}>
+                  <span>{{ option.city }} <span class="muted">({{ option.count }})</span></span>
+                </label>
+              {% endfor %}
+            </div>
+            <div class="city-filter-actions">
+              <button type="submit" name="action" value="apply" class="button">Apply</button>
+              <button type="submit" name="action" value="select-all" class="chip-button">Select all</button>
+            </div>
+          </form>
+        </details>
+      {% endif %}
+
+      {% if matches and not grouped_matches %}
+        <p class="muted">
+          No cities are selected. Pick at least one in the filter above.
+        </p>
+      {% endif %}
+
       {% if matches %}
         {% for city, city_matches in grouped_matches.items() %}
           {# <details> so collapsing works with JS disabled; collapse.js only
