@@ -16,7 +16,7 @@
           <a class="button secondary" href="{{ url_for('web.dashboard') if user else url_for('web.login') }}">View Dashboard</a>
         </div>
       </div>
-      <div class="hero-art-wrap">
+      <div class="hero-art-wrap" id="todays-board">
         <div class="hero-art-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <span class="match-company">Today's Board</span>
@@ -44,7 +44,7 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="what-you-get">
     <span class="eyebrow">What You Get</span>
     <h2>Curated matches, not firehose feeds.</h2>
     <div class="grid three" style="margin-top: 22px;">
@@ -66,7 +66,7 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="how-it-works">
     <span class="eyebrow">How It Works</span>
     <h2>Three steps from signup to inbox.</h2>
     <div class="grid three" style="margin-top: 22px;">

@@ -54,3 +54,11 @@ def test_home_pitches_leaderboard_not_signal(client):
     body = client.get("/").get_data(as_text=True)
     assert "Leaderboard" in body
     assert ">Signal<" not in body
+
+
+def test_home_keeps_sitelink_anchors(client):
+    # Google Ads sitelinks deep-link to these ids. Renaming or dropping one
+    # sends paid clicks to the top of the page with no error anywhere.
+    body = client.get("/").get_data(as_text=True)
+    for anchor in ("todays-board", "what-you-get", "how-it-works"):
+        assert f'id="{anchor}"' in body, anchor
