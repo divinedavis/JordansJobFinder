@@ -417,7 +417,17 @@ def dashboard():
         active_tab = tabs[0]
     saved_search = user.saved_search_for(active_tab)
     matches = load_db_matches(saved_search) if saved_search else []
+    # Jobs already applied to drop off the board — it's a list of what's left to
+    # do, and a card you've acted on is just noise on it. Filtered at render
+    # time (like the city filter) so the JobMatch rows, the `applied` flag and
+    # the durable AppliedJob history are all untouched; the full record lives on
+    # the Analytics tab, per month and per week.
+    applied_matches = [m for m in matches if m.get("applied")]
+    # The preview fallback keys off the UNFILTERED list: having applied to
+    # everything on the board is a full board, not an empty one, and must not
+    # resurrect the raw feed.
     preview = preview_matches(saved_search) if (saved_search and not matches) else []
+    matches = [m for m in matches if not m.get("applied")]
     resume_years = resume_years_for_user(db, user.id)
     # The city filter is applied at render time only — the matches themselves
     # stay built, so re-selecting a city is instant and the nightly rebuild
@@ -437,6 +447,7 @@ def dashboard():
         grouped_matches=grouped,
         city_filter_options=filter_options,
         selected_city_count=sum(1 for row in filter_options if row["selected"]),
+        applied_hidden_count=len(applied_matches),
         title_labels=TITLE_LABELS,
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,

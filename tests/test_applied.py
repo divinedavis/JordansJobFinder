@@ -177,6 +177,90 @@ def test_board_shows_other_users_applied_count(app, db_session):
     assert by_id[job_id] == 2
 
 
+def _seed_search_and_two_jobs(db_session, email):
+    """A user with a PM search and two matching jobs on the board."""
+    from app.models import Job, SavedSearch, User
+
+    user = User(email=email)
+    user.set_password("Str0ng-Pass-9x")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.add(SavedSearch(
+        user_id=user.id, vertical="pm",
+        title_slug="technical-product-manager", experience_bucket="7-9",
+        cities=["New York, NY"],
+    ))
+    jobs = [
+        Job(
+            source="test", company=company, title="Senior Product Manager",
+            normalized_title="senior product manager",
+            url=f"https://example.com/jobs/{slug}", city="nyc",
+            location="New York, NY", description="Looking for a senior PM.",
+            is_technical=True,
+        )
+        for company, slug in (("Datadog", "hide-1"), ("Salesforce", "hide-2"))
+    ]
+    db_session.add_all(jobs)
+    db_session.commit()
+    for job in jobs:
+        db_session.refresh(job)
+    return user, jobs
+
+
+def test_dashboard_hides_jobs_already_applied_to(client, db_session):
+    """An applied job leaves the board — the record lives on Analytics instead."""
+    from app.applications import record_application
+    from app.sync import rebuild_matches
+
+    user, jobs = _seed_search_and_two_jobs(db_session, "hideboard@example.com")
+    rebuild_matches()
+    record_application(db_session, user.id, jobs[0])
+    db_session.commit()
+
+    resp = client.post("/login", data={
+        "email": "hideboard@example.com", "password": "Str0ng-Pass-9x",
+    })
+    assert resp.status_code == 302, resp.data
+    body = client.get("/dashboard").get_data(as_text=True)
+
+    assert "Salesforce" in body, "an un-applied match must still show"
+    assert "Datadog" not in body, "the applied job must be off the board"
+    assert "1 job you already applied to is hidden" in body
+    assert "/analytics" in body
+
+
+def test_dashboard_applied_filter_does_not_resurrect_the_raw_feed(client, db_session, monkeypatch):
+    """Applying to everything is a full board, not an empty one — the JSON-feed
+    preview fallback must not kick in and put those jobs back."""
+    from app.applications import record_application
+    from app.sync import rebuild_matches
+
+    user, jobs = _seed_search_and_two_jobs(db_session, "allapplied@example.com")
+    rebuild_matches()
+    for job in jobs:
+        record_application(db_session, user.id, job)
+    db_session.commit()
+
+    called = {"preview": False}
+
+    def _boom(saved_search):
+        called["preview"] = True
+        return []
+
+    monkeypatch.setattr("app.routes.preview_matches", _boom)
+
+    resp = client.post("/login", data={
+        "email": "allapplied@example.com", "password": "Str0ng-Pass-9x",
+    })
+    assert resp.status_code == 302, resp.data
+    body = client.get("/dashboard").get_data(as_text=True)
+
+    assert called["preview"] is False
+    assert "Datadog" not in body and "Salesforce" not in body
+    assert "applied to every job on this board" in body
+
+
 def test_applied_route_redirects_to_analytics(signed_in_client):
     """The Applied tab is retired — old bookmarks land on Analytics."""
     resp = signed_in_client.get("/applied")

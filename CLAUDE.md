@@ -425,6 +425,30 @@ unlike the collapse state, which is per-device localStorage.
   filtering out a quiet market would be irreversible.
 - Tests: `tests/test_city_filter.py`.
 
+## Applied Jobs Move Off The Board (2026-07-29)
+
+A job the user applied to is **hidden from the dashboard** and lives on the
+Analytics tab instead. The board is a to-do list; a card already acted on is
+noise on it.
+
+- Filtered at **render time** in `routes.dashboard` (same posture as the city
+  filter): `load_db_matches` still returns the row with its `applied` flag, the
+  JobMatch rows and the durable AppliedJob history are untouched, and nothing
+  about the nightly rebuild changes. `applied_hidden_count` drives the note
+  under the board linking to Analytics.
+- **The preview fallback keys off the UNFILTERED list.** `preview_matches` fires
+  when the board is empty; computing it after the filter meant "applied to
+  everything" re-read the raw JSON feed and put those same jobs back. Guarded by
+  `tests/test_applied.py::test_dashboard_applied_filter_does_not_resurrect_the_raw_feed`.
+- The card's hidden `.applied-badge` stays — `applied.js` lights it in place
+  right after a tailored-resume download, and the card drops off on next load.
+- **Analytics periods are now expandable**: every monthly / weekly row from
+  `build_application_analytics` carries a `jobs` list (`analytics.application_card`,
+  read off the AppliedJob snapshot so it renders after the job ages off the
+  board), rendered by the `bar_row` macro as a `<details>` — clicking a month or
+  week opens the jobs applied to in it. Zero-count periods render as a plain div
+  so there's nothing to click when there'd be nothing to show. No JS.
+
 ## Analytics + Research Tabs
 
 Two nav tabs built on existing data (no schema changes), logic in `app/analytics.py`:

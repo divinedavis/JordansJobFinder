@@ -12,10 +12,25 @@ from datetime import datetime, timezone
 class _AppRow:
     """Minimal stand-in for an AppliedJob row (only fields the helper reads)."""
 
-    def __init__(self, applied_at, vertical="pm", city="nyc"):
+    def __init__(
+        self,
+        applied_at,
+        vertical="pm",
+        city="nyc",
+        company="Datadog",
+        title="Senior Product Manager",
+        url="https://example.com/jobs/1",
+        location="New York, NY",
+        salary_label="$180,000 - $220,000",
+    ):
         self.applied_at = applied_at
         self.vertical = vertical
         self.city = city
+        self.company = company
+        self.title = title
+        self.url = url
+        self.location = location
+        self.salary_label = salary_label
 
 
 def _dt(y, m, d):
@@ -103,6 +118,64 @@ def test_application_analytics_bar_pct_relative_to_max():
     by_key = {row["key"]: row for row in data["monthly"]}
     assert by_key["2026-06"]["pct"] == 100
     assert by_key["2026-05"]["pct"] == 50
+
+
+def test_period_rows_carry_the_jobs_behind_the_bar():
+    """Clicking a month or week has to open the jobs applied to in it, so each
+    period row ships its own list — newest first, from the AppliedJob snapshot."""
+    from app.analytics import build_application_analytics
+
+    now = _dt(2026, 6, 29)  # a Monday
+    apps = [
+        _AppRow(_dt(2026, 6, 23), company="Datadog", title="Senior PM",
+                url="https://example.com/jobs/dd"),
+        _AppRow(_dt(2026, 6, 24), company="Salesforce", title="Program Manager",
+                url="https://example.com/jobs/sf"),
+        _AppRow(_dt(2026, 5, 10), company="Highmark", title="Manager, Client Projects",
+                url="https://example.com/jobs/hm", city="atlanta"),
+    ]
+    data = build_application_analytics(apps, now=now)
+
+    monthly = {row["key"]: row for row in data["monthly"]}
+    june = monthly["2026-06"]["jobs"]
+    assert [j["company"] for j in june] == ["Salesforce", "Datadog"]  # newest first
+    assert june[0]["title"] == "Program Manager"
+    assert june[0]["url"] == "https://example.com/jobs/sf"
+    assert june[0]["city"] == "New York, NY"  # slug resolved to a display label
+    assert monthly["2026-05"]["jobs"][0]["company"] == "Highmark"
+
+    # Weeks slice the same applications by their Monday anchor.
+    weekly = {row["key"]: row for row in data["weekly"]}
+    assert [j["company"] for j in weekly["2026-06-22"]["jobs"]] == ["Salesforce", "Datadog"]
+    assert weekly["2026-06-29"]["jobs"] == []  # zero week: nothing to open
+
+
+def test_analytics_page_lists_applied_jobs_under_each_period(signed_in_client, db_session):
+    """The rendered page must carry the job rows, not just the bar counts."""
+    from app.applications import record_application
+    from app.models import Job, User
+
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    job = Job(
+        source="test", company="Datadog", title="Senior Platform Product Manager",
+        normalized_title="senior platform product manager",
+        url="https://example.com/jobs/analytics-drill", city="nyc",
+        location="New York, NY", description="PM role.", is_technical=True,
+        salary_label="$192,000 - $240,000",
+    )
+    db_session.add(job)
+    db_session.commit()
+    record_application(db_session, user.id, job)
+    db_session.commit()
+
+    body = signed_in_client.get("/analytics").get_data(as_text=True)
+    assert "Senior Platform Product Manager" in body
+    assert "https://example.com/jobs/analytics-drill" in body
+    assert "$192,000 - $240,000" in body
+    # The bar itself became the expander.
+    assert "bar-open" in body
+    assert "Click a month to see the jobs you applied to." in body
+    assert "Click a week to see the jobs you applied to." in body
 
 
 # ── build_application_leaderboard ─────────────────────────────────────────────

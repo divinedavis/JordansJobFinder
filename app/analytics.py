@@ -117,16 +117,60 @@ def _trim_leading_zeros(series):
 # ── Analytics (year in review) ────────────────────────────────────────────────
 
 
+def application_card(applied) -> dict:
+    """One applied job, shaped for the period drill-downs on the Analytics tab.
+
+    Everything is read off the AppliedJob snapshot rather than the live Job row
+    — the point of the snapshot is that these stay renderable after the job has
+    aged off the board (or the Job row is gone entirely).
+    """
+    when = _naive(applied.applied_at)
+    salary = (applied.salary_label or "").strip()
+    return {
+        "company": applied.company,
+        "title": applied.title,
+        "url": applied.url or "",
+        "city": CITY_LABELS.get(applied.city or "", applied.location or ""),
+        # "See posting" is a placeholder, not a figure — same rule as the board.
+        "salary_label": "" if salary == "See posting" else salary,
+        "applied_at": when,
+        "applied_label": when.strftime("%b %-d, %Y") if when else "",
+        "vertical": applied.vertical or "pm",
+        "track": VERTICAL_LABELS.get(applied.vertical or "pm", "—"),
+    }
+
+
+def _group_cards(rows):
+    """(month key -> cards, week key -> cards), each newest-applied first.
+
+    Keys match the ``key`` on the monthly / weekly series rows, so the template
+    can hang each period's applications off its own bar.
+    """
+    by_month, by_week = {}, {}
+    for applied in rows:
+        when = _naive(applied.applied_at)
+        card = application_card(applied)
+        by_month.setdefault(f"{when.year}-{when.month:02d}", []).append(card)
+        by_week.setdefault(_monday(when).date().isoformat(), []).append(card)
+    for bucket in (by_month, by_week):
+        for cards in bucket.values():
+            cards.sort(key=lambda c: c["applied_at"], reverse=True)
+    return by_month, by_week
+
+
 def build_application_analytics(applications, now=None, months=12, weeks=12):
     """Weekly + monthly application counts and a year-in-review summary.
 
-    ``applications`` is a list of AppliedJob rows (only ``applied_at``,
-    ``vertical`` and ``city`` are read). ``now`` is injectable for tests.
+    ``applications`` is a list of AppliedJob rows. ``now`` is injectable for
+    tests. Every period row carries a ``jobs`` list — the applications that
+    landed in it — so clicking a month or week on the Analytics tab opens the
+    jobs behind the bar instead of just a number.
     """
     now = _naive(now) or datetime.now(timezone.utc).replace(tzinfo=None)
     rows = [a for a in applications if a.applied_at is not None]
     dates = sorted(_naive(a.applied_at) for a in rows)
     total = len(dates)
+    cards_by_month, cards_by_week = _group_cards(rows)
 
     # Monthly series — contiguous, oldest -> newest, zero-filled.
     month_counts = Counter((d.year, d.month) for d in dates)
@@ -142,6 +186,7 @@ def build_application_analytics(applications, now=None, months=12, weeks=12):
             "label": datetime(yy, mm, 1).strftime("%b %Y"),
             "short": datetime(yy, mm, 1).strftime("%b"),
             "count": month_counts.get((yy, mm), 0),
+            "jobs": cards_by_month.get(f"{yy}-{mm:02d}", []),
         }
         for yy, mm in reversed(seq)
     ]
@@ -157,6 +202,7 @@ def build_application_analytics(applications, now=None, months=12, weeks=12):
             "label": f"Week of {wk.strftime('%b %-d')}",
             "short": wk.strftime("%-m/%-d"),
             "count": week_counts.get(wk, 0),
+            "jobs": cards_by_week.get(wk.isoformat(), []),
         }
         for wk in reversed([cur_monday - timedelta(weeks=i) for i in range(weeks)])
     ]

@@ -96,6 +96,15 @@
         </details>
       {% endif %}
 
+      {% if applied_hidden_count %}
+        {# Built as one string so the sentence can't be split by template
+           whitespace — the regression guard matches on it. #}
+        <p class="muted" style="margin-top: 10px;">
+          {% if applied_hidden_count == 1 %}{{ "1 job you already applied to is hidden from this board" }}{% else %}{{ applied_hidden_count }}{{ " jobs you already applied to are hidden from this board" }}{% endif %} &mdash;
+          <a href="{{ url_for('web.analytics') }}">see them on Analytics</a>, by month and by week.
+        </p>
+      {% endif %}
+
       {% if matches and not grouped_matches %}
         <p class="muted">
           No cities are selected. Pick at least one in the filter above.
@@ -173,6 +182,12 @@
             </div>
           {% endfor %}
         </div>
+      {% elif applied_hidden_count %}
+        <p>
+          You&rsquo;ve applied to every job on this board. New matches land with
+          each daily sync &mdash; until then, review what you sent on
+          <a href="{{ url_for('web.analytics') }}">Analytics</a>.
+        </p>
       {% else %}
         <p>No matches exist yet for this saved search.</p>
       {% endif %}

@@ -30,6 +30,41 @@
       font-size: 14px;
       text-align: right;
     }
+    /* A period with applications is a <details> — clicking the bar opens the
+       jobs behind it. Zero rows render as a plain div, so there's nothing to
+       click when there'd be nothing to show. */
+    .bar-open > summary { cursor: pointer; list-style: none; }
+    .bar-open > summary::-webkit-details-marker { display: none; }
+    .bar-open > summary:hover .bar-label,
+    .bar-open[open] > summary .bar-label { color: var(--ink, #1d2433); }
+    .bar-open > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+    .bar-jobs {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0 18px 108px;
+      padding-left: 14px;
+      border-left: 2px solid rgba(29, 36, 51, 0.10);
+    }
+    .bar-job { display: grid; gap: 2px; }
+    /* Absolutely positioned so it stays out of the summary's 3-column grid. */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      margin: -1px; padding: 0; border: 0;
+      overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .bar-job-top {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .bar-job-title { font-weight: 600; }
+    .bar-job-meta { color: var(--muted); font-size: 13px; }
+    @media (max-width: 780px) {
+      .bar-jobs { margin-left: 0; }
+    }
     .stat-grid { display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
     @media (max-width: 780px) {
       .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -69,6 +104,52 @@
       .lb-row { grid-template-columns: 26px 1fr repeat(4, 46px); gap: 6px; padding: 8px 8px; }
     }
   </style>
+
+  {# One bar in a period chart. A period with applications is expandable — the
+     <details> keeps it working with JS disabled, same pattern as the board's
+     city sections. `heading` is the full period name for screen readers when
+     the visible label is abbreviated (weeks show "7/20"). #}
+  {% macro bar_row(row, label, anchor, heading=None) %}
+    {% if row.jobs %}
+      <details class="bar-open" data-period="{{ anchor }}">
+        <summary class="bar-row">
+          <span class="bar-label">{{ label }}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: {{ row.pct }}%;"></div>
+          </div>
+          <span class="bar-value">{{ row.count }}</span>
+          <span class="sr-only">
+            {{ row.count }} application{{ '' if row.count == 1 else 's' }} in {{ heading or label }} &mdash; show them
+          </span>
+        </summary>
+        <div class="bar-jobs">
+          {% for job in row.jobs %}
+            <div class="bar-job">
+              <span class="bar-job-top">{{ job.company }}{% if job.city %} &middot; {{ job.city }}{% endif %}</span>
+              <span class="bar-job-title">
+                {% if job.url.startswith("http") %}
+                  <a href="{{ job.url }}" target="_blank" rel="noreferrer">{{ job.title }}</a>
+                {% else %}
+                  {{ job.title }}
+                {% endif %}
+              </span>
+              <span class="bar-job-meta">
+                Applied {{ job.applied_label }}{% if job.salary_label %} &middot; {{ job.salary_label }}{% endif %}
+              </span>
+            </div>
+          {% endfor %}
+        </div>
+      </details>
+    {% else %}
+      <div class="bar-row">
+        <span class="bar-label">{{ label }}</span>
+        <div class="bar-track">
+          <div class="bar-fill empty" style="width: {{ row.pct }}%;"></div>
+        </div>
+        <span class="bar-value">{{ row.count }}</span>
+      </div>
+    {% endif %}
+  {% endmacro %}
 
   <section class="panel">
     <span class="eyebrow">Year in Review</span>
@@ -125,17 +206,12 @@
         <div>
           <p class="match-kicker">{% if monthly|length < 12 %}Since {{ monthly[0].label }}{% else %}Last 12 months{% endif %}</p>
           <h3 class="match-title">Applications per month</h3>
+          <p class="muted" style="margin-top: 6px;">Click a month to see the jobs you applied to.</p>
         </div>
       </div>
       <div class="bars">
         {% for m in monthly %}
-          <div class="bar-row">
-            <span class="bar-label">{{ m.label }}</span>
-            <div class="bar-track">
-              <div class="bar-fill{% if m.count == 0 %} empty{% endif %}" style="width: {{ m.pct }}%;"></div>
-            </div>
-            <span class="bar-value">{{ m.count }}</span>
-          </div>
+          {{ bar_row(m, m.label, "month-" ~ m.key) }}
         {% endfor %}
       </div>
     </section>
@@ -145,17 +221,12 @@
         <div>
           <p class="match-kicker">{% if weekly|length < 12 %}Since {{ weekly[0].label|lower }}{% else %}Last 12 weeks{% endif %}</p>
           <h3 class="match-title">Applications per week</h3>
+          <p class="muted" style="margin-top: 6px;">Click a week to see the jobs you applied to.</p>
         </div>
       </div>
       <div class="bars">
         {% for w in weekly %}
-          <div class="bar-row">
-            <span class="bar-label">{{ w.short }}</span>
-            <div class="bar-track">
-              <div class="bar-fill{% if w.count == 0 %} empty{% endif %}" style="width: {{ w.pct }}%;"></div>
-            </div>
-            <span class="bar-value">{{ w.count }}</span>
-          </div>
+          {{ bar_row(w, w.short, "week-" ~ w.key, w.label) }}
         {% endfor %}
       </div>
     </section>
