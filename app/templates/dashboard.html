@@ -62,8 +62,15 @@
 
       {% if city_filter_options %}
         {# Which cities this board shows. Saved on the account, so it survives
-           a refresh, a new sign-in, and a different device. #}
-        <details class="city-filter"{% if selected_city_count < city_filter_options|length %} open{% endif %}>
+           a refresh, a new sign-in, and a different device.
+
+           Starts COLLAPSED. It used to open whenever any city was deselected,
+           which meant that the moment a user narrowed their board — the normal
+           case — the filter covered the jobs on every single load. The summary
+           line already reports the state, so there's nothing to open for.
+           The one exception is a zero-city selection: the board is empty and
+           the only way out is this filter, so opening it avoids a dead end. #}
+        <details class="city-filter"{% if selected_city_count == 0 %} open{% endif %}>
           <summary class="city-filter-summary">
             Cities &mdash; showing {{ selected_city_count }} of {{ city_filter_options|length }}
           </summary>
