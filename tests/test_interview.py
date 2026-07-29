@@ -44,13 +44,13 @@ def _fake_plan():
             {"category": "About the role", "questions": ["What does success look like in 90 days?"]},
         ],
         "years_experience": 8,
-        "salary_estimate": {"low": 120000, "high": 150000, "note": "Anchor high."},
+        "salary_estimate": {"low": 120000, "high": 150000, "notes": ["Anchor high."]},
         "salary": {
             "basis": "market", "market_label": "Charleston, SC", "market_count": 5,
             "years_experience": 8, "experience_label": "7-9 years",
             "ask_low": 120000, "ask_high": 150000, "target": 135000,
             "ask_low_fmt": "$120K", "ask_high_fmt": "$150K", "target_fmt": "$135K",
-            "posted_label": "", "note": "Anchor high.",
+            "posted_label": "", "notes": ["Anchor high."],
         },
     }
 
@@ -73,7 +73,7 @@ def test_sanitize_plan_coerces_and_bounds():
             "not-a-dict",
         ],
         "years_experience": "12",  # numeric string coerced
-        "salary_estimate": {"low": "150000", "high": 99_000_000, "note": 7},
+        "salary_estimate": {"low": "150000", "high": 99_000_000, "notes": 7},
         "evil_key": "dropped",
     }
     clean = sanitize_plan(dirty)
@@ -88,7 +88,7 @@ def test_sanitize_plan_coerces_and_bounds():
     assert clean["years_experience"] == 12
     assert clean["salary_estimate"]["low"] == 150000
     assert clean["salary_estimate"]["high"] is None  # above sane cap
-    assert clean["salary_estimate"]["note"] == ""
+    assert clean["salary_estimate"]["notes"] == []
 
 
 def test_sanitize_plan_handles_garbage():
@@ -99,13 +99,13 @@ def test_sanitize_plan_handles_garbage():
     assert clean["years_experience"] is None
 
 
-def test_sanitize_plan_caps_two_facts():
+def test_sanitize_plan_caps_three_facts():
     from app.interview import sanitize_plan
 
     clean = sanitize_plan({
         "company_background": {"overview": "o", "facts": ["f1", "f2", "f3", "f4"]},
     })
-    assert clean["company_background"]["facts"] == ["f1", "f2"]
+    assert clean["company_background"]["facts"] == ["f1", "f2", "f3"]
 
 
 def test_sanitize_plan_omits_questions_section():
@@ -136,7 +136,7 @@ def test_salary_expectation_prefers_market_data(db_session):
     from app.interview import build_salary_expectation
 
     job = _seed_job(db_session)
-    plan = {"years_experience": 12, "salary_estimate": {"low": 90000, "high": 95000, "note": "n"}}
+    plan = {"years_experience": 12, "salary_estimate": {"low": 90000, "high": 95000, "notes": ["n"]}}
     points = [100_000, 120_000, 140_000, 160_000, 180_000]
     sal = build_salary_expectation(job, plan, points, "Charleston, SC")
     assert sal["basis"] == "market"
@@ -146,7 +146,7 @@ def test_salary_expectation_prefers_market_data(db_session):
     assert sal["ask_low"] == 160000
     assert sal["ask_high"] == 180000
     assert sal["ask_low_fmt"] == "$160K"
-    assert sal["note"] == "n"
+    assert sal["notes"] == ["n"]
 
 
 def test_salary_expectation_falls_back_to_posting(db_session):
@@ -165,7 +165,7 @@ def test_salary_expectation_falls_back_to_model_estimate(db_session):
     from app.interview import build_salary_expectation
 
     job = _seed_job(db_session)
-    plan = {"years_experience": None, "salary_estimate": {"low": 95000, "high": 115000, "note": ""}}
+    plan = {"years_experience": None, "salary_estimate": {"low": 95000, "high": 115000, "notes": []}}
     sal = build_salary_expectation(job, plan, [], "Charleston, SC", fallback_bucket="3-6")
     assert sal["basis"] == "model"
     assert sal["ask_low"] == 95000
@@ -233,16 +233,16 @@ def test_pro_user_generates_and_caches_plan(signed_in_client, db_session, monkey
     assert db_session.query(InterviewPlan).count() == 1
 
 
-def test_template_trims_cached_plans_to_two_bullets(signed_in_client, db_session):
-    """Plans cached before the 2-bullet cap can hold more — the template
-    slices the facts list to 2. The Questions-to-ask section is no longer
+def test_template_trims_cached_plans_to_three_bullets(signed_in_client, db_session):
+    """Plans cached before the 3-bullet cap can hold more — the template
+    slices the facts list to 3. The Questions-to-ask section is no longer
     rendered at all, even for plans that still carry it."""
     from app.models import InterviewPlan
 
     user = _make_pro(db_session)
     job_id = _seed_job(db_session).id
     plan = _fake_plan()
-    plan["company_background"]["facts"] = ["fact-a", "fact-b", "fact-c"]
+    plan["company_background"]["facts"] = ["fact-a", "fact-b", "fact-c", "fact-d"]
     plan["questions_to_ask"] = [
         {"category": "About the role", "questions": ["q-one", "q-two", "q-three"]},
     ]
@@ -250,10 +250,86 @@ def test_template_trims_cached_plans_to_two_bullets(signed_in_client, db_session
     db_session.commit()
 
     body = signed_in_client.get(f"/interview/{job_id}").get_data(as_text=True)
-    assert "fact-a" in body and "fact-b" in body and "fact-c" not in body
+    assert all(f in body for f in ("fact-a", "fact-b", "fact-c"))
+    assert "fact-d" not in body
     # Questions section removed — no questions render, and its header is gone.
     assert "What you should ask them" not in body
     assert "q-one" not in body
+
+
+def test_salary_notes_render_as_bullets(signed_in_client, db_session):
+    from app.models import InterviewPlan
+
+    user = _make_pro(db_session)
+    job_id = _seed_job(db_session).id
+    plan = _fake_plan()
+    plan["salary"]["notes"] = ["anchor-high", "cite-market", "defer-first"]
+    db_session.add(InterviewPlan(user_id=user.id, job_id=job_id, content_json=json.dumps(plan)))
+    db_session.commit()
+
+    body = signed_in_client.get(f"/interview/{job_id}").get_data(as_text=True)
+    for note in ("anchor-high", "cite-market", "defer-first"):
+        assert f"<li>{note}</li>" in body
+
+
+def test_cached_paragraph_salary_note_still_renders(signed_in_client, db_session):
+    """Plans stored while `note` was one paragraph must keep rendering — the
+    alternative is a paid regeneration per user per job."""
+    from app.models import InterviewPlan
+
+    user = _make_pro(db_session)
+    job_id = _seed_job(db_session).id
+    plan = _fake_plan()
+    plan["salary"].pop("notes")
+    plan["salary"]["note"] = "One long paragraph of positioning advice."
+    db_session.add(InterviewPlan(user_id=user.id, job_id=job_id, content_json=json.dumps(plan)))
+    db_session.commit()
+
+    body = signed_in_client.get(f"/interview/{job_id}").get_data(as_text=True)
+    assert "One long paragraph of positioning advice." in body
+
+
+def test_sanitize_plan_reads_legacy_note_string():
+    from app.interview import sanitize_plan
+
+    clean = sanitize_plan({"salary_estimate": {"note": "Anchor high."}})
+    assert clean["salary_estimate"]["notes"] == ["Anchor high."]
+
+
+def test_sanitize_plan_caps_bullet_length():
+    """A model that ignores the one-line rule can't blow up the layout."""
+    from app.interview import BULLET_LEN, sanitize_plan
+
+    clean = sanitize_plan({
+        "company_background": {"facts": ["x" * 900]},
+        "salary_estimate": {"notes": ["y" * 900]},
+    })
+    # +1 for the ellipsis that marks the cut.
+    assert len(clean["company_background"]["facts"][0]) <= BULLET_LEN + 1
+    assert len(clean["salary_estimate"]["notes"][0]) <= BULLET_LEN + 1
+
+
+def test_long_bullets_are_cut_at_a_word_boundary():
+    """The hard slice used to end bullets mid-word ("...and relation"), which
+    reads as a rendering bug rather than an edited sentence."""
+    from app.interview import BULLET_LEN, sanitize_plan
+
+    long_bullet = ("priorities are bespoke and heavily regulated " * 20).strip()
+    clean = sanitize_plan({"company_background": {"facts": [long_bullet]}})
+    fact = clean["company_background"]["facts"][0]
+
+    assert fact.endswith("…")
+    # Everything before the ellipsis is whole words from the original.
+    assert long_bullet.startswith(fact[:-1])
+    assert not fact[:-1].endswith(" ")
+    assert long_bullet[len(fact) - 1] in " " or fact[:-1].split()[-1] in long_bullet.split()
+
+
+def test_short_bullets_are_left_alone():
+    from app.interview import sanitize_plan
+
+    clean = sanitize_plan({"company_background": {"facts": ["Ships 787s from North Charleston."]}})
+    assert clean["company_background"]["facts"] == ["Ships 787s from North Charleston."]
 
 
 def test_legacy_plan_regenerates_into_new_shape(signed_in_client, db_session, monkeypatch):

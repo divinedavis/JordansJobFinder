@@ -52,19 +52,25 @@ CRITICAL RULES:
 - salary_estimate is your own estimate of a fair base-salary range in USD for
   this role, in this location, for this candidate's experience level.
 
+WRITE FOR SOMEONE SKIMMING ON A PHONE ten minutes before the interview:
+- Bullets, not paragraphs. No preamble, no restating the job title back.
+- Every bullet is one line — under 140 characters, hard limit.
+- Cut hedging ("likely", "it seems", "you may want to"). State it.
+- No filler bullets. Three sharp ones beat six padded ones.
+
 Output ONLY a JSON object with EXACTLY this shape — no markdown, no commentary:
 
 {{
-  "role_summary": "1-2 sentences on what this role is and what the interview will focus on.",
+  "role_summary": "ONE sentence: what this role really is and what the interview will test.",
   "company_background": {{
-    "overview": "2-4 sentences: what the company does, how it makes money, where this role fits.",
-    "facts": ["Concise fact a candidate should know walking in.", "..."]
+    "overview": "ONE sentence: what the company does and how it makes money.",
+    "facts": ["One-line fact that changes how you'd answer a question.", "..."]
   }},
   "years_experience": 7,
-  "salary_estimate": {{"low": 150000, "high": 180000, "note": "1-2 sentences on how to position the ask in the negotiation."}}
+  "salary_estimate": {{"low": 150000, "high": 180000, "notes": ["One-line move for positioning the ask.", "..."]}}
 }}
 
-Provide EXACTLY 2 facts — pick only the highest-impact ones.
+Provide EXACTLY 3 facts and EXACTLY 3 salary notes — the highest-impact ones only.
 
 === JOB POSTING ===
 Company: {company}
@@ -99,6 +105,12 @@ def _extract_json(raw: str) -> Optional[dict]:
     return None
 
 
+# One line on a phone. The prompt asks for ~140 chars; this is the backstop for
+# a model that runs long. Set above the asked-for length deliberately: a hard
+# cut at the exact target fires on almost every bullet.
+BULLET_LEN = 200
+
+
 def _clean_str(v, limit=400) -> str:
     return v[:limit] if isinstance(v, str) else ""
 
@@ -109,12 +121,49 @@ def _clean_str_list(v, max_items=8, limit=400) -> list:
     return [_clean_str(x, limit) for x in v if isinstance(x, str)][:max_items]
 
 
+def _clean_bullet(v, limit=BULLET_LEN) -> str:
+    """Cap a bullet at the last whole word, not mid-word.
+
+    A hard slice produced bullets ending "...bespoke, regulatory, and relation",
+    which reads as a rendering bug rather than an edited sentence.
+    """
+    text = _clean_str(v, 2000).strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rstrip()
+    space = cut.rfind(" ")
+    if space > limit // 2:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:-") + "…"
+
+
+def _clean_bullet_list(v, max_items, limit=BULLET_LEN) -> list:
+    if not isinstance(v, list):
+        return []
+    bullets = [_clean_bullet(x, limit) for x in v if isinstance(x, str)]
+    return [b for b in bullets if b][:max_items]
+
+
 def _clean_int(v, lo, hi) -> Optional[int]:
     try:
         n = int(v)
     except (TypeError, ValueError):
         return None
     return n if lo <= n <= hi else None
+
+
+def _salary_notes(estimate: dict) -> list:
+    """Bulleted positioning notes, tolerating the pre-2026-07-28 shape.
+
+    Plans cached while `note` was a single paragraph still render — the string
+    becomes a one-item list rather than forcing every stored plan to be
+    regenerated (which would be a paid API call per user per job).
+    """
+    notes = _clean_bullet_list(estimate.get("notes"), 3)
+    if notes:
+        return notes
+    legacy = _clean_str(estimate.get("note"), 600).strip()
+    return [legacy] if legacy else []
 
 
 def sanitize_plan(data: dict) -> dict:
@@ -126,16 +175,16 @@ def sanitize_plan(data: dict) -> dict:
     estimate = data.get("salary_estimate")
     estimate = estimate if isinstance(estimate, dict) else {}
     return {
-        "role_summary": _clean_str(data.get("role_summary"), 600),
+        "role_summary": _clean_str(data.get("role_summary"), 300),
         "company_background": {
-            "overview": _clean_str(background.get("overview"), 1200),
-            "facts": _clean_str_list(background.get("facts"), 2),
+            "overview": _clean_str(background.get("overview"), 400),
+            "facts": _clean_bullet_list(background.get("facts"), 3),
         },
         "years_experience": _clean_int(data.get("years_experience"), 0, 60),
         "salary_estimate": {
             "low": _clean_int(estimate.get("low"), SANE_SALARY_MIN, SANE_SALARY_MAX),
             "high": _clean_int(estimate.get("high"), SANE_SALARY_MIN, SANE_SALARY_MAX),
-            "note": _clean_str(estimate.get("note"), 600),
+            "notes": _salary_notes(estimate),
         },
     }
 
@@ -198,7 +247,7 @@ def build_salary_expectation(job, plan, market_points, market_label,
         "ask_high_fmt": _usd_k(high),
         "target_fmt": _usd_k((low + high) / 2),
         "posted_label": (job.salary_label or "")[:128],
-        "note": _clean_str(estimate.get("note"), 600),
+        "notes": _salary_notes(estimate),
     }
 
 

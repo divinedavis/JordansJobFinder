@@ -42,8 +42,7 @@
       {% endif %}
       {% if plan.company_background.facts %}
         <ul style="margin-top: 12px; padding-left: 20px; line-height: 1.7;">
-          {# [:2] also trims plans cached before the 2-bullet cap #}
-          {% for fact in plan.company_background.facts[:2] %}<li>{{ fact }}</li>{% endfor %}
+          {% for fact in plan.company_background.facts[:3] %}<li>{{ fact }}</li>{% endfor %}
         </ul>
       {% endif %}
     </section>
@@ -74,8 +73,12 @@
       {% if plan.salary.posted_label %}
         <p class="muted" style="margin-top: 8px; font-size: 14px;">This posting lists: {{ plan.salary.posted_label }}</p>
       {% endif %}
-      {% if plan.salary.note %}
-        <p style="margin-top: 12px; max-width: 64ch; line-height: 1.7;">{{ plan.salary.note }}</p>
+      {# `notes` is the current shape; `note` renders plans cached before it. #}
+      {% set salary_notes = plan.salary.notes or ([plan.salary.note] if plan.salary.note else []) %}
+      {% if salary_notes %}
+        <ul style="margin-top: 12px; padding-left: 20px; line-height: 1.7; max-width: 64ch;">
+          {% for note in salary_notes[:3] %}<li>{{ note }}</li>{% endfor %}
+        </ul>
       {% endif %}
     </section>
     {% endif %}
