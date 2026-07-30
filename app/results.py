@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
 
-from .applications import applied_urls_for_user, other_applicant_counts
+from .applications import applied_at_by_url, naive_utc, other_applicant_counts
 from .company_revenue import revenue_for
 from .catalog import TITLE_LABELS
 from .db import get_db
@@ -162,7 +162,7 @@ def load_db_matches(saved_search) -> list[dict]:
     # The durable application log is the safety net for the "Applied" badge: even
     # if a JobMatch.applied_at stamp is ever lost, a recorded application keeps
     # the green note showing for a job still on the board.
-    applied_urls = applied_urls_for_user(db, saved_search.user_id)
+    applied_at_map = applied_at_by_url(db, saved_search.user_id)
     # Social proof: how many OTHER users applied to each board job from the site.
     other_applied = other_applicant_counts(
         db, [job.url for _, job in rows], saved_search.user_id
@@ -175,6 +175,14 @@ def load_db_matches(saved_search) -> list[dict]:
 
     matches = []
     for job_match, job in rows:
+        # Earliest of the two stamps: the JobMatch one is rebuilt nightly, the
+        # history one is durable, and the grace period should run from the real
+        # first application rather than whichever copy survived.
+        applied_stamps = [
+            naive_utc(dt)
+            for dt in (job_match.applied_at, applied_at_map.get(job.url))
+            if dt is not None
+        ]
         matches.append(
             {
                 "id": job.id,
@@ -187,7 +195,8 @@ def load_db_matches(saved_search) -> list[dict]:
                 "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
                 "matched_at": job_match.matched_at,
                 "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,
-                "applied": (job_match.applied_at is not None) or (job.url in applied_urls),
+                "applied": bool(applied_stamps),
+                "applied_at": min(applied_stamps) if applied_stamps else None,
                 "applied_by_others": other_applied.get(job.url, 0),
                 "revenue": revenue_for(job.company),
             }

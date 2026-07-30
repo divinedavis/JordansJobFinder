@@ -425,12 +425,24 @@ unlike the collapse state, which is per-device localStorage.
   filtering out a quiet market would be irreversible.
 - Tests: `tests/test_city_filter.py`.
 
-## Applied Jobs Move Off The Board (2026-07-29)
+## Applied Jobs Move Off The Board (2026-07-29, 24h grace 2026-07-30)
 
 A job the user applied to is **hidden from the dashboard** and lives on the
 Analytics tab instead. The board is a to-do list; a card already acted on is
 noise on it.
 
+- **24-hour grace period** (`applications.BOARD_GRACE_HOURS`): the card stays put
+  for a day after applying, then drops off. Applying is a click on "Tailored
+  Resume" — losing the card in the same second makes the click look like it
+  failed and takes the row away while the application is still being finished on
+  the employer's site. `board_grace_expired(match, now=None)` is the single gate
+  (owner's call 2026-07-30); `board_grace_label` renders "leaves in 18h" inside
+  the green badge so the later disappearance isn't a surprise.
+- **The clock runs from the EARLIEST stamp.** `load_db_matches` puts
+  `applied_at = min(JobMatch.applied_at, AppliedJob.applied_at)` on the match —
+  the JobMatch stamp is rebuilt nightly and a re-download must not extend the
+  window. An application with **no** timestamp is never hidden: a lost stamp
+  should leave the job visible, not silently disappear it.
 - Filtered at **render time** in `routes.dashboard` (same posture as the city
   filter): `load_db_matches` still returns the row with its `applied` flag, the
   JobMatch rows and the durable AppliedJob history are untouched, and nothing

@@ -2,7 +2,13 @@
 survive the nightly match rebuild — otherwise the green note vanishes every
 morning. Regression guard for that data loss."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+
+def _hours_ago(hours: float) -> datetime:
+    """Aware UTC timestamp `hours` in the past — the grace-period tests need to
+    place an application on either side of the 24-hour line."""
+    return datetime.now(timezone.utc) - timedelta(hours=hours)
 
 
 def _seed_user_search_job(db_session):
@@ -208,14 +214,15 @@ def _seed_search_and_two_jobs(db_session, email):
     return user, jobs
 
 
-def test_dashboard_hides_jobs_already_applied_to(client, db_session):
-    """An applied job leaves the board — the record lives on Analytics instead."""
+def test_dashboard_hides_jobs_applied_to_over_24_hours_ago(client, db_session):
+    """Once the 24-hour grace period is up, an applied job leaves the board —
+    the record lives on Analytics instead."""
     from app.applications import record_application
     from app.sync import rebuild_matches
 
     user, jobs = _seed_search_and_two_jobs(db_session, "hideboard@example.com")
     rebuild_matches()
-    record_application(db_session, user.id, jobs[0])
+    record_application(db_session, user.id, jobs[0], applied_at=_hours_ago(25))
     db_session.commit()
 
     resp = client.post("/login", data={
@@ -239,7 +246,7 @@ def test_dashboard_applied_filter_does_not_resurrect_the_raw_feed(client, db_ses
     user, jobs = _seed_search_and_two_jobs(db_session, "allapplied@example.com")
     rebuild_matches()
     for job in jobs:
-        record_application(db_session, user.id, job)
+        record_application(db_session, user.id, job, applied_at=_hours_ago(25))
     db_session.commit()
 
     called = {"preview": False}
@@ -259,6 +266,93 @@ def test_dashboard_applied_filter_does_not_resurrect_the_raw_feed(client, db_ses
     assert called["preview"] is False
     assert "Datadog" not in body and "Netflix" not in body
     assert "applied to every job on this board" in body
+
+
+def test_dashboard_keeps_jobs_applied_to_within_24_hours(client, db_session):
+    """The card must stay put for a day after applying: the user is still on the
+    employer's site finishing the application, and a card that vanishes the
+    moment the resume downloads reads as the click having failed."""
+    from app.applications import record_application
+    from app.sync import rebuild_matches
+
+    user, jobs = _seed_search_and_two_jobs(db_session, "gracewindow@example.com")
+    rebuild_matches()
+    record_application(db_session, user.id, jobs[0], applied_at=_hours_ago(6))
+    db_session.commit()
+
+    resp = client.post("/login", data={
+        "email": "gracewindow@example.com", "password": "Str0ng-Pass-9x",
+    })
+    assert resp.status_code == 302, resp.data
+    body = client.get("/dashboard").get_data(as_text=True)
+
+    assert "Datadog" in body, "an applied job stays on the board for 24 hours"
+    assert "Netflix" in body
+    assert "hidden from this board" not in body
+    # The badge is lit and says how long the card has left.
+    assert "leaves in 18h" in body
+
+
+def test_board_grace_expired_boundary(app):
+    """Exactly 24 hours old is expired; a minute short of it is not."""
+    from app.applications import board_grace_expired
+
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc)
+    at_24h = {"applied": True, "applied_at": now - timedelta(hours=24)}
+    just_under = {"applied": True, "applied_at": now - timedelta(hours=23, minutes=59)}
+
+    assert board_grace_expired(at_24h, now=now) is True
+    assert board_grace_expired(just_under, now=now) is False
+    # Not applied, or applied with no timestamp: never hidden. A lost stamp must
+    # leave the job on the board rather than silently disappear it.
+    assert board_grace_expired({"applied": False, "applied_at": None}, now=now) is False
+    assert board_grace_expired({"applied": True, "applied_at": None}, now=now) is False
+
+
+def test_board_grace_label_counts_down():
+    from app.applications import board_grace_label
+
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc)
+
+    def label(**kwargs):
+        return board_grace_label(
+            {"applied": True, "applied_at": now - timedelta(**kwargs)}, now=now
+        )
+
+    assert label(hours=1) == "leaves in 23h"
+    # Rounded up — with 22h30m left, "leaves in 22h" reads as a lost hour.
+    assert label(hours=1, minutes=30) == "leaves in 23h"
+    assert label(hours=23, minutes=30) == "leaves in 30 min"
+    assert label(hours=24) == ""
+    assert board_grace_label({"applied": True, "applied_at": None}, now=now) == ""
+    assert board_grace_label({"applied": False, "applied_at": now}, now=now) == ""
+
+
+def test_grace_period_runs_from_the_earliest_stamp(app, db_session):
+    """The JobMatch stamp is rebuilt nightly and the history row is durable; the
+    clock must start at the real first application, not the surviving copy."""
+    from app.applications import board_grace_expired, record_application
+    from app.models import JobMatch, User
+    from app.results import load_db_matches
+    from app.sync import rebuild_matches
+
+    user, jobs = _seed_search_and_two_jobs(db_session, "earliest@example.com")
+    rebuild_matches()
+    job = jobs[0]
+    jm = db_session.query(JobMatch).filter(
+        JobMatch.user_id == user.id, JobMatch.job_id == job.id
+    ).one()
+    # A later JobMatch stamp (e.g. a re-download) must not extend the window.
+    jm.applied_at = _hours_ago(1).replace(tzinfo=None)
+    record_application(db_session, user.id, job, applied_at=_hours_ago(30))
+    db_session.commit()
+
+    user = db_session.get(User, user.id)
+    match = next(
+        m for m in load_db_matches(user.saved_search_for("pm")) if m["id"] == job.id
+    )
+    assert match["applied"] is True
+    assert board_grace_expired(match) is True
 
 
 def test_applied_route_redirects_to_analytics(signed_in_client):

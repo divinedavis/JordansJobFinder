@@ -67,7 +67,12 @@ from .experience import (
     estimate_resume_years,
     resume_years_for_user,
 )
-from .applications import applications_for_user, record_application
+from .applications import (
+    applications_for_user,
+    board_grace_expired,
+    board_grace_label,
+    record_application,
+)
 from .analytics import (
     CITY_LABELS,
     _salary_points_for,
@@ -417,17 +422,23 @@ def dashboard():
         active_tab = tabs[0]
     saved_search = user.saved_search_for(active_tab)
     matches = load_db_matches(saved_search) if saved_search else []
-    # Jobs already applied to drop off the board — it's a list of what's left to
-    # do, and a card you've acted on is just noise on it. Filtered at render
-    # time (like the city filter) so the JobMatch rows, the `applied` flag and
-    # the durable AppliedJob history are all untouched; the full record lives on
-    # the Analytics tab, per month and per week.
-    applied_matches = [m for m in matches if m.get("applied")]
+    # Jobs applied to drop off the board — it's a list of what's left to do, and
+    # a card you've acted on is just noise on it — but only after a 24-hour
+    # grace period (applications.BOARD_GRACE_HOURS), so the card is still there
+    # while the application is being finished on the employer's site. Filtered
+    # at render time (like the city filter) so the JobMatch rows, the `applied`
+    # flag and the durable AppliedJob history are all untouched; the full record
+    # lives on the Analytics tab, per month and per week.
+    applied_matches = [m for m in matches if board_grace_expired(m)]
     # The preview fallback keys off the UNFILTERED list: having applied to
     # everything on the board is a full board, not an empty one, and must not
     # resurrect the raw feed.
     preview = preview_matches(saved_search) if (saved_search and not matches) else []
-    matches = [m for m in matches if not m.get("applied")]
+    matches = [m for m in matches if not board_grace_expired(m)]
+    # Cards still inside the grace window say how long they have left, so the
+    # job disappearing tomorrow reads as expected rather than as a bug.
+    for match in matches:
+        match["applied_grace_label"] = board_grace_label(match)
     resume_years = resume_years_for_user(db, user.id)
     # The city filter is applied at render time only — the matches themselves
     # stay built, so re-selecting a city is instant and the nightly rebuild

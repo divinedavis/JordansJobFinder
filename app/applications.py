@@ -12,9 +12,16 @@ from sqlalchemy import distinct, func, select
 from .models import AppliedJob, Job
 
 RETENTION_DAYS = 365
+# How long an applied job keeps its place on the board before moving to
+# Analytics. Applying is a click on "Tailored Resume": if the card vanished the
+# same second, the click would look like it had failed, and the user would lose
+# the row they still need in front of them while they finish the application on
+# the employer's site. A day is long enough to come back and finish, short
+# enough that the board is still a to-do list.
+BOARD_GRACE_HOURS = 24
 
 
-def _naive_utc(dt: datetime | None) -> datetime | None:
+def naive_utc(dt: datetime | None) -> datetime | None:
     """Coerce to naive UTC. SQLite stores naive datetimes, so values read back
     from the DB are tz-naive — normalize both sides before any comparison."""
     if dt is None:
@@ -46,7 +53,7 @@ def record_application(db, user_id: int, job: Job, applied_at: datetime | None =
         existing.location = job.location
         existing.salary_label = job.salary_label
         existing.vertical = job.vertical
-        if applied_at is not None and _naive_utc(applied_at) < _naive_utc(existing.applied_at):
+        if applied_at is not None and naive_utc(applied_at) < naive_utc(existing.applied_at):
             existing.applied_at = applied_at
         return existing
 
@@ -70,13 +77,56 @@ def record_application(db, user_id: int, job: Job, applied_at: datetime | None =
     return row
 
 
-def applied_urls_for_user(db, user_id: int) -> set[str]:
-    """URLs the user has applied to — used to flag the board badge."""
-    return set(
-        db.execute(
-            select(AppliedJob.url).where(AppliedJob.user_id == user_id)
-        ).scalars().all()
-    )
+def applied_at_by_url(db, user_id: int) -> dict[str, datetime]:
+    """URL -> applied-at (naive UTC) for everything the user has applied to.
+
+    Drives the board badge and the 24-hour grace period, so it returns the
+    timestamp rather than just the URL set.
+    """
+    rows = db.execute(
+        select(AppliedJob.url, AppliedJob.applied_at).where(AppliedJob.user_id == user_id)
+    ).all()
+    return {url: naive_utc(applied_at) for url, applied_at in rows}
+
+
+def board_grace_expired(match: dict, now: datetime | None = None) -> bool:
+    """Has an applied job served its :data:`BOARD_GRACE_HOURS` on the board?
+
+    ``True`` means hide it (the record lives on Analytics). An application with
+    no timestamp is never hidden — no clock, no expiry — so a lost stamp keeps
+    the job visible instead of silently disappearing it.
+    """
+    if not match.get("applied"):
+        return False
+    applied_at = naive_utc(match.get("applied_at"))
+    if applied_at is None:
+        return False
+    now = naive_utc(now) if now is not None else naive_utc(datetime.now(timezone.utc))
+    return applied_at <= now - timedelta(hours=BOARD_GRACE_HOURS)
+
+
+def board_grace_label(match: dict, now: datetime | None = None) -> str:
+    """"leaves in 18h" — how much of the grace period a card has left.
+
+    Empty string when there's nothing to say (not applied, no timestamp, or the
+    window has already closed and the card is on its way off the board).
+    """
+    if not match.get("applied"):
+        return ""
+    applied_at = naive_utc(match.get("applied_at"))
+    if applied_at is None:
+        return ""
+    now = naive_utc(now) if now is not None else naive_utc(datetime.now(timezone.utc))
+    remaining = (applied_at + timedelta(hours=BOARD_GRACE_HOURS)) - now
+    seconds = remaining.total_seconds()
+    if seconds <= 0:
+        return ""
+    if seconds < 3600:
+        minutes = max(1, int(seconds // 60))
+        return f"leaves in {minutes} min"
+    # Round up: with 23h59m left "leaves in 23h" reads as if an hour vanished.
+    hours = int(-(-seconds // 3600))
+    return f"leaves in {hours}h"
 
 
 def other_applicant_counts(db, urls, exclude_user_id: int) -> dict[str, int]:
