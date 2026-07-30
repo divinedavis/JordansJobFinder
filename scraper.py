@@ -130,7 +130,6 @@ WORKDAY_COMPANIES = [
     ("FactSet",          "factset",       108, "FactSetCareers",          "nyc"),
     # ── Tech · NYC ─────────────────────────────────────────────────────────────
     ("Netflix",          "netflix",       1,   "Netflix",                 "nyc"),
-    ("Salesforce",       "salesforce",    12,  "External_Career_Site",    "nyc"),
     ("Snap",             "snapchat",      1,   "snap",                    "nyc"),
     # ── Finance · Atlanta ──────────────────────────────────────────────────────
     ("Equifax",          "equifax",       1,   "equifax",                 "atlanta"),
@@ -148,7 +147,6 @@ WORKDAY_COMPANIES = [
     ("Manhattan Assoc",  "mas",           5,   "MASCareers",              "atlanta"),
     ("Cox Enterprises",  "coxenterprises",5,   "CoxCareers",              "atlanta"),
     ("Genuine Parts",    "genuineparts",  1,   "GPC",                     "atlanta"),
-    ("Salesforce ATL",   "salesforce",    12,  "External_Career_Site",    "atlanta"),
     ("NCR Atleos",       "ncratleos",     5,   "NCRAtleosCareers",        "atlanta"),
     # ── Finance · NYC (new) ────────────────────────────────────────────────────
     ("Deutsche Bank",    "db",            1,   "DBmanagement",            "nyc"),
@@ -185,7 +183,6 @@ WORKDAY_COMPANIES = [
     ("Accenture MIA",    "accenture",     5,   "AccentureCareers",        "miami"),
     ("Oracle MIA",       "oracle",        5,   "oracle",                  "miami"),
     ("ServiceNow MIA",   "servicenow",    5,   "External",                "miami"),
-    ("Salesforce MIA",   "salesforce",    12,  "External_Career_Site",    "miami"),
     ("Visa MIA",         "visa",          5,   "Visa",                    "miami"),
     ("PayPal MIA",       "paypal",        5,   "paypal",                  "miami"),
     ("Mastercard MIA",   "mastercard",    1,   "CorporateCareers",        "miami"),

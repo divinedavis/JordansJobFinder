@@ -11,6 +11,12 @@ EXCLUDE_COMPANIES = {"scale ai", "google", "celonis", "tjx", "pagerduty",
                      "etsy", "broadridge", "asana", "fox corp",
                      # Sub-$1B revenue (~$700M est.) — see company_revenue.py.
                      "faire"}
+# Employers blocked by NAME rather than by exact label. The scrapers store the
+# per-city list label as the company ("Salesforce ATL", "Salesforce MIA"), so an
+# exact-match entry above only catches the one city that happens to be labelled
+# with the bare name. These terms match as whole words anywhere in the company,
+# which also covers "Salesforce.com" / "Salesforce, Inc." from other platforms.
+EXCLUDE_COMPANY_TERMS = ("salesforce",)
 # Management titles are never IC finance/sales roles — always excluded.
 FINANCE_MANAGEMENT_NEGATIVE = (
     "staff vp", "vp ", " vp", "director", "head of", "chief",
@@ -37,7 +43,12 @@ def _title_excluded(normalized: str) -> bool:
 
 
 def company_excluded(company: str) -> bool:
-    return normalize_text(company) in EXCLUDE_COMPANIES
+    import re
+    normalized = normalize_text(company)
+    if normalized in EXCLUDE_COMPANIES:
+        return True
+    return any(re.search(rf"\b{re.escape(term)}\b", normalized)
+               for term in EXCLUDE_COMPANY_TERMS)
 
 
 # Employers must clear $1B in revenue — EXCEPT in central/eastern PA. Those

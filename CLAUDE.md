@@ -703,6 +703,30 @@ tailoring are free for any signed-in user. The Stripe plumbing (webhooks,
 billing portal) is deliberately still wired so existing subscribers can cancel;
 it gates nothing. `tests/test_city_tiers.py` guards against the caps returning.
 
+## Company Blocklist — two kinds of entry (2026-07-29)
+
+`matching.EXCLUDE_COMPANIES` matches the **whole normalized company name**;
+`matching.EXCLUDE_COMPANY_TERMS` matches a **whole word anywhere** in it. The
+term list exists because the scrapers store the per-city list LABEL as the
+company ("Salesforce ATL", "Salesforce MIA"), so an exact entry blocks only the
+city labelled with the bare name — and because other platforms hand back
+"Salesforce.com" / "Salesforce, Inc.". Prefer the exact set; reach for a term
+only when the name has real variants. Keep it word-bounded, never a bare
+substring: `tests/test_matching.py` pins "Fairechild" ≠ Faire.
+
+**Salesforce is blocked everywhere (owner's call 2026-07-29).** Removed from the
+three PM per-city entries AND from `SALES_WORKDAY_COMPANIES` (the IT / SCM /
+project / analyst unions all reuse that list — the bare-labelled DC, Chicago and
+SF rows came in through there, not through the PM lists). Blocking without
+removing it from the lists just pays for a scrape whose results get thrown away;
+removing without blocking leaves stale rows on the board. Do both.
+
+Purging an employer already on the board: **feeds before DB** — `run-daily-sync`
+re-upserts every posting from `shared_jobs*.json`, so a DB-only delete comes
+back. Delete `job_matches` + `tailored_resumes` for the job ids, but only NULL
+`applied_jobs.job_id` (durable history, `ondelete="SET NULL"` — and raw sqlite3
+won't apply that for you, `PRAGMA foreign_keys` defaults OFF).
+
 ## $1B Revenue Bar (2026-07-22)
 
 Employers must clear **$1B in annual revenue** — except in **York, Lancaster

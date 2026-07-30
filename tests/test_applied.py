@@ -199,7 +199,7 @@ def _seed_search_and_two_jobs(db_session, email):
             location="New York, NY", description="Looking for a senior PM.",
             is_technical=True,
         )
-        for company, slug in (("Datadog", "hide-1"), ("Salesforce", "hide-2"))
+        for company, slug in (("Datadog", "hide-1"), ("Netflix", "hide-2"))
     ]
     db_session.add_all(jobs)
     db_session.commit()
@@ -224,7 +224,7 @@ def test_dashboard_hides_jobs_already_applied_to(client, db_session):
     assert resp.status_code == 302, resp.data
     body = client.get("/dashboard").get_data(as_text=True)
 
-    assert "Salesforce" in body, "an un-applied match must still show"
+    assert "Netflix" in body, "an un-applied match must still show"
     assert "Datadog" not in body, "the applied job must be off the board"
     assert "1 job you already applied to is hidden" in body
     assert "/analytics" in body
@@ -257,7 +257,7 @@ def test_dashboard_applied_filter_does_not_resurrect_the_raw_feed(client, db_ses
     body = client.get("/dashboard").get_data(as_text=True)
 
     assert called["preview"] is False
-    assert "Datadog" not in body and "Salesforce" not in body
+    assert "Datadog" not in body and "Netflix" not in body
     assert "applied to every job on this board" in body
 
 

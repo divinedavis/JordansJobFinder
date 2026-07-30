@@ -271,6 +271,42 @@ def test_sub_1b_employers_are_excluded_by_name():
     assert not company_excluded("Fairechild")  # exact match, not substring
 
 
+def test_salesforce_never_reaches_a_board():
+    """Owner's call 2026-07-29: no Salesforce jobs anywhere. The per-city list
+    labels are what get stored as the company, so the gate has to catch the
+    suffixed variants too — an exact-match entry would only block NYC."""
+    from app.matching import company_excluded, job_excluded
+
+    for company in ("Salesforce", "salesforce", "Salesforce ATL",
+                    "Salesforce MIA", "Salesforce.com", "Salesforce, Inc."):
+        assert company_excluded(company), company
+        # nyc has no revenue exemption, york-pa does — blocked in both.
+        assert job_excluded(company, "nyc"), company
+        assert job_excluded(company, "york-pa"), company
+
+    # Word-boundary, not substring: an unrelated employer must not be caught.
+    assert not company_excluded("Force Protection")
+
+
+def test_salesforce_is_not_in_any_scraper_employer_list():
+    """Regression: removed from the PM per-city lists and from
+    SALES_WORKDAY_COMPANIES (which the IT/SCM/project/analyst unions reuse).
+    Re-adding it would waste scrape time on jobs the gate then throws away."""
+    import scraper
+    import scraper_sales
+
+    lists = [
+        scraper.WORKDAY_COMPANIES, scraper.GREENHOUSE_COMPANIES,
+        scraper.WORKDAY_MULTI, scraper.GREENHOUSE_MULTI, scraper.LEVER_MULTI,
+        scraper_sales.SALES_WORKDAY_COMPANIES,
+        scraper_sales.SALES_GREENHOUSE_COMPANIES,
+    ]
+    for entries in lists:
+        for entry in entries:
+            name = entry[0] if isinstance(entry, (tuple, list)) else entry
+            assert "salesforce" not in str(name).lower(), name
+
+
 # ── $1B revenue bar, with the central-PA exemption ───────────────────────────
 
 def test_pa_metros_are_exempt_from_the_revenue_bar():

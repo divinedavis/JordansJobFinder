@@ -36,7 +36,6 @@ HEADERS = {
 # request body. Future expansion should probe with the diagnostic in
 # CLAUDE.md before adding to this list.
 SALES_WORKDAY_COMPANIES = [
-    ("Salesforce",     "salesforce", 12, "External_Career_Site"),
     ("Workday",        "workday",    5,  "Workday"),
     ("Adobe",          "adobe",      5,  "external_experienced"),
     ("Dell",           "dell",       1,  "External"),
