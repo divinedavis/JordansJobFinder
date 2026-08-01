@@ -5,14 +5,14 @@ below is one that actually bit or nearly bit.
 """
 import pytest
 
-from metros import (ALL_METROS, LABELS, MATCH_ORDER, PATTERNS, STATE_FALLBACK,
-                    TOP_20, infer_metro, matches_metro)
+from metros import (ALL_METROS, INTERNATIONAL, LABELS, MATCH_ORDER, PATTERNS,
+                    STATE_FALLBACK, TOP_20, infer_metro, matches_metro)
 
 
 def test_registry_is_internally_consistent():
     assert set(MATCH_ORDER) == set(PATTERNS) == set(LABELS)
     assert len(TOP_20) == 20
-    assert len(ALL_METROS) == 29  # top 20 + 3 PA + 6 SC
+    assert len(ALL_METROS) == 30  # top 20 + 3 PA + 6 SC + 1 international
     assert len(set(MATCH_ORDER)) == len(MATCH_ORDER), "duplicate slug"
 
 
@@ -117,6 +117,57 @@ def test_sc_metros_cover_the_states_ten_largest_cities():
         ("Florence, SC", "florence-sc"),
     ]:
         assert infer_metro(city) == metro, city
+
+
+# ── Lagos, Nigeria — the first non-US metro (2026-08-01) ─────────────────────
+
+@pytest.mark.parametrize("location", [
+    "Lagos, Nigeria",
+    "Lagos, Lagos, Nigeria",
+    "Lagos State, Nigeria",
+    "Ikeja, Lagos",
+    "Victoria Island, Lagos",
+    "Lekki Phase 1, Lagos",
+    "Ikoyi",
+    "NG-Lagos, NG",
+])
+def test_lagos_matches_its_own_names(location):
+    assert infer_metro(location) == "lagos-ng"
+
+
+@pytest.mark.parametrize("location", [
+    "Lagos, Portugal",          # the Algarve resort town
+    "Lagos de Moreno, Mexico",
+    "Abuja, Nigeria",           # a different Nigerian city, not covered
+    "Port Harcourt, Nigeria",
+])
+def test_lagos_lookalikes_match_nothing(location):
+    """A bare "lagos" pattern would claim Portugal and Mexico both, and a bare
+    "nigeria" would put Abuja jobs on the Lagos board — every Lagos NG pattern
+    carries the country/state or is a Lagos-only neighbourhood."""
+    assert infer_metro(location) == ""
+
+
+def test_lagos_does_not_steal_from_any_us_metro():
+    """Lagos NG is checked FIRST in MATCH_ORDER, so a pattern of its that
+    matched a US location would silently relabel that job."""
+    for location, expected in [
+        ("New York, NY", "nyc"),
+        ("Los Angeles, CA", "la"),
+        ("Charleston, SC", "charleston-sc"),
+        ("Lancaster, PA", "lancaster-pa"),
+    ]:
+        assert infer_metro(location) == expected, location
+
+
+def test_lagos_is_on_the_board_layout():
+    """metros.INTERNATIONAL has to reach CITY_OPTIONS, or the metro exists for
+    the scrapers but never renders a dashboard section."""
+    from app.catalog import ALL_CITY_LABELS, CITY_LABELS
+
+    assert INTERNATIONAL == ("lagos-ng",)
+    assert CITY_LABELS["lagos-ng"] == "Lagos, Nigeria"
+    assert "Lagos, Nigeria" in ALL_CITY_LABELS
 
 
 def test_pa_trio_survives():

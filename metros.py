@@ -6,7 +6,7 @@ a collision showed up. This module replaces all of them.
 
 ## The set
 
-**The 20 largest US metros** (2025 Census MSA estimates), plus two groups kept
+**The 20 largest US metros** (2025 Census MSA estimates), plus three groups kept
 deliberately:
 
 * **Central/eastern PA** — York, Lancaster, Harrisburg. These are reachable
@@ -15,6 +15,13 @@ deliberately:
 * **South Carolina's 10 largest cities.** Eight already fall inside the four SC
   metros (Charleston covers North Charleston / Mount Pleasant / Summerville /
   Goose Creek; Greenville covers Greer), so only Sumter and Florence are new.
+* **International** — Lagos, Nigeria (added 2026-08-01, owner's request). The
+  first non-US metro in the registry. Nothing else in the app assumes US-only,
+  but note that no employer list targets Nigeria: Lagos fills only when one of
+  the existing $1B+ employers posts a Lagos role on its Workday/Greenhouse
+  board and it survives the track's title + recency filters. To make it a
+  first-class market, add Nigerian employers the way scraper_sc_employers.py
+  did for South Carolina.
 
 San Antonio, Jacksonville, Orlando and the florida-other catch-all were dropped
 on 2026-07-21 — outside the top 20 and outside both keep-lists.
@@ -25,7 +32,10 @@ Matching is substring-against-lowercased-location, so:
 
 1. **State-qualify anything ambiguous.** "denver, co" not "denver" — Denver PA
    sits in Lancaster County. Bare names are reserved for genuinely unique
-   places (Minneapolis, Seattle, Philadelphia).
+   places (Minneapolis, Seattle, Philadelphia). Outside the US the same rule
+   reads "country-qualify": bare "lagos" would claim Lagos, Portugal and Lagos
+   de Moreno, Mexico, so Lagos NG is only ever matched with its country or
+   state attached (or through a neighbourhood name unique to it).
 2. **Order matters** — `MATCH_ORDER` is checked first-match-wins, so
    catch-alls go last. Dallas carries ", tx"/"texas" and must stay at the end.
 3. **Collisions get a decoy, not a reorder** — see metro_decoys.py. Reordering
@@ -51,6 +61,9 @@ TOP_20 = (
 PA_REGIONAL = ("york-pa", "lancaster-pa", "harrisburg-pa")
 SC_REGIONAL = ("charleston-sc", "columbia-sc", "greenville-sc", "rock-hill-sc",
                "sumter-sc", "florence-sc")
+# Non-US markets. Kept as its own group so the US-only assumptions elsewhere
+# (STATE_FALLBACK, normalize_states, uscities.py) stay visibly US-scoped.
+INTERNATIONAL = ("lagos-ng",)
 
 LABELS = {
     "nyc": "New York, NY",
@@ -82,6 +95,7 @@ LABELS = {
     "rock-hill-sc": "Rock Hill, SC",
     "sumter-sc": "Sumter, SC",
     "florence-sc": "Florence, SC",
+    "lagos-ng": "Lagos, Nigeria",
 }
 
 PATTERNS = {
@@ -236,6 +250,16 @@ PATTERNS = {
                      "tega cay", "clover, sc"),
     "sumter-sc": ("sumter, sc", "sumter sc", "shaw afb", "shaw air force"),
     "florence-sc": ("florence, sc", "florence sc", "florence county, sc"),
+
+    # ── International ─────────────────────────────────────────────────────
+    # Never a bare "lagos": Lagos, Portugal and Lagos de Moreno, Mexico both
+    # exist and both show up on multinational career boards. Every entry
+    # carries the country/state, or is a Lagos-only neighbourhood.
+    # "lagos, lagos" is the shape Workday returns for a Lagos-state posting.
+    "lagos-ng": ("lagos, nigeria", "lagos nigeria", "lagos, ng",
+                 "lagos state", "lagos, lagos", "ikeja", "ikoyi", "lekki",
+                 "victoria island", "apapa", "surulere", "yaba, lagos",
+                 "oshodi", "ajah", "agege", "epe, lagos", "badagry"),
 }
 
 # First match wins, so this is ordered most-specific to most-permissive.
@@ -251,7 +275,11 @@ PATTERNS = {
 #   Houston. Atlanta and Phoenix carry the same kind of state catch-all and sit
 #   as late as their own collisions allow.
 MATCH_ORDER = (
-    # State-qualified regionals first.
+    # Non-US first: every one of its patterns names a country/state or a
+    # neighbourhood unique to it, so it can neither steal from a US metro nor
+    # be stolen from by one.
+    "lagos-ng",
+    # State-qualified regionals next.
     "york-pa", "lancaster-pa", "harrisburg-pa",
     "charleston-sc", "columbia-sc", "greenville-sc", "rock-hill-sc",
     "sumter-sc", "florence-sc",
@@ -267,7 +295,8 @@ ALL_METROS = MATCH_ORDER
 assert set(MATCH_ORDER) == set(PATTERNS) == set(LABELS), (
     "MATCH_ORDER, PATTERNS and LABELS must cover exactly the same metros"
 )
-assert set(TOP_20) | set(PA_REGIONAL) | set(SC_REGIONAL) == set(MATCH_ORDER)
+assert (set(TOP_20) | set(PA_REGIONAL) | set(SC_REGIONAL)
+        | set(INTERNATIONAL)) == set(MATCH_ORDER)
 
 
 # Bare state tokens, used ONLY when the caller already knows which metro it is

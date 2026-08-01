@@ -677,14 +677,34 @@ All should return 200 or 302. Any 500 means the change broke something — fix i
 
 Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-pager -n 30
 
-## Metro Coverage — top 20 + PA + SC (2026-07-21)
+## Metro Coverage — top 20 + PA + SC + Lagos (2026-07-21, Lagos 2026-08-01)
 
-**Every board covers all 29 metros for every user. There is no city picker and
+**Every board covers all 30 metros for every user. There is no city picker and
 no paid tier.** `metros.py` is the single source of truth: the 20 largest US
 metros, the central/eastern PA trio (York/Lancaster/Harrisburg — the only
 metros the regional ATS platforms reach, and the IT track's original audience),
-and South Carolina's ten largest cities (eight already sat inside the four SC
-metros; only Sumter and Florence were new).
+South Carolina's ten largest cities (eight already sat inside the four SC
+metros; only Sumter and Florence were new), and `INTERNATIONAL` — currently
+just Lagos, Nigeria.
+
+**Lagos, Nigeria (2026-08-01)** is the first non-US metro. Adding a metro is
+two edits: `metros.py` (group + LABELS + PATTERNS + MATCH_ORDER + the assert)
+and `app/catalog.py::CITY_OPTIONS`, which is what puts it on the board layout —
+a metro missing from CITY_OPTIONS exists for the scrapers but never renders a
+dashboard section. Then run `manage.py migrate-full-metro-coverage` in prod:
+existing `saved_searches.cities` rows are stored as LABELS, so a new metro is
+invisible to every current user until they're widened.
+
+Two Lagos-specific notes:
+- **Country-qualify, never a bare "lagos".** Lagos, Portugal and Lagos de
+  Moreno, Mexico both appear on multinational boards. The patterns are
+  country/state-qualified plus Lagos-only neighbourhoods (Ikeja, Ikoyi, Lekki,
+  Victoria Island, …). "nigeria" alone is deliberately absent — it would put
+  Abuja and Port Harcourt jobs on the Lagos board.
+- **No employer list targets Nigeria.** Lagos fills only incidentally, when an
+  existing $1B+ employer posts a Lagos role that survives its track's title +
+  recency filters. To make it a real market, add Nigerian employers the way
+  `scraper_sc_employers.py` did for South Carolina.
 
 Dropped the same day: San Antonio, Jacksonville, Orlando, `florida-other`.
 Their labels live on in `metros.RETIRED_LABELS` for DISPLAY ONLY so pre-existing
