@@ -218,6 +218,15 @@ DECOY_LOCS = {
         "harrisburg, sd",
         "harrisburg, il",
     ),
+    "lagos-ng": (
+        # All three turned up in a real sweep of the boards we already scrape
+        # (2026-08-01): Ecolab posts "CHL - Los Lagos - Osorno" and Skechers
+        # posts "Los Lagos" — Chile's Región de Los Lagos, not Nigeria.
+        "los lagos",
+        "lagos de moreno",      # Jalisco, Mexico
+        "lagos, portugal",      # the Algarve resort town
+        "lagos, pt",
+    ),
 }
 
 

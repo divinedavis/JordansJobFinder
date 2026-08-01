@@ -219,7 +219,8 @@ WORKDAY_COMPANIES = [
     ("Walt Disney",      "disney",        5,   "disneycareer",            "nyc"),
     ("Warner Bros",      "warnerbros",    5,   "global",                  "nyc"),
     ("Fox Corp",         "fox",           1,   "Domestic",                "nyc"),
-    ("PwC",              "pwc",           3,   "Global_Experienced_Careers", "nyc"),
+    # PwC moved to WORKDAY_MULTI on 2026-08-01 — one global board pinned to
+    # NYC threw away its Lagos, Chicago and DC postings.
     ("New York Times",   "nytimes",       5,   "NYT",                     "nyc"),
     # ── Fortune 1000 · Tech/Cyber · NYC ───────────────────────────────────────
     ("Cisco",            "cisco",         5,   "Cisco_Careers",           "nyc"),
@@ -280,7 +281,9 @@ WORKDAY_COMPANIES = [
     ("ConocoPhillips",   "conocophillips", 5,   "ConocoPhillips_Careers",  "houston"),
     ("Phillips 66",      "phillips66",     5,   "Phillips66Careers",       "houston"),
     ("Halliburton",      "halliburton",    5,   "Halliburton_Careers",     "houston"),
-    ("Baker Hughes",     "bakerhughes",    5,   "BH_Careers",             "houston"),
+    # Baker Hughes moved to WORKDAY_MULTI on 2026-08-01. Its site name here
+    # was "BH_Careers", which 404s — this entry had been returning nothing at
+    # all, on the Houston board included. The live site is "BakerHughes".
     ("Schlumberger",     "slb",            5,   "SLB_Careers",             "houston"),
     ("Sysco",            "sysco",          5,   "Sysco_Careers",           "houston"),
     ("Waste Management", "wm",             5,   "WM_Careers",             "houston"),
@@ -754,6 +757,17 @@ WORKDAY_MULTI = [
     ("Sharp HealthCare", "sharp", 1, "External"),
     ("Sony Electronics", "sonyglobal", 1, "SonyGlobalCareers"),
     ("Topgolf Callaway", "tcbrands", 1, "callaway-careers"),
+
+    # ── Lagos NG coverage (verified HTTP 200 from the droplet 2026-08-01) ──
+    # Of 196 boards already scraped plus 52 candidates probed, these are the
+    # only two carrying live Lagos postings that also clear the $1B bar. Both
+    # were already here as PER-CITY entries — PwC pinned to NYC, Baker Hughes
+    # to Houston — which is exactly why their Lagos roles never surfaced: a
+    # per-city entry drops every posting outside its one metro. Converted to
+    # multi so the posting's own location picks the metro (the same move
+    # Boeing got for Charleston on 2026-07-07).
+    ("Baker Hughes", "bakerhughes", 5, "BakerHughes"),
+    ("PwC", "pwc", 3, "Global_Experienced_Careers"),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

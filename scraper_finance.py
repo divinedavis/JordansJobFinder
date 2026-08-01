@@ -192,6 +192,12 @@ FINANCE_WORKDAY_COMPANIES = [
     ("Sharp HealthCare", "sharp", 1, "External"),
     ("Sony Electronics", "sonyglobal", 1, "SonyGlobalCareers"),
     ("Topgolf Callaway", "tcbrands", 1, "callaway-careers"),
+
+    # ── Lagos NG coverage (verified HTTP 200 from the droplet 2026-08-01) ──
+    # PwC's live Lagos postings are audit/advisory, so this track is the one
+    # that actually catches them ("Associate, Internal Audit").
+    ("Baker Hughes", "bakerhughes", 5, "BakerHughes"),
+    ("PwC", "pwc", 3, "Global_Experienced_Careers"),
 ]
 
 # Greenhouse: (name, token). Token "coinbase" 404'd — Coinbase moved boards.

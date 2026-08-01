@@ -123,28 +123,43 @@ def test_sc_metros_cover_the_states_ten_largest_cities():
 
 @pytest.mark.parametrize("location", [
     "Lagos, Nigeria",
-    "Lagos, Lagos, Nigeria",
-    "Lagos State, Nigeria",
+    "Lagos",                                        # PwC writes exactly this
+    "NG-LAGOS-BISHOP ABOYADE COLE STREET NO. 927/9",  # Baker Hughes, Workday
+    "Remote, Lagos, Nigeria",                       # Moniepoint
     "Ikeja, Lagos",
     "Victoria Island, Lagos",
     "Lekki Phase 1, Lagos",
     "Ikoyi",
-    "NG-Lagos, NG",
 ])
 def test_lagos_matches_its_own_names(location):
+    """All eight are real strings off boards probed on 2026-08-01. The first
+    cut of this metro country-qualified every pattern ("lagos, nigeria") and
+    matched only one of them — ATS location text is too irregular to
+    enumerate, which is why the lookalikes are decoyed instead."""
     assert infer_metro(location) == "lagos-ng"
 
 
 @pytest.mark.parametrize("location", [
-    "Lagos, Portugal",          # the Algarve resort town
-    "Lagos de Moreno, Mexico",
-    "Abuja, Nigeria",           # a different Nigerian city, not covered
-    "Port Harcourt, Nigeria",
+    "Los Lagos",                    # Skechers — Región de Los Lagos, Chile
+    "CHL - Los Lagos - Osorno",     # Ecolab, same region
+    "Lagos de Moreno, Mexico",      # Jalisco
+    "Lagos, Portugal",              # the Algarve resort town
 ])
-def test_lagos_lookalikes_match_nothing(location):
-    """A bare "lagos" pattern would claim Portugal and Mexico both, and a bare
-    "nigeria" would put Abuja jobs on the Lagos board — every Lagos NG pattern
-    carries the country/state or is a Lagos-only neighbourhood."""
+def test_lagos_lookalikes_are_decoyed(location):
+    """Bare "lagos" is the pattern, so every lookalike has to be a decoy. All
+    four of these are live on boards this app already scrapes."""
+    assert infer_metro(location) == ""
+
+
+@pytest.mark.parametrize("location", [
+    "Abuja, Nigeria",
+    "Ondo, Nigeria",        # Mondelez posts here
+    "Port Harcourt, Nigeria",
+    "NG-OTHER NIGERIA",     # Baker Hughes' catch-all
+])
+def test_other_nigerian_markets_are_not_lagos(location):
+    """"nigeria" is deliberately absent from the patterns — same reasoning as
+    STATE_FALLBACK. Ondo is a different market 200km up the coast."""
     assert infer_metro(location) == ""
 
 

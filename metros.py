@@ -32,10 +32,12 @@ Matching is substring-against-lowercased-location, so:
 
 1. **State-qualify anything ambiguous.** "denver, co" not "denver" — Denver PA
    sits in Lancaster County. Bare names are reserved for genuinely unique
-   places (Minneapolis, Seattle, Philadelphia). Outside the US the same rule
-   reads "country-qualify": bare "lagos" would claim Lagos, Portugal and Lagos
-   de Moreno, Mexico, so Lagos NG is only ever matched with its country or
-   state attached (or through a neighbourhood name unique to it).
+   places (Minneapolis, Seattle, Philadelphia) — and for those, the lookalikes
+   go in metro_decoys.py. Lagos NG is the worked example: its real postings are
+   written every which way ("Lagos, Nigeria", "NGA05-01-Lagos-Bishop Aboyade
+   Cole Street"), while its lookalikes are a short, closed list (Los Lagos in
+   Chile, Lagos de Moreno in Mexico, Lagos in Portugal). Enumerate whichever
+   side is finite.
 2. **Order matters** — `MATCH_ORDER` is checked first-match-wins, so
    catch-alls go last. Dallas carries ", tx"/"texas" and must stay at the end.
 3. **Collisions get a decoy, not a reorder** — see metro_decoys.py. Reordering
@@ -252,14 +254,18 @@ PATTERNS = {
     "florence-sc": ("florence, sc", "florence sc", "florence county, sc"),
 
     # ── International ─────────────────────────────────────────────────────
-    # Never a bare "lagos": Lagos, Portugal and Lagos de Moreno, Mexico both
-    # exist and both show up on multinational career boards. Every entry
-    # carries the country/state, or is a Lagos-only neighbourhood.
-    # "lagos, lagos" is the shape Workday returns for a Lagos-state posting.
-    "lagos-ng": ("lagos, nigeria", "lagos nigeria", "lagos, ng",
-                 "lagos state", "lagos, lagos", "ikeja", "ikoyi", "lekki",
-                 "victoria island", "apapa", "surulere", "yaba, lagos",
-                 "oshodi", "ajah", "agege", "epe, lagos", "badagry"),
+    # Bare "lagos" plus decoys, NOT a set of country-qualified patterns. The
+    # first cut here country-qualified everything ("lagos, nigeria" etc.) to
+    # keep Lagos Portugal and Lagos de Moreno off the board — and then missed
+    # the only real Lagos posting on any board we scrape, because Workday
+    # writes GE HealthCare's as "NGA05-01-Lagos-Bishop Aboyade Cole Street".
+    # Real ATS location strings are too irregular to enumerate; the lookalikes
+    # are not. See metro_decoys.py, and the module docstring's rule 3.
+    #
+    # "nigeria" is deliberately absent: Mondelez posts "Ondo, Nigeria", which
+    # is a different market 200km away. Same reasoning as STATE_FALLBACK.
+    "lagos-ng": ("lagos", "ikeja", "ikoyi", "lekki", "victoria island",
+                 "apapa", "surulere", "yaba, lagos"),
 }
 
 # First match wins, so this is ordered most-specific to most-permissive.

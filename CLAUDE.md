@@ -695,16 +695,48 @@ dashboard section. Then run `manage.py migrate-full-metro-coverage` in prod:
 existing `saved_searches.cities` rows are stored as LABELS, so a new metro is
 invisible to every current user until they're widened.
 
-Two Lagos-specific notes:
-- **Country-qualify, never a bare "lagos".** Lagos, Portugal and Lagos de
-  Moreno, Mexico both appear on multinational boards. The patterns are
-  country/state-qualified plus Lagos-only neighbourhoods (Ikeja, Ikoyi, Lekki,
-  Victoria Island, …). "nigeria" alone is deliberately absent — it would put
-  Abuja and Port Harcourt jobs on the Lagos board.
-- **No employer list targets Nigeria.** Lagos fills only incidentally, when an
-  existing $1B+ employer posts a Lagos role that survives its track's title +
-  recency filters. To make it a real market, add Nigerian employers the way
-  `scraper_sc_employers.py` did for South Carolina.
+### Lagos — what the 2026-08-01 sweep found
+
+**Bare "lagos" + decoys, NOT country-qualified patterns.** The first cut
+enumerated the Nigeria side ("lagos, nigeria", "lagos state", …) and then
+matched only one of the eight real location strings on the boards we scrape —
+Workday writes Baker Hughes' as `NG-LAGOS-BISHOP ABOYADE COLE STREET NO. 927/9`
+and PwC's as plain `Lagos`. ATS location text is too irregular to enumerate;
+the lookalikes are a closed list, so they went in `metro_decoys.py`: Los Lagos
+(Chile — Skechers and Ecolab both post there), Lagos de Moreno (Mexico), Lagos
+(Portugal). **Enumerate whichever side is finite.** "nigeria" alone stays out
+of the patterns — Mondelez posts "Ondo, Nigeria", a different market.
+
+**Employer sweep.** All 196 multi-list boards were probed via the Workday
+locationCountry facet tree (one POST per board reads the whole country
+breakdown — much cheaper than paging), plus 52 hand-picked candidates with real
+Lagos operations. Result: **three** boards carry live Nigeria postings.
+
+- **Baker Hughes** (`bakerhughes/wd5/BakerHughes`) — 16 Nigeria, 5 Lagos.
+- **PwC** (`pwc/wd3/Global_Experienced_Careers`) — 2 Lagos (audit/advisory).
+- **Moniepoint** (Greenhouse `moniepoint`) — 60 Nigeria, 25 Lagos, by far the
+  most volume. **Blocked by the $1B revenue bar** (Nigerian fintech, revenue
+  well under it) and most of its titles match no track anyway.
+
+Both usable boards were ALREADY in the per-city lists — PwC pinned to `nyc`,
+Baker Hughes to `houston` — which is why their Lagos roles never surfaced: a
+per-city entry drops every posting outside its one metro. Converting them to
+`WORKDAY_MULTI` is the fix. Baker Hughes' per-city site name (`BH_Careers`) had
+also been 404ing, so that entry was returning nothing on any board.
+
+Unreachable from the droplet (no Workday tenant/site discoverable, or 404):
+Shell, SLB, Unilever, Nestlé, Maersk, Standard Chartered, TotalEnergies,
+Chevron, ExxonMobil, MTN, Airtel, IHS Towers, Deloitte, EY, KPMG, Visa,
+Cargill, Olam, and the Nigerian fintechs on Greenhouse (Flutterwave, Paystack,
+Andela, Interswitch, Kuda — all 404). Reachable but zero Nigeria: Mastercard,
+Coca-Cola, AstraZeneca, GSK, Sanofi, Jumia, Cloudflare, Stripe, GitLab.
+
+**So Lagos is thin by construction, not by bug.** Nigeria's job market runs on
+Jobberman / MyJobMag / LinkedIn and company-owned portals, not Workday or
+Greenhouse. Two ways to widen it, both owner decisions: exempt Lagos from the
+$1B bar the way York/Lancaster/Harrisburg are exempt (`REVENUE_EXEMPT_METROS` —
+same rationale: no $1B+ employer posts locally on a supported ATS), or add
+Nigerian job-board support as a new platform in `scraper_ats_extra.py`.
 
 Dropped the same day: San Antonio, Jacksonville, Orlando, `florida-other`.
 Their labels live on in `metros.RETIRED_LABELS` for DISPLAY ONLY so pre-existing
