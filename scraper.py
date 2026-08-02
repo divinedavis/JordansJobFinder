@@ -21,6 +21,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from greenhouse_urls import greenhouse_job_url
 from metros import ALL_METROS, LABELS as METRO_LABELS, infer_metro, matches_metro
+from posted_dates import RELATIVE_UNITS, parse_relative_posted
 
 from app.parsing import (
     format_salary_label,
@@ -1052,12 +1053,17 @@ def normalize_posted_date(value):
         except ValueError:
             continue
 
-    rel_match = re.search(r"\b(\d+)\s+(day|hour|minute)s?\s+ago\b", value, re.I)
+    # `\d+\+?` and the wider unit set on purpose: the old pattern required
+    # whitespace straight after the digits and knew only day/hour/minute, so
+    # Workday's "Posted 30+ Days Ago" and "Posted 2 Weeks Ago" fell through
+    # and were returned verbatim.
+    rel_match = re.search(
+        r"\b(\d+)\+?\s*(minute|hour|day|week|month|year)s?\s+ago\b", value, re.I
+    )
     if rel_match:
         qty = int(rel_match.group(1))
         unit = rel_match.group(2).lower()
-        delta_args = {f"{unit}s": qty}
-        dt = datetime.now() - timedelta(**delta_args)
+        dt = datetime.now(timezone.utc) - RELATIVE_UNITS[unit](qty)
         return dt.strftime("%B %d, %Y")
 
     # Strip common prefixes like "Posted today" → "today"
@@ -1218,25 +1224,33 @@ def parse_posted_datetime_from_label(posted):
     if not posted or posted == "Unknown":
         return None
 
-    if posted.lower() == "posted today" or posted.lower() == "today":
-        return datetime.now(timezone.utc)
-    if posted.lower() == "yesterday":
-        return datetime.now(timezone.utc) - timedelta(days=1)
-
     for fmt in ("%Y-%m-%d", "%b %d, %Y", "%B %d, %Y"):
         try:
             return datetime.strptime(posted, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-    # ISO-8601 with a time/offset, e.g. 2026-02-11T03:57:07Z or ...-04:00.
-    # Without this, ATS feeds that hand back a full timestamp leave posted_at
-    # NULL while posted_label keeps the (often stale) date, so the recency
-    # filter falls back to found_at and an old job looks fresh forever.
-    try:
-        dt = datetime.fromisoformat(posted.replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
+    # Everything else — Workday's relative dialect ("Posted 30+ Days Ago") and
+    # ISO-8601 with a time/offset (2026-02-11T03:57:07Z). Without this, a
+    # posting whose date we can't parse leaves posted_at NULL, every recency
+    # check downstream falls back to found_at (first *discovery*, which resets
+    # each time the job is rediscovered), and a months-old posting looks brand
+    # new forever. That's exactly how "Posted 30+ Days Ago" reached the board.
+    return parse_relative_posted(posted)
+
+
+def posted_label_too_old(posted):
+    """True only when the label parses to a date older than VALID_POST_DAYS.
+
+    An empty or unparseable label answers False — the detail page is fetched
+    later and often carries a real date, so a missing one must not delete the
+    posting here. This is a cheap pre-filter to skip the detail fetch on
+    postings we already know are stale; `purge_old_store` remains the gate that
+    decides what actually stays on the board.
+    """
+    stamp = parse_posted_datetime_from_label(posted)
+    if stamp is None:
+        return False
+    return stamp < datetime.now(timezone.utc) - timedelta(days=VALID_POST_DAYS)
 
 
 def extract_experience_bounds(text):
@@ -1430,6 +1444,8 @@ def scrape_workday_company(name, tenant, wd_ver, site, city):
                 posted   = job.get("postedOn", "")
 
                 if not (is_target_role(title) and level_ok(title, city)):
+                    continue
+                if posted_label_too_old(posted):
                     continue
                 loc_check = location or title
                 if not location_ok(loc_check, city):
@@ -1646,6 +1662,8 @@ def scrape_workday_multi(name, tenant, wd_ver, site):
                 posted   = job.get("postedOn", "")
 
                 if not is_target_role(title):
+                    continue
+                if posted_label_too_old(posted):
                     continue
                 city = infer_pm_city_or_extra(location or title)
                 if not city or not level_ok(title, city):

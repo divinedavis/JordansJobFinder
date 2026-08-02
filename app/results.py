@@ -1,5 +1,6 @@
 from metros import DISPLAY_LABELS as METRO_DISPLAY_LABELS
 
+import re
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import case, func, select
@@ -25,15 +26,29 @@ def _display_city(job: dict) -> str:
     return CITY_LABELS.get(city_value, job.get("location", ""))
 
 
-def _posted_display(posted_label: str, found_at) -> str:
-    """Return a stable, human-readable posted label.
+_RELATIVE_LABEL_RE = re.compile(
+    r"\b(today|yesterday|just posted|moments ago|\d+\+?\s*(minute|hour|day|week|month|year)s?\s*ago)\b"
+)
 
-    - If we have a real label (not Unknown/relative), use it.
-    - Otherwise fall back to 'Found <Month Day>' using found_at.
+
+def _posted_display(posted_label: str, found_at, posted_at=None) -> str:
+    """Return a stable, human-readable posted date.
+
+    - Prefer the resolved posted_at — an absolute date that stays true tomorrow.
+    - Else use the raw label, but only when it's absolute.
+    - Else fall back to 'Found <Month Day>' using found_at.
+
+    Relative labels are never rendered verbatim. 'Posted 30+ Days Ago' was
+    scraped once and then sat on the card unchanged, and a phrase like
+    'Posted Yesterday' is a lie the day after it's stored. Now that the
+    scraper resolves those to real dates, the card shows the date instead.
     """
+    if posted_at:
+        dt = posted_at if posted_at.tzinfo else posted_at.replace(tzinfo=timezone.utc)
+        return f"Posted {dt.strftime('%b %-d')}"
     label = (posted_label or "").strip()
-    stale_relative = label.lower() in ("", "unknown", "posted today", "posted yesterday", "today", "yesterday")
-    if not stale_relative:
+    unusable = not label or label.lower() == "unknown" or _RELATIVE_LABEL_RE.search(label.lower())
+    if not unusable:
         return label
     if found_at:
         dt = found_at if found_at.tzinfo else found_at.replace(tzinfo=timezone.utc)
@@ -129,7 +144,7 @@ def home_board_preview(limit: int = 3):
             "company": job.company,
             "title": job.title,
             "display_city": CITY_LABELS.get(job.city, job.location or ""),
-            "posted_label": _posted_display(job.posted_label, job.found_at),
+            "posted_label": _posted_display(job.posted_label, job.found_at, job.posted_at),
         }
         for job in rows[:limit]
     ]
@@ -191,7 +206,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "url": job.url,
                 "display_city": CITY_LABELS.get(job.city, job.location or ""),
                 "location": job.location or CITY_LABELS.get(job.city, ""),
-                "posted_label": _posted_display(job.posted_label, job.found_at),
+                "posted_label": _posted_display(job.posted_label, job.found_at, job.posted_at),
                 "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
                 "matched_at": job_match.matched_at,
                 "has_tailored_resume": (job.id in tailored_job_ids) or has_base_resume,

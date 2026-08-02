@@ -254,50 +254,9 @@ def title_is_sales_entry(title: str) -> bool:
     return any(kw in t for kw in SALES_TITLE_KEYWORDS)
 
 
-def parse_relative_posted(text):
-    """Parse Workday's relative postedOn into a UTC datetime, or None."""
-    if not text:
-        return None
-    t = text.lower().strip()
-    now = datetime.now(timezone.utc)
-    if "today" in t or "just posted" in t or "moments ago" in t:
-        return now
-    if "yesterday" in t:
-        return now - timedelta(days=1)
-    m = re.search(r"(\d+)\+?\s*(minute|hour|day|week|month|year)s?", t)
-    if m:
-        n = int(m.group(1))
-        unit = m.group(2)
-        delta = {
-            "minute": timedelta(minutes=n),
-            "hour": timedelta(hours=n),
-            "day": timedelta(days=n),
-            "week": timedelta(weeks=n),
-            "month": timedelta(days=n * 30),
-            "year": timedelta(days=n * 365),
-        }[unit]
-        return now - delta
-    return parse_iso(t)
-
-
-def parse_iso(text):
-    if not text:
-        return None
-    raw = text.strip()
-    if not raw:
-        return None
-    try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
-def first_truthy_date(*candidates):
-    for c in candidates:
-        if c is not None:
-            return c
-    return None
+# Date parsing lives in posted_dates.py — one copy for every vertical. Re-exported
+# here because scraper_hr and scraper_scm import these names from this module.
+from posted_dates import first_truthy_date, parse_iso, parse_relative_posted  # noqa: E402,F401
 
 
 def within_recency(posted_dt):

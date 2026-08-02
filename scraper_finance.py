@@ -341,55 +341,9 @@ def title_is_finance_entry(title: str) -> bool:
     return False
 
 
-def parse_relative_posted(text: str) -> "datetime | None":
-    """Parse Workday's relative postedOn ('Posted Today', 'Posted Yesterday',
-    'Posted 3 Days Ago', 'Posted 30+ Days Ago', 'Posted 2 Hours Ago', etc.)
-    into a UTC datetime. Returns None when the string can't be parsed."""
-    if not text:
-        return None
-    t = text.lower().strip()
-    now = datetime.now(timezone.utc)
-    if "today" in t or "just posted" in t or "moments ago" in t:
-        return now
-    if "yesterday" in t:
-        return now - timedelta(days=1)
-    m = re.search(r"(\d+)\+?\s*(minute|hour|day|week|month|year)s?", t)
-    if m:
-        n = int(m.group(1))
-        unit = m.group(2)
-        delta = {
-            "minute": timedelta(minutes=n),
-            "hour": timedelta(hours=n),
-            "day": timedelta(days=n),
-            "week": timedelta(weeks=n),
-            "month": timedelta(days=n * 30),
-            "year": timedelta(days=n * 365),
-        }[unit]
-        return now - delta
-    # ISO fallback (some ATSs use this)
-    return parse_iso(t)
-
-
-def parse_iso(text: str) -> "datetime | None":
-    """Parse an ISO 8601 timestamp; return UTC datetime or None."""
-    if not text:
-        return None
-    raw = text.strip()
-    if not raw:
-        return None
-    try:
-        dt = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
-
-
-def first_truthy_date(*candidates: "datetime | None") -> "datetime | None":
-    """Return the first non-None datetime from the candidates."""
-    for c in candidates:
-        if c is not None:
-            return c
-    return None
+# Date parsing lives in posted_dates.py — one copy for every vertical. Re-exported
+# here because scraper_it imports these names from this module.
+from posted_dates import first_truthy_date, parse_iso, parse_relative_posted  # noqa: E402,F401
 
 
 def within_recency(posted_dt: "datetime | None") -> bool:

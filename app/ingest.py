@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from posted_dates import parse_relative_posted
+
 from .matching import PM_MIN_SALARY, job_excluded, normalize_text
 from .parsing import (
     format_salary_label,
@@ -40,7 +42,7 @@ def parse_posted_datetime(raw_value: Optional[str]):
     if not raw_value:
         return None
     value = raw_value.strip()
-    if not value:
+    if not value or value == "Unknown":
         return None
     for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
         try:
@@ -48,12 +50,12 @@ def parse_posted_datetime(raw_value: Optional[str]):
             return dt.replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-    # ISO 8601 with time/offset, e.g. 2026-04-30T16:35:42Z, ...285Z, ...-04:00
-    try:
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return None
+    # Workday's relative dialect ("Posted 30+ Days Ago") plus ISO 8601 with a
+    # time/offset. The relative case matters here as well as in the scraper:
+    # this is the self-heal path for feed rows that arrived with no posted_at,
+    # and without it a stale posting is stored with posted_at NULL, which makes
+    # every recency filter fall back to found_at and treat it as brand new.
+    return parse_relative_posted(value)
 
 
 def load_legacy_jobs() -> list[dict]:
