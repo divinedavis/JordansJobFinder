@@ -29,34 +29,24 @@ sys.path.insert(0, str(ROOT))
 
 from app.matching import PM_MIN_SALARY  # noqa: E402
 from app.parsing import parse_experience_years  # noqa: E402
-from job_enrich import DESCRIPTION_MAX_CHARS, HEADERS, html_to_text, salary_fields  # noqa: E402
+from job_enrich import (  # noqa: E402
+    DESCRIPTION_MAX_CHARS,
+    HEADERS,
+    html_to_text,
+    salary_fields,
+    workday_detail_by_url,
+)
 
 DB_PATH = ROOT / "jordansjobfinder.db"
 FEEDS = sorted(ROOT.glob("shared_jobs*.json"))
 
-WORKDAY_URL = re.compile(
-    r"^https://(?P<tenant>[^.]+)\.wd(?P<ver>\d+)\.myworkdayjobs\.com/"
-    r"(?:[a-zA-Z-]+/)?(?P<site>[^/]+)(?P<path>/job/.+)$"
-)
 GREENHOUSE_URL = re.compile(
     r"^https://(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?P<token>[^/]+)/jobs/(?P<id>\d+)"
 )
 
 
 def workday_description(url: str) -> str:
-    m = WORKDAY_URL.match(url or "")
-    if not m:
-        return ""
-    api = (f"https://{m['tenant']}.wd{m['ver']}.myworkdayjobs.com/wday/cxs/"
-           f"{m['tenant']}/{m['site']}{m['path']}")
-    try:
-        resp = requests.get(api, headers=HEADERS, timeout=20)
-        if resp.status_code != 200:
-            return ""
-        info = resp.json().get("jobPostingInfo") or {}
-        return html_to_text(info.get("jobDescription") or "")
-    except Exception:
-        return ""
+    return workday_detail_by_url(url, timeout=20)["description"]
 
 
 def greenhouse_description(url: str) -> str:
@@ -110,14 +100,23 @@ def main() -> int:
     updates: dict[str, dict] = {}   # url -> fields
     fetched = skipped = 0
     for index, row in enumerate(rows, 1):
-        description = row["description"] or fetch_description(row["url"])
-        if not row["description"]:
+        description = row["description"] or ""
+        fields = salary_fields(description)
+        if fields["salary_min"] is None:
+            # A stored description is not proof the posting body was ever read.
+            # The PM scraper stored the Workday page's JavaScript shell —
+            # "Workday is currently unavailable. English العربية …" — which is
+            # long, truthy, and has no pay in it, so trusting it meant every PM
+            # posting stayed unrepairable. Re-fetch whenever the stored text
+            # yields nothing; that is exactly the set being repaired.
+            fresh = fetch_description(row["url"])
             time.sleep(0.15)
+            if fresh:
+                description, fields = fresh, salary_fields(fresh)
         if not description:
             skipped += 1
             continue
         fetched += 1
-        fields = salary_fields(description)
         if fields["salary_min"] is None:
             continue
         # PM postings under the track's floor keep their salary hidden, exactly

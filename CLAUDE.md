@@ -849,6 +849,73 @@ class kept reappearing in six duplicated copies of the same logic.
 both bugs. **It fixes the shared_jobs*.json feeds first** — see the gotcha
 below.
 
+## The PM Board's Two Broken Promises (2026-08-03)
+
+Owner report: "the jobs on this board don't show the salary or are links to a
+job that doesn't exist." Both traced to one line — `scraper.fetch_workday_detail`
+did a plain `requests.get` of the **posting page**.
+
+- **myworkdayjobs.com serves a JavaScript shell to a plain GET.** What the PM
+  scraper actually stored as the description was "Workday is currently
+  unavailable. English العربية 简体中文 …", so no salary was ever found and every
+  Workday PM job reached the board as `See posting` — which `results.py`
+  renders as nothing. CrowdStrike's posting publishes $140,000 - $215,000 and
+  Warner Bros' $301,350 - $559,650; the cards showed neither, while the finance
+  and SCM tracks (already on the CXS endpoint via job_enrich) showed real
+  ranges. It now reads the same endpoint through `job_enrich.workday_detail_by_url`.
+- **Relative dates were stored raw and re-resolved every run.** "Posted Today"
+  is true on the day it was read and never again, but the store keeps a posting
+  across runs and both `purge_old_store` and `normalize_shared_job` re-parsed
+  that frozen label against the current clock. A job first seen as "Posted
+  Today" was therefore posted today *forever*: it could never age out, and its
+  card showed today's date months later. A Morgan Stanley req first seen
+  2026-03-23 was still on the NYC board on 2026-08-03 — long after the employer
+  pulled it, which is what puts dead links on a board. `freeze_posted_label`
+  resolves a relative label to an absolute date **once**, anchored to when the
+  label was read (`found_at` for an entry already in the store, now for one
+  just scraped); `freeze_store_posted_labels` repairs entries written before it.
+- **Nothing ever asked whether a req still existed.** `drop_removed_postings`
+  sweeps the store each run. Only a **404** counts as removed — Morgan Stanley
+  and USAA WAF-403 the droplet's whole IP range, and a timeout must never
+  delete a live posting.
+- **`parse_salary_in_context` lost the top of a range** written after a
+  paragraph of comp prose. Its context windows were carved out non-overlapping,
+  so the window opened at "Base pay is just one component…" ended between
+  Warner Bros' two amounts and the "Pay" that would have covered the whole
+  range had already been consumed — $559,650 was dropped and the range read as
+  a flat $301,350. Windows are now taken from each keyword's position, so they
+  overlap.
+
+Repair scripts (feeds before DB, as always). Run in this order:
+`scripts/refresh_pm_store.py` (re-enrich + freeze + purge + drop removed, then
+rewrite the feed — it deliberately keeps the just-aged-out postings in the feed
+so one sync corrects their DB rows) → `manage.py run-daily-sync` →
+`scripts/backfill_posted_dates.py` → `scripts/backfill_salaries.py --days 10` →
+`scripts/prune_removed_postings.py --days 7`. On 2026-08-03 that fixed 152
+drifted dates and deleted 2 reqs the employer had pulled.
+
+Two traps in the repair worth keeping:
+
+- **`backfill_posted_dates.py` used to resolve relative labels against *now***,
+  which re-dated old postings to today — the bug, wearing the repair's clothes.
+  It is exactly what stamped that March Morgan Stanley req as posted 2026-08-02.
+- **A row still carried by a feed must be left alone.** The vertical scrapers
+  rewrite their feed every run, so a job in one was re-read today and its date
+  belongs to that scrape — a posting really can be reposted months after first
+  discovery. Only orphans get re-anchored, and only when their date is
+  impossible (posted more than a day *after* they were discovered). Re-anchoring
+  everything would have re-dated 1,790 rows and emptied live boards.
+- **A stored description is not proof the posting body was ever read.**
+  `backfill_salaries.py` trusted any non-empty description, and the JS shell is
+  long, truthy and pay-free — so the PM rows were permanently unrepairable. It
+  now re-fetches whenever the stored text yields no range.
+
+Expect a **thinner PM board**: with honest dates, `VALID_POST_DAYS = 2` is doing
+real work for the first time (the IT/HR/SCM tracks already use 7). If the board
+runs too empty, widening the PM window is the lever — not the dates.
+
+Tests: `tests/test_board_freshness.py`.
+
 ## Known Gotchas
 
 - **SQLite stores naive datetimes** — never compare timezone-aware datetimes directly against DB columns. Strip tzinfo or use naive cutoffs.

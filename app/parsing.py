@@ -102,15 +102,23 @@ def _explicit_range(text: str):
     return None
 
 
+# Windows are taken from each keyword's position rather than matched as one
+# expression, because `finditer` on a keyword+window pattern consumes the window
+# and can only start the next match past it. Warner Bros writes "Base pay is
+# just one component of … total compensation package … Pay Range: $301,350.00 -
+# $559,650.00": the window opened at "base" ended between the two amounts, and
+# the "pay" that would have opened a window over the whole range had already
+# been swallowed. The range was read as a flat $301,350. Overlapping windows are
+# the fix; the length is what a pay sentence needs to fit in one.
+_SALARY_KEYWORD = re.compile(r"salary|compensation|pay|base|annual|range|usd", re.I)
+SALARY_CONTEXT_CHARS = 220
+
+
 def _salary_from_context(text: str):
     """Find salary from text near compensation keywords — best for raw HTML."""
-    salary_context = re.compile(
-        r"(?:salary|compensation|pay|base|annual|range|usd)[^\n]{0,120}",
-        re.I,
-    )
     pair = single = None
-    for match in salary_context.finditer(text):
-        snippet = match.group(0)
+    for match in _SALARY_KEYWORD.finditer(text):
+        snippet = text[match.start(): match.start() + SALARY_CONTEXT_CHARS]
         # An explicitly written range is the strongest read — take it and stop.
         explicit = _explicit_range(snippet)
         if explicit:

@@ -131,8 +131,10 @@ def test_workday_detail_swallows_a_failed_fetch(monkeypatch):
         raise RuntimeError("network down")
 
     monkeypatch.setattr("job_enrich.requests.get", _boom)
+    # status 0, not 404: a failed request is not the employer pulling the req,
+    # and `workday_posting_removed` deletes board rows on 404 alone.
     assert workday_detail("t", 5, "site", "/job/Nowhere/Broken_R9") == {
-        "description": "", "locations": [],
+        "description": "", "locations": [], "posted": "", "status": 0,
     }
 
 

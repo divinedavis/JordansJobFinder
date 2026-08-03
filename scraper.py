@@ -20,6 +20,7 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from greenhouse_urls import greenhouse_job_url
+from job_enrich import DESCRIPTION_MAX_CHARS, workday_detail_by_url, workday_posting_removed
 from metros import ALL_METROS, LABELS as METRO_LABELS, infer_metro, matches_metro
 from posted_dates import RELATIVE_UNITS, parse_relative_posted
 
@@ -28,6 +29,7 @@ from app.parsing import (
     normalize_numeric_language,
     parse_experience_years,
     parse_salary,
+    parse_salary_in_context,
 )
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
@@ -805,6 +807,71 @@ def save_shared_jobs(shared_jobs):
     SHARED_JOBS_FILE.write_text(json.dumps(shared_jobs, indent=2))
 
 
+def freeze_posted_label(posted, anchor=None):
+    """Resolve a relative posting date to an absolute one, once.
+
+    "Posted Today" is only true on the day it was read. The store keeps a
+    posting across runs and every run re-parsed that frozen label against the
+    current clock, so anything first seen as "Posted Today" was posted today
+    forever: `purge_old_store` could never age it out, `normalize_shared_job`
+    stamped posted_at with the run time, and the card showed today's date months
+    later. A Morgan Stanley req first seen 2026-03-23 was still on the NYC board
+    on 2026-08-03 with "Posted Aug 2" on it — long after the employer had taken
+    it down, which is what puts dead links on the board.
+
+    `anchor` is the moment the label was read (a job's found_at for one already
+    in the store, now for one just scraped) — resolving against now would
+    re-date an old posting to today, which is the bug itself.
+    """
+    text = (posted or "").strip()
+    if not text or text == "Unknown":
+        return posted
+    for fmt in ("%Y-%m-%d", "%b %d, %Y", "%B %d, %Y"):
+        try:
+            datetime.strptime(text, fmt)
+            return text  # already absolute
+        except ValueError:
+            continue
+    resolved = parse_relative_posted(text, now=anchor or datetime.now(timezone.utc))
+    if resolved is None:
+        return posted  # unparseable → keep it; the purge falls back to found_at
+    return resolved.strftime("%Y-%m-%d")
+
+
+def freeze_store_posted_labels(store):
+    """Freeze every relative label already in the store, against its own
+    discovery time. Repairs entries written before the labels were frozen."""
+    for job in store:
+        anchor = None
+        try:
+            anchor = datetime.fromisoformat(job.get("found_at", ""))
+        except (TypeError, ValueError):
+            anchor = None
+        if anchor is not None and anchor.tzinfo is None:
+            anchor = anchor.replace(tzinfo=timezone.utc)
+        job["posted"] = freeze_posted_label(job.get("posted", ""), anchor)
+    return store
+
+
+def drop_removed_postings(store):
+    """Drop stored postings the employer has taken down.
+
+    A store entry is only re-checked by the purge's date arithmetic; nothing
+    ever asked whether the req still exists, so a posting pulled the day after
+    it was scraped stayed on the board until its date aged out — "View Role"
+    opening a 404. Workday is the only platform whose removal is unambiguous
+    from the URL alone (`workday_posting_removed` treats nothing but a 404 as
+    gone), so the sweep is limited to it.
+    """
+    kept = []
+    for job in store:
+        if workday_posting_removed(job.get("url", "")):
+            log(f"  ✗ Removed by employer: {job.get('company')} | {job.get('title', '')[:50]}")
+            continue
+        kept.append(job)
+    return kept
+
+
 def purge_old_store(store):
     """Keep jobs whose POSTING is still recent.
 
@@ -1346,33 +1413,28 @@ def fetch_detail(page, url):
 
 
 def fetch_workday_detail(url):
-    try:
-        resp = requests.get(url, headers={"User-Agent": HEADERS["User-Agent"]}, timeout=20)
-        if resp.status_code != 200:
-            return "", "", ""
-    except Exception:
-        return "", "", ""
+    """Return (salary_text, description, posted) from Workday's CXS endpoint.
 
-    html = resp.text
-    soup = BeautifulSoup(html, "html.parser")
-    full_text = soup.get_text(separator=" ", strip=True)
+    This used to GET the posting page and parse the HTML. myworkdayjobs.com
+    serves a JavaScript shell to a plain GET, so what it actually stored was
+    "Workday is currently unavailable. English العربية 简体中文 …" as the
+    description, no salary at all, and no date — which is why every Workday PM
+    job reached the board labelled "See posting" with no pay while the finance
+    and SCM tracks (already on this endpoint via job_enrich) showed real ranges.
+    CrowdStrike's posting publishes $140,000 - $215,000 and the board showed
+    nothing.
 
-    salary = ""
-    salary_sources = [full_text, html]
-    for script in soup.find_all("script", type="application/ld+json"):
-        raw = script.get_text(" ", strip=True)
-        if raw:
-            salary_sources.append(raw)
-
-    for source_text in salary_sources:
-        parsed_salary = parse_salary(source_text)
-        if not parsed_salary:
-            continue
-        salary = format_salary_label(parsed_salary)
-        break
-
-    posted = extract_posted_date(soup, full_text)
-    return salary, full_text, posted
+    Salary comes from `parse_salary_in_context`, not `parse_salary`: the full
+    description is dense with numbers that aren't pay, and the bare parser takes
+    any dollar amount it finds.
+    """
+    detail = workday_detail_by_url(url, timeout=20)
+    # Same cap the other verticals store under: a handful of ATS pages inline
+    # their whole benefits handbook, and this text is fed to the tailoring and
+    # interview-prep prompts as untrusted input.
+    description = detail["description"][:DESCRIPTION_MAX_CHARS]
+    salary = format_salary_label(parse_salary_in_context(description)) if description else ""
+    return salary, description, detail["posted"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2233,17 +2295,19 @@ def main():
     # Persistent store: merge this run's brand-new jobs, then purge anything
     # whose posting is no longer recent. The store is the durable set of
     # currently-live postings.
-    store = load_store()
+    store = freeze_store_posted_labels(load_store())
     store_urls = {j["url"] for j in store}
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
     added = 0
     for job in new_jobs:
         if job["url"] and job["url"] not in store_urls:
             job["found_at"] = now_iso
+            job["posted"] = freeze_posted_label(job.get("posted", ""), now)
             store.append(job)
             store_urls.add(job["url"])
             added += 1
-    store = purge_old_store(store)
+    store = drop_removed_postings(purge_old_store(store))
     save_store(store)
 
     # The app feed MIRRORS the live store — not just this run's new finds — so a
