@@ -21,26 +21,36 @@ class BillingConfigurationError(RuntimeError):
 
 
 # Subscription tiers: checkout `kind` -> city limit + config key + label.
-# Each tier also carries an AI-resume quota (see RESUME_QUOTA below).
 CITY_TIERS = {
     "city-5": {"limit": 5, "price_key": "STRIPE_CITY5_PRICE_ID", "label": "5 cities + 25 resumes/mo — $4.99/mo"},
     "city-10": {"limit": 10, "price_key": "STRIPE_CITY10_PRICE_ID", "label": "10 cities + unlimited resumes — $19.99/mo"},
 }
 FREE_CITY_LIMIT = 3
 
-# AI resume-creation quota per plan, keyed by city_limit.
-#   3  (free)     -> 10 creations LIFETIME (resume_period_start ignored)
-#   5  ($4.99/mo) -> 25 creations per month
-#   10 ($19.99/mo)-> unlimited
-# None means unlimited. is_lifetime[limit] says whether the cap never resets.
-RESUME_QUOTA = {3: 10, 5: 25, 10: None}
-RESUME_LIFETIME = {3: True, 5: False, 10: False}
+# AI resume-creation quota — one allowance for everyone, reset monthly.
+#
+# This used to be a paywall keyed by city_limit ({3: 10 lifetime, 5: 25/mo,
+# 10: unlimited}). When the paid tiers were dropped on 2026-07-21,
+# `city_limit_for()` started returning the metro COUNT (30) — which is not a key
+# in that table, so every account fell through to the free tier and got 10
+# LIFETIME creations. Anyone who reached 10 saw "Tailored Resume" bounce to
+# /billing forever, on a plan that no longer exists. Same bug class as the
+# `[:limit]` city slice: a number that meant "plan" started meaning "how many
+# metros exist".
+#
+# The cap stays only as a cost guard, not a paywall — each tailored resume is a
+# Haiku call (~$0.03) and the route allows 30/hour, so an uncapped account could
+# run up the Anthropic bill. 100/month is far above what a real job hunt needs.
+RESUME_QUOTA_PER_MONTH = 100
 
 
 def resume_quota_for(city_limit: int):
-    """(allowed:int|None, is_lifetime:bool) for a plan. None allowed = unlimited."""
-    limit = city_limit if city_limit in RESUME_QUOTA else 3
-    return RESUME_QUOTA[limit], RESUME_LIFETIME[limit]
+    """(allowed:int|None, is_lifetime:bool). None allowed = unlimited.
+
+    `city_limit` is ignored — plans are gone — but stays in the signature
+    because several call sites still pass one.
+    """
+    return RESUME_QUOTA_PER_MONTH, False
 
 
 def _now_naive():

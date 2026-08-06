@@ -36,13 +36,16 @@
     btn.style.opacity = "0.7";
     btn.textContent = "Generating…";
 
-    fetch(href, { credentials: "same-origin" })
+    // redirect: "manual" so a redirect is NOT followed here. Following it ate
+    // the response the server meant for the user — including its one-shot flash
+    // message, which was then gone from the session by the time the browser
+    // loaded the same page. The click looked like it did nothing. Now we let
+    // the browser make the request itself and land on the real page.
+    fetch(href, { credentials: "same-origin", redirect: "manual" })
       .then(function (resp) {
         var ct = resp.headers.get("Content-Type") || "";
-        if (!resp.ok || ct.indexOf("pdf") === -1) {
-          // Out of quota / error: the server redirected (e.g. to billing).
-          // Go there so the user sees the flash / upgrade prompt.
-          window.location = resp.url || href;
+        if (resp.type === "opaqueredirect" || !resp.ok || ct.indexOf("pdf") === -1) {
+          window.location = href;
           return null;
         }
         var name = filenameFrom(resp.headers.get("Content-Disposition"), "tailored-resume.pdf");

@@ -213,16 +213,19 @@ def test_resume_credit_consume_respects_cap(app, db_session):
     from app.models import Subscription, User
     from app.payments import consume_resume_credit
 
+    from app.payments import RESUME_QUOTA_PER_MONTH
+
     user = _make_user(db_session, email="credits@example.com")
-    sub = Subscription(user_id=user.id, city_limit=3)  # free = 10 lifetime
+    sub = Subscription(user_id=user.id, city_limit=3)
     db_session.add(sub)
     db_session.commit()
     db_session.refresh(sub)
 
-    granted = sum(1 for _ in range(15) if consume_resume_credit(sub, 3))
-    assert granted == 10  # never exceeds the free lifetime cap
+    attempts = RESUME_QUOTA_PER_MONTH + 5
+    granted = sum(1 for _ in range(attempts) if consume_resume_credit(sub, 3))
+    assert granted == RESUME_QUOTA_PER_MONTH  # the guarded UPDATE never overshoots
     db_session.expire_all()
-    assert db_session.get(Subscription, sub.id).resume_credits_used == 10
+    assert db_session.get(Subscription, sub.id).resume_credits_used == RESUME_QUOTA_PER_MONTH
 
 
 # ── LLM prompt-input caps ─────────────────────────────────────────────────────

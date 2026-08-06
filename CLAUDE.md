@@ -579,11 +579,32 @@ Repriced + restructured tiers (LIVE Stripe):
 - **Free**: 3 cities, 10 AI-resume creations LIFETIME.
 - **Plus $4.99/mo** (checkout `city-5`, was $9.99): 5 cities + 25 resumes/month.
 - **Pro $19.99/mo** (`city-10`): 10 cities + unlimited resumes.
-Quota table in payments.RESUME_QUOTA keyed by city_limit; consume_resume_credit
-spends one on each NEW on-demand tailoring (re-downloads free). Monthly reset
-via resume_period_start for paid; free never resets. **Nightly bulk
-tailored-resume pre-gen is DISABLED** (it handed free users unlimited resumes) —
-all tailoring is on-demand + quota-gated.
+`consume_resume_credit` spends one on each NEW on-demand tailoring
+(re-downloads free). **Nightly bulk tailored-resume pre-gen is DISABLED** (it
+handed free users unlimited resumes) — all tailoring is on-demand.
+
+### The quota outlived the plans (fixed 2026-08-06)
+
+The quota was a table keyed by `city_limit` ({3: 10 lifetime, 5: 25/mo,
+10: unlimited}). When the paid tiers were dropped on 2026-07-21,
+`city_limit_for()` started returning the **metro count** (30) — not a key in
+that table — so every account fell through to the retired free tier and got 10
+LIFETIME creations. Anyone who reached 10 had "Tailored Resume" 302 to /billing
+forever, offering an upgrade to a plan that no longer exists. Same bug class as
+the `[:limit]` city slice above: a number that meant "plan" started meaning
+"how many metros exist".
+
+Now `payments.RESUME_QUOTA_PER_MONTH` — one allowance (100) for everyone,
+resetting monthly, `city_limit` ignored. It is a **cost guard, not a paywall**:
+each tailored resume is a Haiku call (~$0.03) and the route allows 30/hour, so
+an uncapped account could run up the Anthropic bill. Nothing is lifetime any
+more, so no account can be permanently locked out.
+
+`static/js/applied.js` fetches with `redirect: "manual"` for the same incident:
+following the redirect in JS consumed the server's response *including its
+one-shot flash message*, so the browser then loaded a bare /billing page with
+no explanation — the click looked like it did nothing. Let the browser make the
+request itself whenever the response isn't a PDF.
 
 **City cap bug fix**: non-PM tracks (finance/sales/IT/HR) seeded FIXED city
 sets (finance=11) ignoring the plan limit, so a free user picking Corporate

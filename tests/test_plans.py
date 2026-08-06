@@ -1,5 +1,5 @@
 """Plan enforcement: universal city cap (the >3-cities bug), the 30-day search
-lock, the AI-resume quota (10 lifetime / 25-mo / unlimited), and the Profile
+lock, the AI-resume quota (one monthly allowance for everyone), and the Profile
 hub."""
 
 
@@ -78,45 +78,44 @@ def test_saving_locks_search_for_30_days(signed_in_client, db_session):
 # ── AI-resume quota ───────────────────────────────────────────────────────────
 
 
-def test_resume_quota_free_is_10_lifetime(app, db_session):
-    from app.payments import consume_resume_credit, resume_quota_state
+def test_resume_quota_is_the_same_for_every_plan(app, db_session):
+    """The quota is a cost guard, not a paywall — the plan argument is dead.
+
+    Regression guard for the 2026-08-06 outage: the quota was keyed by
+    city_limit, city_limit_for() started returning the metro count, and every
+    account silently dropped to the retired free tier's 10 LIFETIME creations.
+    """
+    from app.payments import RESUME_QUOTA_PER_MONTH, resume_quota_state
 
     user, sub = _sub(db_session)
     with app.test_request_context():
-        state = resume_quota_state(sub, 3)
-        assert state == {"allowed": 10, "used": 0, "remaining": 10,
-                         "unlimited": False, "is_lifetime": True}
-        for _ in range(10):
-            assert consume_resume_credit(sub, 3) is True
-        # 11th is blocked.
-        assert consume_resume_credit(sub, 3) is False
-        assert sub.resume_credits_used == 10
+        for limit in (3, 5, 10, 30):  # 30 = today's metro count
+            assert resume_quota_state(sub, limit) == {
+                "allowed": RESUME_QUOTA_PER_MONTH, "used": 0,
+                "remaining": RESUME_QUOTA_PER_MONTH,
+                "unlimited": False, "is_lifetime": False,
+            }
 
 
-def test_resume_quota_pro_is_unlimited(app, db_session):
-    from app.payments import consume_resume_credit
-
-    user, sub = _sub(db_session, email="pro@example.com")
-    with app.test_request_context():
-        for _ in range(50):
-            assert consume_resume_credit(sub, 10) is True
-
-
-def test_resume_quota_plus_is_25_per_month(app, db_session):
+def test_resume_quota_resets_monthly_and_is_never_lifetime(app, db_session):
     from datetime import datetime, timedelta
 
-    from app.payments import consume_resume_credit, resume_quota_state
+    from app.payments import (RESUME_QUOTA_PER_MONTH, consume_resume_credit,
+                              resume_quota_state)
 
     user, sub = _sub(db_session)
+    from app.catalog import ALL_CITY_LABELS
+
     with app.test_request_context():
-        for _ in range(25):
-            assert consume_resume_credit(sub, 5) is True
-        assert consume_resume_credit(sub, 5) is False
-        # Roll the monthly window back 31 days -> quota resets.
+        limit = len(ALL_CITY_LABELS)
+        for _ in range(RESUME_QUOTA_PER_MONTH):
+            assert consume_resume_credit(sub, limit) is True
+        assert consume_resume_credit(sub, limit) is False
+        # Roll the monthly window back 31 days -> quota resets. Nothing is
+        # lifetime any more, so no account can be permanently locked out.
         sub.resume_period_start = datetime.utcnow() - timedelta(days=31)
         db_session.commit()
-        state = resume_quota_state(sub, 5)
-        assert state["remaining"] == 25
+        assert resume_quota_state(sub, limit)["remaining"] == RESUME_QUOTA_PER_MONTH
 
 
 # ── Profile hub ───────────────────────────────────────────────────────────────
