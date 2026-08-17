@@ -1388,7 +1388,13 @@ def fetch_detail(page, url):
     except Exception:
         return "", "", ""
 
-    html = page.content()
+    try:
+        html = page.content()
+    except Exception:
+        # A page that never settles used to hang here with no deadline; it is
+        # bounded by the page default timeout now, and one unreadable posting
+        # must not abort the enrichment of every posting after it.
+        return "", "", ""
     soup      = BeautifulSoup(html, "html.parser")
     full_text = soup.get_text(separator=" ", strip=True)
 
@@ -2206,16 +2212,32 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         pw_page = browser.new_page(user_agent=HEADERS["User-Agent"])
+        # Without these, any Playwright call that isn't given an explicit timeout
+        # (page.content() above all) blocks forever on a page that never stops
+        # loading. On 2026-08-17 Meta's board wedged the run for 7+ hours and,
+        # because the cron chains every vertical with &&, the whole day's scrape
+        # and sync never happened. Nothing here may wait without a deadline.
+        pw_page.set_default_timeout(30_000)
+        pw_page.set_default_navigation_timeout(30_000)
 
-        all_candidates += scrape_jpmorgan(pw_page)
-        all_candidates += scrape_goldman(pw_page)
-        all_candidates += scrape_metlife(pw_page)
-        all_candidates += scrape_meta(pw_page, "nyc")
-        all_candidates += scrape_meta(pw_page, "atlanta")
-        all_candidates += scrape_meta(pw_page, "miami")
-        all_candidates += scrape_meta(pw_page, "dallas")
-        all_candidates += scrape_meta(pw_page, "houston")
-        all_candidates += scrape_meta(pw_page, "dc")
+        def pw_collect(label, fn, *fn_args):
+            """One bad board must not cost the run every later board plus the
+            enrichment phase that turns candidates into published jobs."""
+            try:
+                return fn(*fn_args)
+            except Exception as exc:
+                log(f"  [{label}] FAILED: {type(exc).__name__}: {exc}")
+                return []
+
+        all_candidates += pw_collect("JPMorgan Chase", scrape_jpmorgan, pw_page)
+        all_candidates += pw_collect("Goldman Sachs", scrape_goldman, pw_page)
+        all_candidates += pw_collect("MetLife", scrape_metlife, pw_page)
+        all_candidates += pw_collect("Meta", scrape_meta, pw_page, "nyc")
+        all_candidates += pw_collect("Meta", scrape_meta, pw_page, "atlanta")
+        all_candidates += pw_collect("Meta", scrape_meta, pw_page, "miami")
+        all_candidates += pw_collect("Meta", scrape_meta, pw_page, "dallas")
+        all_candidates += pw_collect("Meta", scrape_meta, pw_page, "houston")
+        all_candidates += pw_collect("Meta", scrape_meta, pw_page, "dc")
 
         # ── Phase 3: Enrich candidates with detail page ───────────────────────
         log(f"Enriching {len(all_candidates)} candidates with detail pages...")

@@ -29,6 +29,28 @@ A Flask web app + daily scraper that finds technical **Product Manager** and **P
   Do NOT re-add the standalone scm/project/analyst entries — that's the
   triple-sweep that blew the chain past 5 hours.
 
+### The chain is a script now, not a cron one-liner (2026-08-17)
+
+Cron runs **`/usr/local/bin/jjf-scrape-chain.sh`** (source of truth:
+`deploy/jjf-scrape-chain.sh` — edit there and scp up), logging to `chain.log`.
+It exists because the old `&&`-joined one-liner made every vertical hostage to
+the one before it. On 2026-08-17 `scraper.py` wedged inside Playwright on
+Meta's board at 06:44 UTC and was still sitting there 7.5 hours later, so
+finance/sales/IT/HR/ops never scraped and **the sync never ran** — the board
+just showed nothing new, with no error anywhere.
+
+- Every scraper runs under `timeout -k 60` (PM 150m, finance 90m, sales 60m,
+  IT 75m, HR 45m, ops 180m — roughly 1.5× observed runtimes).
+- `run-daily-sync` runs **unconditionally**. A day where every scraper failed
+  still needs it, so whatever feeds did get written reach the board.
+- A 7-hour chain budget skips any scraper not yet started, so the sync can
+  never be pushed past 08:00 ET.
+- On a timeout the orphaned chromium is reaped — `timeout` kills python, not
+  the browser it spawned, and that leaks hundreds of MB on a 2 GB box.
+
+**A silently empty board is the symptom to expect from a hung chain**, so check
+`chain.log` first: no `OK`/`TIMEOUT` line for a scraper means it never finished.
+
 ## Scraper Pipeline (scraper.py)
 
 Scrapes 5 ATS platforms: Workday (~246 entries), Greenhouse (~86), Lever (~7), Eightfold (~2), custom Playwright (JPMorgan, Goldman, MetLife, Google, Meta, Amazon). Entry counts are company×city tuples — many companies appear in multiple cities.
