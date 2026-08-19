@@ -1312,6 +1312,21 @@ NYC_EXTRA_ORACLE = [
     ("Warby Parker", "fa-evdi-saasfaprod1.fa.ocs.oraclecloud.com",  "CX_1"),     # single board, 858
     ("Newmark",      "hdow.fa.us6.oraclecloud.com",                 "CX_1001"),  # 251 vs 355 default
     ("Con Edison",   "ejcu.fa.us6.oraclecloud.com",                 "CX_1033"),  # 57 vs 67 default
+    ("Lazard",       "icbpjb.fa.ocs.oraclecloud.com", "LazardProfessionalCareers"),  # 95 vs 47 default
+    # Northwell's pod answers every numeric site id we could find off its own
+    # careers page with the SAME 1469-job board, i.e. they all fall through to
+    # the default; CX_1 is the only id it treats as a real distinct site (403).
+    # So this is a SUBSET of Northwell's board, not the whole thing. Kept
+    # because it is genuinely Northwell's own postings and a subset beats
+    # nothing, but do not read the count as full coverage.
+    ("Northwell Health", "eppr.fa.us2.oraclecloud.com",              "CX_1"),
+]
+
+# iCIMS: (name, subdomain). MSCI publishes several regional portals; the global
+# one is the only populated board (51 job anchors against 2 on uscareers-msci).
+NYC_EXTRA_ICIMS = [
+    ("MSCI",                "globalcareers-msci"),
+    ("New York University", "uscareers-nyu"),
 ]
 
 # ── Employers whose whole board is published as a job sitemap ────────────────
@@ -1339,6 +1354,7 @@ JOBS_SITEMAP_COMPANIES = [
 # scraper_ats_extra's own Pennsylvania/Maryland block.
 NYC_EXTRA_SF = [
     ("Paramount", "https://careers.paramount.com", 25),
+    ("New York Life", "https://jobs.newyorklife.com", 25),
 ]
 
 
@@ -1379,6 +1395,9 @@ def collect_extra_ats():
     for name, host, site in NYC_EXTRA_ORACLE:
         log(f"  [{name}] Oracle...")
         jobs += _safe(name, scrape_oracle, ctx, name, host, site)
+    for name, subdomain in NYC_EXTRA_ICIMS:
+        log(f"  [{name}] iCIMS...")
+        jobs += _safe(name, scrape_icims, ctx, name, subdomain)
     for name, host, page_size in NYC_EXTRA_SF:
         log(f"  [{name}] SuccessFactors...")
         jobs += _safe(name, scrape_successfactors, ctx, name, host, page_size)

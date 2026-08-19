@@ -611,6 +611,13 @@ REVENUE: dict[str, str] = {
     # which is the closest honest analogue to revenue for a size hint.
     'CUNY': '~$4.3B (budget)',
     'News Corp': '$10B',
+
+    # ── Known-platform NYC holdouts wired up (2026-08-19) ──
+    'Lazard': '$3.1B',
+    'MSCI': '$2.9B',
+    'New York Life': '~$50B',
+    'New York University': '~$6.5B (budget)',
+    'Northwell Health': '~$18B',
 }
 
 
