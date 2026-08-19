@@ -231,6 +231,16 @@ WORKDAY_COMPANIES = [
     ("CrowdStrike",      "crowdstrike",   5,   "crowdstrikecareers",      "nyc"),
     # ── Fortune 1000 · Consumer · NYC ─────────────────────────────────────────
     ("PVH Corp",         "pvh",           1,   "PVH_Careers",             "nyc"),
+    # ── $1B+ NYC health systems (probed live 2026-08-19) ──────────────────────
+    # NYC-only employers, so they are pinned to the metro rather than added to
+    # WORKDAY_MULTI. Among the largest private employers in the city; none were
+    # covered before. Verified: tenant+site returned HTTP 200 with a non-zero
+    # `total` from this machine on 2026-08-19.
+    ("NewYork-Presbyterian", "nyp",        1,   "NypCareers",              "nyc"),
+    ("Mount Sinai",      "msmc",          12,  "Msmc_Careers",            "nyc"),
+    ("Montefiore",       "montefiore",    12,  "MMC",                     "nyc"),
+    ("Sloan Kettering",  "msk",           108, "MSKCC_Careers_Primary",   "nyc"),
+    ("Healthfirst",      "healthfirst",   1,   "healthfirst",             "nyc"),
     # ── Fortune 1000 · Atlanta ────────────────────────────────────────────────
     ("Coca-Cola",        "coke",          1,   "coca-cola-careers",       "atlanta"),
     ("Truist Financial", "truist",        1,   "Careers",                 "atlanta"),
@@ -596,6 +606,22 @@ GREENHOUSE_MULTI = [
     # ── Top-10-city $1B+ wave (verified HTTP 200 from droplet 2026-07-19) ──
     ("Axon", "axon"),               # Scottsdale AZ HQ, $2.1B
     ("Fanatics", "fanaticsinc"),    # Jacksonville commerce hub, ~$8B
+    # ── $1B+ NYC-HQ wave (probed live 2026-08-19) ──────────────────────────────
+    # Every token below returned HTTP 200 with a non-zero job count. Listed as
+    # multi-metro: all of them post outside NYC too, and pinning a national
+    # board to one metro throws those postings away (see the PwC note above).
+    ("Oscar Health", "oscar"),           # NYC HQ, ~$9B revenue
+    ("Justworks", "justworks"),          # NYC HQ
+    ("Taboola", "taboola"),              # NYC HQ, ~$1.8B
+    ("Schonfeld", "schonfeld"),          # NYC HQ, multi-strategy fund
+    ("Betterment", "betterment"),        # NYC HQ
+    ("Yext", "yext"),                    # NYC HQ
+    ("Hearst", "hearst"),                # NYC HQ, ~$12B
+    ("Assured Guaranty", "assuredguaranty"),  # NYC HQ
+    # Outbrain merged into Teads; outbrain.com/careers now redirects to
+    # teads.com, whose board is Greenhouse under the token "teads1" (73 jobs,
+    # 12 in New York on 2026-08-19). Probing "outbrain" finds nothing.
+    ("Outbrain / Teads", "teads1"),       # NYC HQ, ~$1.8B combined
 ]
 
 # Lever: (name, token)
@@ -605,6 +631,14 @@ LEVER_MULTI = [
     ("Spotify", "spotify"),
     # ── Top-10-city $1B+ wave (verified HTTP 200 from droplet 2026-07-19) ──
     ("Dun & Bradstreet", "dnb"),    # Jacksonville HQ, $2.4B
+]
+
+# Ashby: (name, token). Probed live 2026-08-19 — both boards returned HTTP 200
+# with a non-zero job count. Ashby is the ATS of choice for the newer NYC
+# unicorns, so this registry is the growth path for that whole cohort.
+ASHBY_MULTI = [
+    ("UiPath", "uipath"),   # NYC HQ, ~$1.4B revenue
+    ("Ramp",   "ramp"),     # NYC HQ
 ]
 
 # Workday: (name, tenant, ver, site)
@@ -771,6 +805,16 @@ WORKDAY_MULTI = [
     # Boeing got for Charleston on 2026-07-07).
     ("Baker Hughes", "bakerhughes", 5, "BakerHughes"),
     ("PwC", "pwc", 3, "Global_Experienced_Careers"),
+    # ── $1B+ NYC-HQ wave (probed live 2026-08-19) ──────────────────────────────
+    # National/global boards, so the posting's own location picks the metro.
+    ("Etsy",                "etsy",       5,   "Etsy_Careers"),
+    ("Sprinklr",            "sprinklr",   1,   "Careers"),
+    ("Univision",           "univision",  1,   "External"),
+    ("Blue Owl Capital",    "blueowl",    1,   "blueowl"),
+    ("Guggenheim Partners", "guggenheim", 1,   "Guggenheim_Careers"),
+    ("Cushman & Wakefield", "cw",         1,   "External"),
+    ("Brookfield",          "brookfield", 5,   "brookfield"),
+    ("Conde Nast",          "condenast",  115, "CondeCareers"),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1698,6 +1742,67 @@ def scrape_lever_multi(name, token):
     return candidates
 
 
+def scrape_ashby_multi(name, token):
+    """Ashby posting API — one board fetch, metro inferred per posting.
+
+    Ashby splits a posting's locations into a primary `location` and a list of
+    `secondaryLocations`. A NYC-HQ role that is also open in Miami carries
+    Miami only in the secondary list, so both are checked and the FIRST
+    supported metro wins; ignoring the secondaries drops those postings.
+    """
+    url = f"https://api.ashbyhq.com/posting-api/job-board/{token}"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        if resp.status_code != 200:
+            log(f"    [{name}] Ashby {resp.status_code}")
+            return []
+        jobs = resp.json().get("jobs", [])
+    except Exception as e:
+        log(f"    [{name}] Error: {e}")
+        return []
+
+    candidates = []
+    for job in jobs:
+        if not job.get("isListed", True):
+            continue
+        title = job.get("title", "").strip()
+        if not is_target_role(title):
+            continue
+
+        locations = [job.get("location") or ""]
+        for sec in job.get("secondaryLocations") or []:
+            locations.append((sec or {}).get("location") or "")
+
+        city = location = None
+        for loc in locations:
+            if not loc:
+                continue
+            found = infer_pm_city_or_extra(loc)
+            if found:
+                city, location = found, loc
+                break
+        if not city or not level_ok(title, city):
+            continue
+
+        posted = (job.get("publishedAt") or "")[:10]
+        if posted and not is_recent_iso(posted):
+            continue
+
+        # Ashby hands back a board-supplied URL that the dashboard renders as a
+        # link, so only http(s) is accepted — a "javascript:" href would
+        # otherwise reach the card.
+        job_url = job.get("jobUrl") or job.get("applyUrl") or ""
+        if not job_url.lower().startswith(("http://", "https://")):
+            continue
+
+        candidates.append(make_job(
+            title=title, url=job_url, company=name, city=city,
+            posted=posted, location=location, source="ashby"
+        ))
+
+    return candidates
+
+
 def scrape_workday_multi(name, tenant, wd_ver, site):
     api = (f"https://{tenant}.wd{wd_ver}.myworkdayjobs.com"
            f"/wday/cxs/{tenant}/{site}/jobs")
@@ -2190,6 +2295,12 @@ def main():
     for name, token in LEVER_MULTI:
         log(f"  [{name}] Lever (multi)...")
         result = scrape_lever_multi(name, token)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
+    for name, token in ASHBY_MULTI:
+        log(f"  [{name}] Ashby (multi)...")
+        result = scrape_ashby_multi(name, token)
         log(f"  [{name}] {len(result)} candidate(s)")
         all_candidates += result
 

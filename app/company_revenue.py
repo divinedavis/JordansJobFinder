@@ -564,6 +564,39 @@ REVENUE: dict[str, str] = {
     'Penn National Insurance': '$1.0B',
     # Voith Group FY2024/25 (ended 30 Sep 2025), €4,846M continuing ops.
     'Voith': '~$5.3B (Voith Group)',
+
+    # ── $1B+ NYC-HQ wave (2026-08-19) ──
+    # NYC employers the config had never covered. Public companies carry the
+    # most recent fiscal-year total revenue; private firms carry the best
+    # credible estimate with the '(est.)' marker, and funds carry AUM per the
+    # asset-manager convention above.
+    #
+    # NOT actually $1B+, kept deliberately because they are strong NYC
+    # product/program-manager sources and the field is only a size hint:
+    # Sprinklr, Yext, Ramp, Betterment. Their real numbers are below.
+    'Assured Guaranty': '$1.0B',
+    'Betterment': '~$300M (est.)',
+    'Blue Owl Capital': '$2.3B',
+    'Brookfield': '~$95B (Brookfield Corp)',
+    'Conde Nast': '~$2B (est.)',
+    'Cushman & Wakefield': '$9.4B',
+    'Etsy': '$2.8B',
+    'Guggenheim Partners': '~$325B AUM',
+    'Healthfirst': '~$18B',
+    'Hearst': '~$12B (est.)',
+    'Montefiore': '~$7B',
+    'Mount Sinai': '~$12B',
+    'NewYork-Presbyterian': '~$11B',
+    'Oscar Health': '$9.2B',
+    'Outbrain / Teads': '~$1.8B (combined)',
+    'Ramp': '~$700M ARR (est.)',
+    'Schonfeld': '~$13B AUM',
+    'Sloan Kettering': '~$6.5B',
+    'Sprinklr': '$796M',
+    'Taboola': '$1.8B',
+    'UiPath': '$1.4B',
+    'Univision': '~$4.9B (TelevisaUnivision)',
+    'Yext': '$421M',
 }
 
 
