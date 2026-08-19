@@ -622,6 +622,24 @@ REVENUE: dict[str, str] = {
     # ── Reached through their own search box, no API (2026-08-19) ──
     'Colgate-Palmolive': '$20B',
     "Moody's": '$7.1B',
+
+    # ── $1B+ funds (2026-08-19) ──
+    # Asset managers carry AUM per the convention at the top of this module.
+    # The proprietary trading firms in the same wave (Optiver, Tower Research,
+    # Old Mission, Akuna, Belvedere, Five Rings, Vatic Labs) trade their own
+    # capital: no AUM, no disclosed revenue. Per the module's rule they get no
+    # row rather than an invented number, and are allowlisted in the test.
+    'Bracebridge': '~$12B AUM',
+    'ExodusPoint': '~$11B AUM',
+    'Magnetar': '~$20B AUM',
+    'Oak Hill Advisors': '~$65B AUM',
+    'PDT Partners': '~$10B AUM',
+    'Qube Research': '~$28B AUM',
+    'Sixth Street': '~$100B AUM',
+    'Squarepoint': '~$75B AUM',
+    'Viking Global': '~$48B AUM',
+    'Voleon': '~$6B AUM',
+    'Winton': '~$10B AUM',
 }
 
 

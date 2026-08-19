@@ -622,6 +622,27 @@ GREENHOUSE_MULTI = [
     # teads.com, whose board is Greenhouse under the token "teads1" (73 jobs,
     # 12 in New York on 2026-08-19). Probing "outbrain" finds nothing.
     ("Outbrain / Teads", "teads1"),       # NYC HQ, ~$1.8B combined
+    # ── $1B+ hedge funds / quant & prop shops (probed live 2026-08-19) ────────
+    # Sweep of 83 funds across Greenhouse/Lever/Ashby/SmartRecruiters/Workday;
+    # these are the ones with a readable public board. Multi-metro because the
+    # trading firms staff Chicago and NYC roughly equally and pinning them to
+    # one metro throws the other away.
+    ("Squarepoint",      "squarepointcapital"),          # ~$75B AUM
+    ("Qube Research",    "quberesearchandtechnologies"),  # ~$28B AUM
+    ("Optiver",          "optiverus"),                    # prop trading
+    ("Tower Research",   "towerresearchcapital"),         # prop trading
+    ("Old Mission",      "oldmissioncapital"),            # prop trading
+    ("Akuna Capital",    "akunacapital"),                 # prop trading
+    ("Five Rings",       "fiveringsllc"),                 # prop trading
+    ("Vatic Labs",       "vaticlabs"),                    # prop trading
+    ("Sixth Street",     "sixthstreet"),                  # ~$100B AUM
+    ("Oak Hill Advisors","oakhilladvisors"),              # ~$65B AUM
+    ("PDT Partners",     "pdtpartners"),                  # ~$10B AUM
+    ("Magnetar",         "magnetar"),                     # ~$20B AUM
+    ("Winton",           "winton"),                       # ~$10B AUM
+    ("Bracebridge",      "bracebridgecapital"),           # ~$12B AUM
+    ("Viking Global",    "vikingglobalinvestors"),        # ~$48B AUM
+    ("ExodusPoint",      "exoduspoint"),                  # ~$11B AUM
 ]
 
 # Lever: (name, token)
@@ -631,6 +652,7 @@ LEVER_MULTI = [
     ("Spotify", "spotify"),
     # ── Top-10-city $1B+ wave (verified HTTP 200 from droplet 2026-07-19) ──
     ("Dun & Bradstreet", "dnb"),    # Jacksonville HQ, $2.4B
+    ("Belvedere Trading", "belvederetrading"),  # Chicago prop trading
 ]
 
 # Ashby: (name, token). Probed live 2026-08-19 — both boards returned HTTP 200
@@ -643,6 +665,7 @@ MAX_JOB_SITEMAPS = 10
 ASHBY_MULTI = [
     ("UiPath", "uipath"),   # NYC HQ, ~$1.4B revenue
     ("Ramp",   "ramp"),     # NYC HQ
+    ("Voleon", "voleon"),   # ~$6B AUM, systematic
 ]
 
 # Workday: (name, tenant, ver, site)

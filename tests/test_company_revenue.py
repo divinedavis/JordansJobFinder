@@ -39,7 +39,15 @@ def test_every_configured_employer_has_a_revenue_row():
     import re
 
     root = pathlib.Path(__file__).resolve().parent.parent
-    allowed_without_revenue = {"Wayve"}
+    # Wayve is pre-revenue R&D. The trading firms below are proprietary: they
+    # trade their own capital, so they have no AUM and disclose no revenue.
+    # Both are the same case -- the module's rule is no row rather than a
+    # made-up number. Add here only when a figure genuinely does not exist.
+    allowed_without_revenue = {
+        "Wayve",
+        "Optiver", "Tower Research", "Old Mission", "Akuna Capital",
+        "Belvedere Trading", "Five Rings", "Vatic Labs",
+    }
 
     names = set()
     for fname in ("scraper.py", "scraper_finance.py", "scraper_sales.py",
