@@ -640,6 +640,12 @@ REVENUE: dict[str, str] = {
     'Viking Global': '~$48B AUM',
     'Voleon': '~$6B AUM',
     'Winton': '~$10B AUM',
+    # Second wave (tokens read off each firm's own careers page). Headlands and
+    # Susquehanna are proprietary traders -- allowlisted, no invented figure.
+    'Fortress': '~$49B AUM',
+    'Graham Capital': '~$18B AUM',
+    'TPG': '~$250B AUM',
+    'Tudor Investment': '~$15B AUM',
 }
 
 

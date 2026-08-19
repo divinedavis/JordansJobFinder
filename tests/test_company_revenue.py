@@ -47,6 +47,7 @@ def test_every_configured_employer_has_a_revenue_row():
         "Wayve",
         "Optiver", "Tower Research", "Old Mission", "Akuna Capital",
         "Belvedere Trading", "Five Rings", "Vatic Labs",
+        "Headlands Tech", "Susquehanna",
     }
 
     names = set()

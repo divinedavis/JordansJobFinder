@@ -643,6 +643,14 @@ GREENHOUSE_MULTI = [
     ("Bracebridge",      "bracebridgecapital"),           # ~$12B AUM
     ("Viking Global",    "vikingglobalinvestors"),        # ~$48B AUM
     ("ExodusPoint",      "exoduspoint"),                  # ~$11B AUM
+    # Second wave, found by loading each fund's own careers page in a browser
+    # and reading the token out of the embed rather than guessing the slug.
+    # Guessing had missed every one of these: the tokens bear little relation
+    # to the firm name ("tpgcareers", "headlandstechnologiesllc").
+    ("Headlands Tech",   "headlandstechnologiesllc"),     # prop trading, 6 of 7 in NY
+    ("Tudor Investment", "tudorgroup"),                   # ~$15B AUM
+    ("Graham Capital",   "grahamcapitalmanagement"),      # ~$18B AUM
+    ("TPG",              "tpgcareers"),                   # ~$250B AUM, absorbed Angelo Gordon
 ]
 
 # Lever: (name, token)
@@ -843,6 +851,10 @@ WORKDAY_MULTI = [
     ("Brookfield",          "brookfield", 5,   "brookfield"),
     ("Conde Nast",          "condenast",  115, "CondeCareers"),
     ("Tishman Speyer",      "ts",         5,   "tishmanspeyer"),
+    # wd503. Workday version numbers go far higher than the wd1-wd115 range a
+    # tenant sweep would plausibly cover, so this one was only findable by
+    # reading the URL off Fortress's own careers page.
+    ("Fortress",            "fortress",   503, "Careers"),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1350,6 +1362,9 @@ NYC_EXTRA_ORACLE = [
 NYC_EXTRA_ICIMS = [
     ("MSCI",                "globalcareers-msci"),
     ("New York University", "uscareers-nyu"),
+    # Susquehanna. "sig" resolves but is an empty shell (0 job anchors);
+    # careers-sig is the populated board.
+    ("Susquehanna",         "careers-sig"),
 ]
 
 # ── Employers whose whole board is published as a job sitemap ────────────────
