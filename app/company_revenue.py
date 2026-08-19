@@ -646,6 +646,9 @@ REVENUE: dict[str, str] = {
     'Graham Capital': '~$18B AUM',
     'TPG': '~$250B AUM',
     'Tudor Investment': '~$15B AUM',
+
+    # ── Reached via UltiPro (2026-08-19) ──
+    'Vornado': '$1.8B',
 }
 
 

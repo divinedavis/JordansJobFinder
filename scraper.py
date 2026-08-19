@@ -670,6 +670,18 @@ LEVER_MULTI = [
 # employers publish a single page, so the cap only bounds a future surprise.
 MAX_JOB_SITEMAPS = 10
 
+# ── UltiPro / UKG Recruiting ─────────────────────────────────────────────────
+# (name, org_code, board_guid). Both parts come from the board URL, which is
+# only reachable from the company's own careers page — the org code is not
+# derivable from the company name (Vornado is "VOR1000VORRT") and the GUID is
+# not guessable at all.
+ULTIPRO_BOARDS = [
+    ("Vornado", "VOR1000VORRT", "21c9e411-8536-456d-938d-025d89255771"),
+]
+
+# UltiPro pages through Skip/Top; this caps a board that grows unexpectedly.
+MAX_ULTIPRO_PAGES = 8
+
 ASHBY_MULTI = [
     ("UiPath", "uipath"),   # NYC HQ, ~$1.4B revenue
     ("Ramp",   "ramp"),     # NYC HQ
@@ -1966,6 +1978,76 @@ def scrape_dom_search_board(browser, name, url_template):
     return candidates
 
 
+def scrape_ultipro(name, org, board_guid):
+    """UltiPro/UKG public job board API.
+
+    POSTs the board's own search endpoint, the same call its UI makes. The
+    response nests the real location under Locations[].Address (City + State
+    code); the sibling LocalizedDescription is the building name, not a place
+    -- "555 California Street" and "888 Seventh Avenue NY" -- so inferring the
+    metro from it would put a San Francisco role in New York.
+    """
+    api = (f"https://recruiting.ultipro.com/{org}/JobBoard/{board_guid}"
+           "/JobBoardView/LoadSearchResults")
+    candidates = []
+
+    for page in range(MAX_ULTIPRO_PAGES):
+        body = {"opportunitySearch": {"Top": 50, "Skip": page * 50,
+                                      "QueryString": "", "Filters": []}}
+        try:
+            resp = requests.post(api, json=body, headers={
+                **HEADERS, "Content-Type": "application/json",
+                "Accept": "application/json"}, timeout=25)
+            if resp.status_code != 200:
+                log(f"    [{name}] UltiPro {resp.status_code}")
+                return candidates
+            data = resp.json()
+        except Exception as e:
+            log(f"    [{name}] Error: {e}")
+            return candidates
+
+        opportunities = data.get("opportunities") or []
+        if not opportunities:
+            break
+
+        for opp in opportunities:
+            title = (opp.get("Title") or "").strip()
+            if not is_target_role(title):
+                continue
+
+            location, city = "", None
+            for loc in opp.get("Locations") or []:
+                addr = (loc or {}).get("Address") or {}
+                bits = [addr.get("City") or "",
+                        ((addr.get("State") or {}).get("Code") or "")]
+                text = ", ".join(b for b in bits if b)
+                if not text:
+                    continue
+                found = infer_pm_city_or_extra(text)
+                if found:
+                    location, city = text, found
+                    break
+            if not city or not level_ok(title, city):
+                continue
+
+            posted = (opp.get("PostedDate") or "")[:10]
+            if posted and not is_recent_iso(posted):
+                continue
+
+            candidates.append(make_job(
+                title=title,
+                url=f"https://recruiting.ultipro.com/{org}/JobBoard/{board_guid}"
+                    f"/OpportunityDetail?opportunityId={opp.get('Id','')}",
+                company=name, city=city, posted=posted, location=location,
+                source="ultipro"
+            ))
+
+        if len(opportunities) < 50:
+            break
+
+    return candidates
+
+
 def scrape_jobs_sitemap(name, base_url):
     """Read a whole board out of a ".jobs"-style job sitemap.
 
@@ -2590,6 +2672,12 @@ def main():
     for name, token in LEVER_MULTI:
         log(f"  [{name}] Lever (multi)...")
         result = scrape_lever_multi(name, token)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
+    for name, org, board_guid in ULTIPRO_BOARDS:
+        log(f"  [{name}] UltiPro...")
+        result = scrape_ultipro(name, org, board_guid)
         log(f"  [{name}] {len(result)} candidate(s)")
         all_candidates += result
 
