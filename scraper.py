@@ -1829,6 +1829,105 @@ def scrape_lever_multi(name, token):
     return candidates
 
 
+# ── Boards with no API at all, driven through their own search box ───────────
+# Last resort for employers whose careers site renders entirely in JS and
+# exposes no JSON endpoint, no sitemap and no recognised ATS. Rather than a
+# hand-written scraper per company (the JPMorgan / Goldman / MetLife pattern),
+# these share one heuristic harvester: load the board's OWN search URL for each
+# target term, then take every anchor whose href looks like a job detail page.
+#
+# Searching rather than crawling is the whole point. These boards paginate, and
+# harvesting page one of an unfiltered board found zero product/program roles
+# across all five -- the matches are simply deeper in. Two searches per board
+# beats paginating hundreds of postings.
+#
+# The harvester is deliberately loose about what it picks up: it also catches
+# "LOG IN", "Next Slide" and similar chrome. That is harmless, because
+# is_target_role drops anything that is not a product/program role before any
+# of it reaches a card.
+#
+# {q} is the URL-encoded search term.
+# Only boards whose search parameter was VERIFIED to actually filter belong
+# here. EmblemHealth (?k=), Related (?search=) and Estee Lauder (?search=) all
+# answer 200 and silently ignore the term -- EmblemHealth even redirects back
+# to its landing page -- so they would burn two page loads a day to re-read
+# page one of an unfiltered board forever. They are left out until someone
+# finds their real search URL.
+DOM_SEARCH_BOARDS = [
+    ("Colgate-Palmolive",  "https://jobs.colgate.com/search/?q={q}"),
+    ("Moody's",            "https://careers.moodys.com/en/search-jobs?keyword={q}"),
+]
+
+DOM_SEARCH_TERMS = ["product+manager", "program+manager"]
+
+# An href that looks like a job detail page rather than nav chrome.
+_DOM_JOB_HREF = re.compile(
+    r"/(job|jobs|career|careers|position|opening|requisition|vacancy)s?[/\-][^/]*\d|"
+    r"/job/|/jobs/\d|jobId=|requisitionId=|/opportunity/|/postings?/", re.I)
+
+# The anchor's own text is the title. The location lives in the enclosing ROW
+# (tr / li / article), not in the tightest wrapper -- on Colgate the tight
+# wrapper holds only the title while the row holds "Piscataway, NJ, USA".
+_DOM_EXTRACT = """els => els.map(e => {
+  const box = e.closest('li,tr,article,[class*=card],[class*=Card],[class*=job],[class*=Job],[class*=result],[class*=Result],[class*=tile],[class*=item]') || e.parentElement;
+  const row = e.closest('tr,li,article') || (box && box.parentElement) || e.parentElement;
+  return [e.href, (e.innerText||'').trim().slice(0,140), (row ? (row.innerText||'') : '').trim().slice(0,300)];
+})"""
+
+
+def scrape_dom_search_board(browser, name, url_template):
+    """Harvest a JS-only board by driving its own search box.
+
+    Takes the browser rather than a page: each search gets a FRESH page, because
+    one failed goto leaves a shared page in a state that breaks every later
+    board (the same reason the run wraps its Playwright scrapers in pw_collect).
+    """
+    candidates, seen = [], set()
+
+    for term in DOM_SEARCH_TERMS:
+        page = None
+        try:
+            page = browser.new_page(user_agent=HEADERS["User-Agent"])
+            page.set_default_timeout(30_000)
+            page.set_default_navigation_timeout(30_000)
+            page.goto(url_template.format(q=term), wait_until="domcontentloaded")
+            page.wait_for_timeout(8_000)
+            rows = page.eval_on_selector_all("a[href]", _DOM_EXTRACT)
+        except Exception as e:
+            log(f"    [{name}] {term}: {type(e).__name__}: {e}")
+            continue
+        finally:
+            if page is not None:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+
+        for href, text, rowtext in rows:
+            if not href or not _DOM_JOB_HREF.search(href) or href in seen:
+                continue
+            title = " ".join((text or "").split())
+            if len(title) < 4 or not is_target_role(title):
+                continue
+            # The row text repeats the title; drop it so only the location and
+            # the surrounding metadata are left to infer the metro from.
+            location = " ".join((rowtext or "").replace(text or "", " ").split())[:160]
+            city = infer_pm_city_or_extra(location)
+            if not city or not level_ok(title, city):
+                continue
+            if not href.lower().startswith(("http://", "https://")):
+                continue
+            seen.add(href)
+            # These boards carry no posting date, so the card falls back to the
+            # run date the same way the undated SuccessFactors sites do.
+            candidates.append(make_job(
+                title=title, url=href, company=name, city=city,
+                posted="Unknown", location=location, source="dom-search"
+            ))
+
+    return candidates
+
+
 def scrape_jobs_sitemap(name, base_url):
     """Read a whole board out of a ".jobs"-style job sitemap.
 
@@ -2503,6 +2602,13 @@ def main():
             except Exception as exc:
                 log(f"  [{label}] FAILED: {type(exc).__name__}: {exc}")
                 return []
+
+        for _dom_name, _dom_url in DOM_SEARCH_BOARDS:
+            log(f"  [{_dom_name}] DOM search...")
+            _dom_hits = pw_collect(_dom_name, scrape_dom_search_board,
+                                   browser, _dom_name, _dom_url)
+            log(f"  [{_dom_name}] {len(_dom_hits)} candidate(s)")
+            all_candidates += _dom_hits
 
         all_candidates += pw_collect("JPMorgan Chase", scrape_jpmorgan, pw_page)
         all_candidates += pw_collect("Goldman Sachs", scrape_goldman, pw_page)

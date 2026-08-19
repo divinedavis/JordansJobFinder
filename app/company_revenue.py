@@ -618,6 +618,10 @@ REVENUE: dict[str, str] = {
     'New York Life': '~$50B',
     'New York University': '~$6.5B (budget)',
     'Northwell Health': '~$18B',
+
+    # ── Reached through their own search box, no API (2026-08-19) ──
+    'Colgate-Palmolive': '$20B',
+    "Moody's": '$7.1B',
 }
 
 
