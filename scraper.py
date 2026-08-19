@@ -636,6 +636,10 @@ LEVER_MULTI = [
 # Ashby: (name, token). Probed live 2026-08-19 — both boards returned HTTP 200
 # with a non-zero job count. Ashby is the ATS of choice for the newer NYC
 # unicorns, so this registry is the growth path for that whole cohort.
+# A board split across more sitemap pages than this is truncated; both current
+# employers publish a single page, so the cap only bounds a future surprise.
+MAX_JOB_SITEMAPS = 10
+
 ASHBY_MULTI = [
     ("UiPath", "uipath"),   # NYC HQ, ~$1.4B revenue
     ("Ramp",   "ramp"),     # NYC HQ
@@ -1310,6 +1314,27 @@ NYC_EXTRA_ORACLE = [
     ("Con Edison",   "ejcu.fa.us6.oraclecloud.com",                 "CX_1033"),  # 57 vs 67 default
 ]
 
+# ── Employers whose whole board is published as a job sitemap ────────────────
+# A handful of careers sites (the DirectEmployers-style ".jobs" network) expose
+# every posting as sitemap entries whose URL already encodes the city and the
+# title, with <lastmod> for the date:
+#
+#   https://cuny.jobs/new-york-ny/noe-campus-security-assistant/{ID}/job/
+#
+# That is the entire board in one request, with no HTML parsing, no browser and
+# no per-site selectors. Both employers below are otherwise unreachable: their
+# human-facing careers pages render entirely in JS and expose no JSON API.
+#
+# Worth knowing before extending this: it is NOT a general technique. Of 30
+# large NYC employers probed on 2026-08-19, only these two published such a
+# sitemap. Everything else 404s on /sitemaps/index.xml.
+#
+# (name, base_url)
+JOBS_SITEMAP_COMPANIES = [
+    ("CUNY",     "https://cuny.jobs"),               # 247 postings, all NY metro
+    ("News Corp", "https://careers.newscorp.com"),   # 571 postings, 152 NY metro
+]
+
 # SuccessFactors: (name, host, page_size). First use of this platform outside
 # scraper_ats_extra's own Pennsylvania/Maryland block.
 NYC_EXTRA_SF = [
@@ -1781,6 +1806,77 @@ def scrape_lever_multi(name, token):
             title=title, url=job_url, company=name, city=city,
             posted=posted, location=location, source="lever"
         ))
+
+    return candidates
+
+
+def scrape_jobs_sitemap(name, base_url):
+    """Read a whole board out of a ".jobs"-style job sitemap.
+
+    Each <url> is a posting whose <loc> already carries the city slug, the
+    title slug and an id, so title and metro come straight from the URL and no
+    detail page is fetched:
+
+        https://cuny.jobs/new-york-ny/noe-campus-security-assistant/{ID}/job/
+
+    Caveat worth remembering: <lastmod> is a MODIFIED date, not a posted date.
+    It is the only date the sitemap carries, and it tracks the posted date
+    closely enough for the recency window, but a posting edited today looks new.
+    """
+    index_url = f"{base_url}/sitemaps/index.xml"
+    try:
+        resp = requests.get(index_url, headers=HEADERS, timeout=20)
+        if resp.status_code != 200:
+            log(f"    [{name}] sitemap index {resp.status_code}")
+            return []
+        # Only the job sitemaps; these sites also list blog/content sitemaps.
+        sitemaps = [u for u in re.findall(r"<loc>\s*([^<]+?)\s*</loc>", resp.text)
+                    if "job" in u.lower()]
+    except Exception as e:
+        log(f"    [{name}] Error: {e}")
+        return []
+
+    candidates = []
+    for sm in sitemaps[:MAX_JOB_SITEMAPS]:
+        try:
+            r = requests.get(sm, headers=HEADERS, timeout=25)
+            if r.status_code != 200:
+                continue
+        except Exception as e:
+            log(f"    [{name}] {sm}: {e}")
+            continue
+
+        for block in re.findall(r"<url>(.*?)</url>", r.text, re.S):
+            loc = re.search(r"<loc>\s*([^<]+?)\s*</loc>", block)
+            if not loc:
+                continue
+            url = loc.group(1)
+            # /{city-slug}/{title-slug}/{ID}/job/
+            parts = [seg for seg in url.split(base_url.split("://")[-1])[-1].split("/") if seg]
+            if len(parts) < 3:
+                continue
+            city_slug, title_slug = parts[0], parts[1]
+
+            title = title_slug.replace("-", " ").strip()
+            if not is_target_role(title):
+                continue
+
+            # "new-york-ny" -> "New York, NY"; the last token is the state.
+            bits = city_slug.split("-")
+            location = f"{' '.join(bits[:-1]).title()}, {bits[-1].upper()}" if len(bits) > 1 else city_slug
+            city = infer_pm_city_or_extra(location)
+            if not city or not level_ok(title, city):
+                continue
+
+            lastmod = re.search(r"<lastmod>\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", block)
+            posted = lastmod.group(1) if lastmod else ""
+            if posted and not is_recent_iso(posted):
+                continue
+
+            candidates.append(make_job(
+                title=title.title(), url=url, company=name, city=city,
+                posted=posted, location=location, source="jobs-sitemap"
+            ))
 
     return candidates
 
@@ -2338,6 +2434,12 @@ def main():
     for name, token in LEVER_MULTI:
         log(f"  [{name}] Lever (multi)...")
         result = scrape_lever_multi(name, token)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
+    for name, base_url in JOBS_SITEMAP_COMPANIES:
+        log(f"  [{name}] job sitemap...")
+        result = scrape_jobs_sitemap(name, base_url)
         log(f"  [{name}] {len(result)} candidate(s)")
         all_candidates += result
 

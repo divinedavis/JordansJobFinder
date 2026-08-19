@@ -605,6 +605,12 @@ REVENUE: dict[str, str] = {
     'Paramount': '$29B',
     'Tishman Speyer': '~$2B (est.)',
     'Warby Parker': '$771M',
+
+    # ── Employers reached through their job sitemap (2026-08-19) ──
+    # CUNY is a public university system; the figure is its operating budget,
+    # which is the closest honest analogue to revenue for a size hint.
+    'CUNY': '~$4.3B (budget)',
+    'News Corp': '$10B',
 }
 
 
