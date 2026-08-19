@@ -597,6 +597,14 @@ REVENUE: dict[str, str] = {
     'UiPath': '$1.4B',
     'Univision': '~$4.9B (TelevisaUnivision)',
     'Yext': '$421M',
+
+    # ── NYC employers on Oracle / SuccessFactors / Workday (2026-08-19) ──
+    'Con Edison': '$15B',
+    "Macy's": '$22B',
+    'Newmark': '$2.7B',
+    'Paramount': '$29B',
+    'Tishman Speyer': '~$2B (est.)',
+    'Warby Parker': '$771M',
 }
 
 

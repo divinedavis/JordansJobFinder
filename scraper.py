@@ -815,6 +815,7 @@ WORKDAY_MULTI = [
     ("Cushman & Wakefield", "cw",         1,   "External"),
     ("Brookfield",          "brookfield", 5,   "brookfield"),
     ("Conde Nast",          "condenast",  115, "CondeCareers"),
+    ("Tishman Speyer",      "ts",         5,   "tishmanspeyer"),
 ]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1284,12 +1285,48 @@ HOUSTON_EXTRA_ICIMS = [
     ("Kirby",              "kirbycorp"),
 ]
 
+# ── $1B+ NYC employers on non-Workday/Greenhouse platforms (2026-08-19) ──────
+# Same treatment as the Houston block: scraped through scraper_ats_extra's
+# platform functions, then enriched like every other source. Coordinates were
+# read off each company's own careers site, not guessed.
+#
+# Oracle silently ignores an unknown siteNumber and serves the pod's DEFAULT
+# board instead of erroring, so "HTTP 200" is not proof the site code is right.
+# Each code below was picked because it returns a job count DISTINCT from the
+# pod default — that is what confirms it is the company's own site.
+#
+# Deliberately absent:
+#   - Cantor Fitzgerald. Its careers site points at hdow, which is Newmark's
+#     pod (the postings are HUD closing officers and property managers), and no
+#     Cantor-specific site number could be confirmed. Adding it would file
+#     Newmark's jobs under Cantor.
+#   - Related Companies. related.icims.com answers with a newer iCIMS template
+#     that has no a.iCIMS_Anchor nodes, so scrape_icims parses nothing from it.
+#     Needs fetcher work, not a registry line.
+NYC_EXTRA_ORACLE = [
+    ("Macy's",       "ebwh.fa.us2.oraclecloud.com",                 "CX_1001"),  # 3660 vs 4564 default
+    ("Warby Parker", "fa-evdi-saasfaprod1.fa.ocs.oraclecloud.com",  "CX_1"),     # single board, 858
+    ("Newmark",      "hdow.fa.us6.oraclecloud.com",                 "CX_1001"),  # 251 vs 355 default
+    ("Con Edison",   "ejcu.fa.us6.oraclecloud.com",                 "CX_1033"),  # 57 vs 67 default
+]
 
-def collect_houston_extra():
-    """PM-scope candidates from the Houston Oracle/iCIMS employers above."""
+# SuccessFactors: (name, host, page_size). First use of this platform outside
+# scraper_ats_extra's own Pennsylvania/Maryland block.
+NYC_EXTRA_SF = [
+    ("Paramount", "https://careers.paramount.com", 25),
+]
+
+
+def collect_extra_ats():
+    """PM-scope candidates from every Oracle/iCIMS/SuccessFactors employer above.
+
+    infer_pm_city decides the metro per posting, so one pass covers the Houston
+    and NYC registries alike — the split is only about where each was sourced.
+    """
     from types import SimpleNamespace
 
-    from scraper_ats_extra import _safe, scrape_icims, scrape_oracle
+    from scraper_ats_extra import (_safe, scrape_icims, scrape_oracle,
+                                   scrape_successfactors)
 
     def _recent(posted_dt):
         if posted_dt is None:
@@ -1314,6 +1351,12 @@ def collect_houston_extra():
     for name, subdomain in HOUSTON_EXTRA_ICIMS:
         log(f"  [{name}] iCIMS...")
         jobs += _safe(name, scrape_icims, ctx, name, subdomain)
+    for name, host, site in NYC_EXTRA_ORACLE:
+        log(f"  [{name}] Oracle...")
+        jobs += _safe(name, scrape_oracle, ctx, name, host, site)
+    for name, host, page_size in NYC_EXTRA_SF:
+        log(f"  [{name}] SuccessFactors...")
+        jobs += _safe(name, scrape_successfactors, ctx, name, host, page_size)
     return jobs
 
 
@@ -2259,7 +2302,7 @@ def main():
     all_candidates += scrape_citi()
 
     # Fortune 1000 Houston employers on Oracle Cloud / iCIMS.
-    all_candidates += collect_houston_extra()
+    all_candidates += collect_extra_ats()
 
     for name, tenant, ver, site, city in WORKDAY_COMPANIES:
         log(f"  [{name}] Workday...")
