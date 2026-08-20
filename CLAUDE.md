@@ -411,8 +411,12 @@ salary shown. Publishing a newly-parsed low salary instead makes the job fail
 `salary_meets_minimum` and vanish — a deletion dressed up as a display fix.
 `ingest._normalize_one` and `scripts/backfill_salaries.py` both apply the rule.
 Other verticals have no floor and publish whatever the posting says. IT and
-project jobs riding the PM board bypass the PM gates entirely (`sync.
-_search_matches_job`), so their salaries are always safe to show.
+project jobs riding the PM board skip the PM *title/experience* gates
+(`sync._search_matches_job`) but **not** the pay floor — since 2026-08-20 a
+sub-$180K ceiling keeps them off the PM board, because a $88K "Program Manager
+III" next to a $230K TPM is the board's problem no matter which feed it came
+from. A posting with no salary at all still shows (unknown ≠ low). Their own
+project/IT boards keep the no-floor rule.
 
 `ingest._normalize_one` also self-heals: a feed entry with a description but no
 salary gets one parsed at sync time, which covers any platform not yet wired up
