@@ -9,9 +9,9 @@ from reportlab.pdfgen import canvas
 
 
 SAMPLE_STRUCTURED = {
-    "name": "DIVINE DAVIS",
-    "contact_line_1": "New York, NY | 717-659-9140 | divinejdavis@gmail.com",
-    "contact_line_2": "linkedin.com/in/divinejdavis | divinedavis.com",
+    "name": "JORDAN DOE",
+    "contact_line_1": "New York, NY | 555-0142 | jordan.doe@example.com",
+    "contact_line_2": "linkedin.com/in/jordandoe | jordandoe.dev",
     "summary": "Senior Product Manager with 10 years of experience driving digital platform transformations.",
     "experience": [
         {
@@ -146,7 +146,7 @@ def test_render_resume_pdf_produces_valid_pdf(app, tmp_path):
     from pypdf import PdfReader
     reader = PdfReader(io.BytesIO(pdf_bytes))
     text = "\n".join(p.extract_text() or "" for p in reader.pages)
-    assert "DIVINE DAVIS" in text
+    assert "JORDAN DOE" in text
     assert "PROFESSIONAL EXPERIENCE" in text
     assert "JPMorgan Chase" in text
     assert "August 2021" in text
@@ -327,7 +327,7 @@ def test_tailor_resume_structured_parses_json_with_markdown_fences(app, monkeypa
             job_description="Looking for a PM.",
         )
     assert result is not None
-    assert result["name"] == "DIVINE DAVIS"
+    assert result["name"] == "JORDAN DOE"
     assert result["experience"][0]["company"] == "JPMorgan Chase"
 
 
@@ -361,7 +361,7 @@ def test_tailor_resume_structured_tolerates_trailing_prose(app, monkeypatch):
             job_description="Looking for a PM.",
         )
     assert result is not None
-    assert result["name"] == "DIVINE DAVIS"
+    assert result["name"] == "JORDAN DOE"
 
 
 def test_tailor_resume_structured_tolerates_leading_prose(app, monkeypatch):
@@ -393,7 +393,7 @@ def test_tailor_resume_structured_tolerates_leading_prose(app, monkeypatch):
             job_description="Looking for a PM.",
         )
     assert result is not None
-    assert result["name"] == "DIVINE DAVIS"
+    assert result["name"] == "JORDAN DOE"
 
 
 def _seed_match_for_signed_in_user(db_session, with_base_resume=True):
@@ -720,3 +720,91 @@ def test_clicking_tailored_resume_marks_match_applied(signed_in_client, db_sessi
         saved = fresh.query(SavedSearch).filter(SavedSearch.user_id == user_id).first()
         after = [m for m in load_db_matches(saved) if m["id"] == job_id]
         assert after and after[0]["applied"] is True
+
+
+def test_normalize_ligatures_repairs_pdf_extraction_damage():
+    """2026-08-20: the black squares in the rendered resume were real Unicode
+    ligature codepoints (U+FB01 …) that Helvetica can't encode — not the
+    "■" spellings the old fix table was written against, so none of them ever
+    matched. The same PDF also decodes "ti" as "<" in the body font and as "A"
+    in the bold one."""
+    from app.resumes import _normalize_ligatures
+
+    src = (
+        "high-net-worth \ufb01nancial services, opera\u003conal e\ufb03ciency, "
+        "Con\ufb02uence, Cla\ufb02in University, support <ckets, multiple <me "
+        "zones, Change & AdopAon, AnalyAcs & ReporAng, h=p://example.com, "
+        "plaPorm moderniza<on"
+    )
+    fixed = _normalize_ligatures(src)
+    for expected in (
+        "financial", "operational", "efficiency", "Confluence", "Claflin",
+        "support tickets", "multiple time zones", "Adoption", "Analytics",
+        "Reporting", "http://example.com", "platform modernization",
+    ):
+        assert expected in fixed, (expected, fixed)
+    assert "<" not in fixed
+    assert not any(c in fixed for c in "\ufb01\ufb02\ufb03")
+
+
+def test_normalize_ligatures_leaves_clean_text_alone():
+    """The "A means ti" repair only runs on a document already proven broken —
+    otherwise it would turn iPhone into itfhone and PayPal into gibberish."""
+    from app.resumes import _normalize_ligatures
+
+    clean = "Shipped iPhone and iPad apps; PayPal and eBay integrations."
+    assert _normalize_ligatures(clean) == clean
+
+
+def test_renderable_never_leaves_a_black_box():
+    """Anything outside the base-14 font's WinAnsi encoding is folded to ASCII
+    or dropped. A codepoint that reaches ReportLab unencodable is drawn as a
+    solid black square in the middle of a sentence."""
+    from app.resumes import _renderable
+
+    assert _renderable("e\ufb03cient \ufb01nance") == "efficient finance"
+    # cp1252 characters survive untouched (em dash, bullet, accented letters).
+    assert _renderable("caf\u00e9 \u2014 r\u00e9sum\u00e9 \u2022 item") == (
+        "caf\u00e9 \u2014 r\u00e9sum\u00e9 \u2022 item"
+    )
+    # Outside cp1252 with no ASCII form → dropped, not boxed.
+    assert "\u2192" not in _renderable("before \u2192 after")
+
+
+def test_rendered_pdf_carries_no_generator_fingerprint(app, tmp_path):
+    """No "<Company> — Tailored Resume" title, no "(anonymous)" author, no
+    ReportLab producer string. The document properties travel with the file to
+    every recruiter and ATS that opens it."""
+    from pypdf import PdfReader
+    from app.resumes import render_resume_pdf
+
+    out = tmp_path / "resume.pdf"
+    with app.app_context():
+        render_resume_pdf(SAMPLE_STRUCTURED, str(out))
+    meta = PdfReader(str(out)).metadata
+    blob = " ".join(str(v) for v in meta.values()).lower()
+    for banned in ("tailored", "anonymous", "unspecified", "reportlab"):
+        assert banned not in blob, (banned, dict(meta))
+    assert meta["/Title"] == "Jordan Doe Resume"
+    assert meta["/Author"] == "Jordan Doe"
+
+
+def test_heuristic_header_stops_at_the_headline():
+    """"Jordan Doe Senior Product Manager | Private Wealth Management" is a
+    name plus a title — the header used to print all four words as the name,
+    and the leftover "| jordandoe.dev (portfolio)" opened the summary."""
+    from app.resumes import heuristic_structured_parse
+
+    text = (
+        "Jordan Doe Senior Product Manager | Private Wealth Management & AI "
+        "Transformation http://www.linkedin.com/in/jordandoe | Mobile: "
+        "555-0142| jordan.doe@example.com | jordandoe.dev (portfolio)    "
+        "Strategic Product Manager with 10 years of experience in financial "
+        "services."
+    )
+    parsed = heuristic_structured_parse(text, user_email="jordan.doe@example.com")
+    assert parsed["name"] == "JORDAN DOE"
+    assert parsed["summary"].startswith("Strategic Product Manager")
+    # The portfolio domain belongs on the contact line, not in the summary.
+    assert "jordandoe.dev" in parsed["contact_line_2"]
+    assert "jordandoe.dev" not in parsed["summary"]

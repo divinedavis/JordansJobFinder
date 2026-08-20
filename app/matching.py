@@ -402,7 +402,7 @@ def is_admin_email(email: Optional[str]) -> bool:
     is_superuser_email() is intentionally open to every signed-in user, so it
     can't gate the feedback inbox — this stricter check matches the owner
     accounts (SUPERUSER_EMAIL plus any co-owners in ADMIN_EMAILS) exactly.
-    In production that's divinejdavis@gmail.com and khaliefwhetstone@yahoo.com.
+    The addresses themselves come from the environment, never from source.
     """
     addr = (email or "").strip().lower()
     return bool(addr) and addr in ADMIN_EMAILS_SET

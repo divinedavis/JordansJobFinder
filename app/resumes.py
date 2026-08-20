@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
@@ -203,11 +204,30 @@ def _extract_docx_text(raw_bytes: bytes) -> str:
     return text
 
 
-# pypdf decodes some PDFs that use a custom font with multi-letter ligature
-# glyphs into ASCII substitutes (e.g. "ti" comes back as "<"). Repair the
-# common cases so the AI prompt and any fallback render get clean text.
+# Two different corruptions arrive from PDF text extraction, and they are not
+# the same problem:
+#
+# 1. REAL Unicode ligature codepoints (U+FB01 "ﬁ", U+FB02 "ﬂ", U+FB03 "ﬃ"…).
+#    The text is correct; the base-14 Helvetica the PDF is rendered with just
+#    can't encode them, so ReportLab draws a BLACK BOX. _LIGATURE_CHARS below
+#    expands them back to plain letters. These are what actually show up in
+#    Divine's resume — the "■" spellings in _LIGATURE_WORD_FIXES were written
+#    against the rendered black box, so they never matched the source text and
+#    every one of those words shipped with a box in it.
+#
+# 2. Mis-mapped ToUnicode CMaps, where a multi-letter glyph decodes to an
+#    unrelated ASCII character ("ti" → "<" in the body font and → "A" in the
+#    bold one, "tf" → "P", "tt" → "="). Repaired by the generic rules in
+#    _normalize_ligatures plus the word table for cases no rule can catch.
+_LIGATURE_CHARS = {
+    "\ufb00": "ff", "\ufb01": "fi", "\ufb02": "fl",
+    "\ufb03": "ffi", "\ufb04": "ffl", "\ufb05": "ft", "\ufb06": "st",
+    "\u0132": "IJ", "\u0133": "ij",
+}
+
 _LIGATURE_WORD_FIXES = {
-    # ff/fi/fl/ffi all collapse to "■" (U+25A0) — disambiguate by surrounding letters
+    # Legacy "■" spellings: kept for text that was extracted (or stored) with
+    # the black box already baked in.
     "■nancial": "financial", "■nance": "finance",
     "e■ciency": "efficiency", "e■cient": "efficient",
     "su■cient": "sufficient", "pro■cient": "proficient",
@@ -242,16 +262,66 @@ _LIGATURE_WORD_FIXES = {
 def _normalize_ligatures(text: str) -> str:
     if not text:
         return text
+    for bad, good in _LIGATURE_CHARS.items():
+        if bad in text:
+            text = text.replace(bad, good)
+    broken_cmap = False
     for bad, good in _LIGATURE_WORD_FIXES.items():
         if bad in text:
             text = text.replace(bad, good)
-    # "ti" -> "<" appears between letters across the entire document. Real "<"
-    # symbols don't show up in normal resume prose, so a bounded replacement is
-    # safe enough.
+            broken_cmap = True
+    if re.search(r"(?<=[A-Za-z])<|<(?=[a-z])", text):
+        broken_cmap = True
+    # "ti" -> "<" across the whole document. A "<" touching a letter on either
+    # side is never real resume prose, so repair it wherever it sits — the old
+    # rule required a letter on BOTH sides and so left "support <ckets" and
+    # "multiple <me zones" mangled.
     text = re.sub(r"(?<=[A-Za-z])<(?=[A-Za-z])", "ti", text)
-    # Trailing "<" after a letter (e.g. "Analy<cs") — covers ti at end of token.
     text = re.sub(r"(?<=[A-Za-z])<(?=[\s.,;:!?\-/])", "ti", text)
+    text = re.sub(r"(?<![A-Za-z])<(?=[a-z])", "ti", text)
+    # "tt" -> "=" ("be=er"). No English word contains "=", so this needs no guard.
+    text = re.sub(r"(?<=[a-z])=(?=[a-z])", "tt", text)
+    # The bold face in the same document maps "ti" to "A" instead ("AdopAon",
+    # "AnalyAcs", "ReporAng"). A capital wedged between two lowercase letters
+    # isn't English — but it IS "iPhone", "PayPal", "eBay", so only undo it in a
+    # document already proven to have a broken CMap by one of the repairs above.
+    if broken_cmap:
+        text = re.sub(r"(?<=[a-z])A(?=[a-z])", "ti", text)
     return text
+
+
+def _renderable(text: str) -> str:
+    """Strip anything the PDF's base-14 fonts can't draw.
+
+    Helvetica is WinAnsi-encoded: hand it a codepoint outside cp1252 and
+    ReportLab paints a solid black box. Ligatures expand to their letters,
+    everything else falls back to its closest ASCII form (and is dropped if it
+    has none), so a strange character can never again surface as a black mark
+    in the middle of a sentence.
+    """
+    if not text:
+        return text
+    out = []
+    for ch in text:
+        expanded = _LIGATURE_CHARS.get(ch)
+        if expanded is not None:
+            out.append(expanded)
+            continue
+        try:
+            ch.encode("cp1252")
+        except UnicodeEncodeError:
+            folded = "".join(
+                c for c in unicodedata.normalize("NFKD", ch)
+                if not unicodedata.combining(c)
+            )
+            try:
+                folded.encode("cp1252")
+            except UnicodeEncodeError:
+                folded = ""
+            out.append(folded)
+        else:
+            out.append(ch)
+    return "".join(out)
 
 
 def save_base_resume(user_id: int, filename: str, raw_bytes: bytes, kind: str) -> str:
@@ -350,7 +420,15 @@ _MAX_EDUCATION = 10
 
 
 def _s(value) -> str:
-    return value.strip()[:_MAX_STR] if isinstance(value, str) else ""
+    """Coerce + bound one field, and guarantee the PDF can draw every glyph.
+
+    Every string that reaches the renderer passes through here, which makes it
+    the one place to enforce "no black boxes" — the AI's output goes through it
+    as well as the heuristic fallback's.
+    """
+    if not isinstance(value, str):
+        return ""
+    return _renderable(value.strip())[:_MAX_STR]
 
 
 def _sanitize_structured(data: dict) -> dict:
@@ -564,9 +642,43 @@ def _education_block(data: dict, styles) -> list:
     return blocks
 
 
-def render_resume_pdf(data: dict, output_path: str, title: str = "Tailored Resume") -> str:
+def _scrub_pdf_metadata(path: str, title: str, author: str) -> None:
+    """Rewrite the PDF's document properties so nothing announces a machine.
+
+    A resume is read by people and by ATS parsers, both of which can see the
+    document properties. ReportLab leaves "(anonymous)", "(unspecified)" and
+    its own Producer string there, and the title used to read
+    "<Company> — Tailored Resume" — a per-employer, auto-generated fingerprint
+    sitting in the file the candidate hands over. It carries the candidate's
+    own name and nothing else now.
+    """
+    try:
+        from pypdf import PdfReader, PdfWriter
+
+        reader = PdfReader(path)
+        writer = PdfWriter()
+        for page in reader.pages:
+            writer.add_page(page)
+        writer.add_metadata({
+            "/Title": title,
+            "/Author": author,
+            "/Subject": "Resume",
+            "/Creator": author,
+            "/Producer": "",
+            "/Keywords": "",
+        })
+        with open(path, "wb") as fh:
+            writer.write(fh)
+    except Exception:
+        # A cosmetic pass — never lose the resume over it.
+        logger.exception("Could not scrub PDF metadata for %s", path)
+
+
+def render_resume_pdf(data: dict, output_path: str, title: Optional[str] = None) -> str:
     """Render the structured resume dict to a PDF at output_path."""
     _ensure_dir(os.path.dirname(output_path))
+    author = (data.get("name") or "").strip().title()
+    title = title or (f"{author} Resume" if author else "Resume")
     doc = SimpleDocTemplate(
         output_path,
         pagesize=LETTER,
@@ -575,6 +687,9 @@ def render_resume_pdf(data: dict, output_path: str, title: str = "Tailored Resum
         topMargin=0.55 * inch,
         bottomMargin=0.55 * inch,
         title=title,
+        author=author,
+        subject="Resume",
+        creator=author,
     )
     styles = _styles()
     flowables = []
@@ -586,6 +701,7 @@ def render_resume_pdf(data: dict, output_path: str, title: str = "Tailored Resum
     flowables.extend(_competencies_block(data, styles))
     flowables.extend(_education_block(data, styles))
     doc.build(flowables)
+    _scrub_pdf_metadata(output_path, title=title, author=author)
     return output_path
 
 
@@ -631,7 +747,8 @@ def generate_tailored_resume(
         if not structured:
             return None
     out_path = tailored_pdf_path(user.id, job.id)
-    render_resume_pdf(_sanitize_structured(structured), out_path, title=f"{job.company} — Tailored Resume")
+    # No company or "tailored" in the title — see _scrub_pdf_metadata.
+    render_resume_pdf(_sanitize_structured(structured), out_path)
     return out_path
 
 
@@ -785,6 +902,39 @@ def _parse_education(blob: str) -> list:
     return rows[:4]
 
 
+# Words that start a headline rather than continue a name. Hitting one ends
+# the name — "Divine Davis Senior Product Manager | ..." is a name plus a title.
+_TITLE_WORDS = {
+    "senior", "sr", "junior", "jr", "lead", "principal", "staff", "chief",
+    "head", "vice", "president", "vp", "director", "manager", "engineer",
+    "analyst", "product", "program", "project", "consultant", "specialist",
+    "associate", "architect", "developer", "designer", "officer", "executive",
+    "technical", "software", "data", "certified", "mba", "pmp",
+}
+
+# A contact fragment left over at the front of the summary: a separator, a URL,
+# a bare domain, a "(portfolio)" aside, or a phone number.
+_LEADING_CONTACT = re.compile(
+    r"^[\s|•·,;–—-]*(?:https?://\S+|www\.\S+|[\w-]+\.(?:com|io|dev|me|net|org)\S*"
+    r"|\([^)]{1,20}\)|\+?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})",
+    re.I,
+)
+
+
+def _strip_leading_contact(text: str) -> str:
+    """Drop contact debris the preamble split left at the head of the summary.
+
+    Splitting the preamble on the email address leaves whatever followed it —
+    "| example.com (portfolio) Strategic Product Manager with..." — as the
+    opening words of the profile paragraph.
+    """
+    previous = None
+    while text and text != previous:
+        previous = text
+        text = _LEADING_CONTACT.sub("", text, count=1)
+    return text.lstrip(" |•·,;–—-").strip()
+
+
 def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, str]:
     """Pull name, contact line 1, contact line 2 out of the resume preamble."""
     if not preamble:
@@ -793,11 +943,17 @@ def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, st
     email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", flat)
     phone_match = re.search(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", flat)
     linkedin_match = re.search(r"linkedin\.com/in/[\w-]+", flat, re.I)
-    site_match = re.search(r"\b([\w-]+\.(?:com|io|dev|me|net))\b", flat, re.I)
-    # Name: first 2-3 capitalized words before the first contact token.
+    # Name: the words before the first contact token, cut at the headline.
+    # Resumes routinely put "Name | Title | Specialty" on one line, so taking
+    # the first four words blindly produced "DIVINE DAVIS SENIOR PRODUCT".
     earliest = min([m.start() for m in [email_match, phone_match, linkedin_match] if m] or [len(flat)])
-    name_blob = flat[:earliest].strip(" |•·–—-,")
-    name = " ".join(name_blob.split()[:4]).upper() if name_blob else ""
+    name_blob = re.split(r"[|•·\t]", flat[:earliest])[0].strip(" |•·–—-,")
+    name_words = []
+    for word in name_blob.split()[:4]:
+        if word.strip(".,").lower() in _TITLE_WORDS:
+            break
+        name_words.append(word)
+    name = " ".join(name_words).upper()
     contact_bits = []
     if phone_match:
         contact_bits.append(phone_match.group(0))
@@ -809,8 +965,17 @@ def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, st
     contact_2_bits = []
     if linkedin_match:
         contact_2_bits.append(linkedin_match.group(0))
-    if site_match and site_match.group(0) not in (linkedin_match.group(0) if linkedin_match else ""):
-        contact_2_bits.append(site_match.group(0))
+    # The first bare domain in the preamble is usually part of the LinkedIn URL
+    # or the email host, which is why the portfolio site kept getting dropped.
+    # Walk the matches and take the first one that's neither.
+    skip = (linkedin_match.group(0) if linkedin_match else "") + " " + (
+        email_match.group(0) if email_match else ""
+    )
+    for site in re.finditer(r"\b([\w-]+\.(?:com|io|dev|me|net|org))\b", flat, re.I):
+        if site.group(0).lower() in skip.lower():
+            continue
+        contact_2_bits.append(site.group(0))
+        break
     contact_2 = " | ".join(contact_2_bits)
     return name, contact_1, contact_2
 
@@ -824,6 +989,20 @@ def heuristic_structured_parse(text: str, user_email: str = "") -> dict:
         sections.get("_preamble", text[:500]), user_email
     )
     summary = sections.get("summary", "").strip()
+    # A resume with no recognisable section headers puts the WHOLE document in
+    # "summary", name and contact block included. Cut past the contact details
+    # so the profile paragraph starts where the prose does.
+    if summary and "_preamble" not in sections:
+        # The LAST contact token in the opening block, not the first — a header
+        # line runs "linkedin … | phone | email | site", so cutting at the
+        # first match leaves the rest of the contact line in the paragraph.
+        heads = list(re.finditer(
+            r"[\w.+-]+@[\w-]+\.[\w.-]+|linkedin\.com/in/[\w-]+"
+            r"|\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}",
+            summary[:400], re.I,
+        ))
+        if heads:
+            summary = _strip_leading_contact(summary[heads[-1].end():])
     if not summary and "_preamble" in sections:
         # Use the preamble paragraph (after the name) as a summary fallback.
         pre = sections["_preamble"]
@@ -833,7 +1012,7 @@ def heuristic_structured_parse(text: str, user_email: str = "") -> dict:
         )
         if idx != -1:
             after = pre[idx:].split(" ", 1)
-            summary = after[1].strip() if len(after) > 1 else ""
+            summary = _strip_leading_contact(after[1]) if len(after) > 1 else ""
     experience = _parse_experience(sections.get("experience", ""))
     competencies = _parse_competencies(sections.get("competencies", ""))
     education = _parse_education(sections.get("education", ""))

@@ -92,12 +92,12 @@ def test_is_admin_email_matches_owner_set(app):
 
     _catalog.ADMIN_EMAILS_SET.clear()
     _catalog.ADMIN_EMAILS_SET.update(
-        {"divinejdavis@gmail.com", "khaliefwhetstone@yahoo.com"}
+        {"owner@example.com", "co-owner@example.com"}
     )
     try:
-        assert is_admin_email("divinejdavis@gmail.com") is True
-        assert is_admin_email("khaliefwhetstone@yahoo.com") is True
-        assert is_admin_email("KhaliefWhetstone@Yahoo.com") is True
+        assert is_admin_email("owner@example.com") is True
+        assert is_admin_email("co-owner@example.com") is True
+        assert is_admin_email("Co-Owner@Example.com") is True
         assert is_admin_email("someone-else@example.com") is False
         assert is_admin_email(None) is False
         assert is_admin_email("") is False

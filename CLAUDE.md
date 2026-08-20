@@ -346,6 +346,37 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
 - Dashboard renders a "Tailored Resume" button on every match card that has a TailoredResume row.
 - Required env: `ANTHROPIC_API_KEY=sk-ant-...` in `.env`. Optional: `ANTHROPIC_MODEL`, `RESUME_UPLOAD_DIR`, `RESUME_TAILORED_DIR`, `RESUME_MAX_UPLOAD_BYTES`.
 
+### Rendered PDFs carry no generator fingerprint (2026-08-20)
+
+`render_resume_pdf` sets the document properties to the candidate's own name
+and `_scrub_pdf_metadata` rewrites them again after the build. Before this the
+title read `"<Company> — Tailored Resume"` with `/Author "(anonymous)"` and
+ReportLab's producer string — an auto-generated, per-employer fingerprint
+inside the file a recruiter or ATS opens. **Don't reintroduce a company or the
+word "tailored" into the PDF title.** The 3,197 files already on disk were
+rewritten with `scripts/scrub_resume_metadata.py` (metadata only — AI-tailored
+page content can't be regenerated without the API).
+
+### Black squares in a rendered resume are an encoding failure, not a font bug
+
+The base-14 Helvetica the PDF renders with is WinAnsi-encoded, so any codepoint
+outside cp1252 comes out as a solid black box. Two separate corruptions arrive
+from `pypdf` text extraction and both are repaired in `app/resumes.py`:
+
+1. **Real ligature codepoints** (`U+FB01 ﬁ`, `U+FB02 ﬂ`, `U+FB03 ﬃ`) — expanded
+   by `_LIGATURE_CHARS`. The older `_LIGATURE_WORD_FIXES` table was written
+   against the *rendered* "■" and so never matched the source text; every one
+   of those words shipped with a box in it for months.
+2. **Mis-mapped ToUnicode CMaps** — "ti" decodes as `<` in one font and as `A`
+   in another, "tf" as `P`, "tt" as `=`. The `A` rule only runs on a document
+   already proven broken by another repair, because "iPhone"/"PayPal" are real.
+
+`_renderable()` is the backstop: every string reaching the renderer goes through
+`_s()`, which folds anything cp1252 can't hold down to ASCII or drops it. **A
+black box should never be possible again — if one appears, `_s()` was bypassed.**
+Tests: `tests/test_resumes.py::test_normalize_ligatures_repairs_pdf_extraction_damage`,
+`::test_renderable_never_leaves_a_black_box`.
+
 ## Resume-Derived Experience Matching (2026-07-19)
 
 - `app/experience.py` — `estimate_resume_years()` date-parses employment ranges
