@@ -63,6 +63,12 @@ class Config:
     RESUME_UPLOAD_DIR = os.getenv("RESUME_UPLOAD_DIR", str(BASE_DIR / "resumes" / "base"))
     RESUME_TAILORED_DIR = os.getenv("RESUME_TAILORED_DIR", str(BASE_DIR / "resumes" / "tailored"))
     RESUME_MAX_UPLOAD_BYTES = int(os.getenv("RESUME_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))  # 5 MB
+    # Contact-line link rewrites, as a JSON object: {"olddomain.com": "https://…"}.
+    # A base resume usually carries a bare domain ("divinedavis.com"); this maps
+    # it to the URL the candidate actually wants recruiters to land on. Kept in
+    # the environment rather than in source — the repo is public and these are
+    # personal URLs.
+    RESUME_LINK_REWRITES = os.getenv("RESUME_LINK_REWRITES", "{}")
 
     # Secure session cookies
     SESSION_COOKIE_SECURE = True

@@ -67,16 +67,22 @@ CRITICAL RULES:
 Output ONLY a JSON object with this exact shape. No markdown fences, no commentary:
 
 {{
-  "name": "FULL NAME IN ALL CAPS",
-  "contact_line_1": "City, ST | phone | email",
-  "contact_line_2": "linkedin.com/in/handle | website",
+  "name": "Full Name, exactly as written on the base resume",
+  "headline": "Current Title | Specialty or focus areas",
+  "contact_line_1": "linkedin.com/in/handle | Mobile: phone | email | website",
+  "contact_line_2": "",
   "summary": "2-4 sentence professional summary tailored to this job. Lead with the candidate's seniority and years of experience.",
   "experience": [
     {{
       "company": "Company name",
-      "title": "Role title",
-      "dates": "Month Year – Month Year (or Present)",
-      "bullets": ["Bullet 1.", "Bullet 2.", "Bullet 3."]
+      "dates": "Month Year – Month Year (or Present) — the WHOLE span at this employer",
+      "roles": [
+        {{
+          "title": "Role title held at that employer",
+          "dates": "Month Year – Month Year (or Present) for THIS role",
+          "bullets": ["Bullet 1.", "Bullet 2.", "Bullet 3."]
+        }}
+      ]
     }}
   ],
   "competencies": [
@@ -85,10 +91,14 @@ Output ONLY a JSON object with this exact shape. No markdown fences, no commenta
     {{"label": "Group 3 Label", "items": "Comma-separated items."}}
   ],
   "education": [
-    {{"degree": "Degree name", "school": "School name"}}
+    {{"school": "School name", "degree": "Degree name", "dates": "Month Year"}}
   ],
   "tools": "Tool1, Tool2, Tool3"
 }}
+
+One employer with two roles (a promotion) is ONE experience entry with TWO
+objects in "roles" — do not repeat the company. Keep the employers, roles and
+dates in the same order they appear on the base resume (most recent first).
 
 If a field is unknown from the base resume, use an empty string or empty array — but DO populate every key.
 
@@ -287,6 +297,10 @@ def _normalize_ligatures(text: str) -> str:
     # document already proven to have a broken CMap by one of the repairs above.
     if broken_cmap:
         text = re.sub(r"(?<=[a-z])A(?=[a-z])", "ti", text)
+        # "tti" -> "p" ("cupng" for "cutting"). No English word has a lowercase
+        # letter followed by "png", so the tail is unambiguous inside a
+        # document already known to be corrupt.
+        text = re.sub(r"(?<=[a-z])png\b", "tting", text)
     return text
 
 
@@ -441,24 +455,79 @@ def _s(value) -> str:
     return _renderable(value.strip())[:_MAX_STR]
 
 
+def _link_rewrites() -> dict:
+    """Contact-line rewrites from config, e.g. a bare domain -> a real URL."""
+    raw = ""
+    try:
+        raw = current_app.config.get("RESUME_LINK_REWRITES", "") or ""
+    except RuntimeError:  # outside an app context
+        return {}
+    if not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("RESUME_LINK_REWRITES is not valid JSON; ignoring")
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(k): str(v) for k, v in parsed.items() if k and v}
+
+
+def _apply_link_rewrites(line: str) -> str:
+    """Swap a bare domain for the URL the candidate actually wants used.
+
+    Applied longest-key-first and only when the match isn't already part of a
+    longer URL, so rewriting "example.com" doesn't corrupt an
+    "https://example.com/portfolio.html" that's already correct.
+    """
+    if not line:
+        return line
+    for old, new in sorted(_link_rewrites().items(), key=lambda kv: -len(kv[0])):
+        if old not in line:
+            continue
+        pattern = re.compile(
+            r"(?<![\w./-])" + re.escape(old) + r"(?![\w/.-])", re.I
+        )
+        line = pattern.sub(new, line)
+    return line
+
+
+def _role_entry(role: dict) -> dict:
+    bullets = [
+        _s(b) for b in (role.get("bullets") or [])[:_MAX_BULLETS]
+        if isinstance(b, str) and b.strip()
+    ]
+    return {"title": _s(role.get("title")), "dates": _s(role.get("dates")), "bullets": bullets}
+
+
 def _sanitize_structured(data: dict) -> dict:
     """Coerce a resume dict (AI- or heuristic-produced) to the exact schema the
-    renderer expects. Unknown keys dropped; types coerced; lists bounded."""
+    renderer expects. Unknown keys dropped; types coerced; lists bounded.
+
+    An experience entry holds a company plus one or more ROLES, because a
+    promotion inside one employer prints as a single company heading with two
+    dated titles under it. The flat {company, title, dates, bullets} shape is
+    still accepted — every tailored resume generated before 2026-08-20 used it,
+    and the model occasionally still answers that way.
+    """
     if not isinstance(data, dict):
         return {}
     experience = []
-    for role in (data.get("experience") or [])[:_MAX_EXPERIENCE]:
-        if not isinstance(role, dict):
+    for entry in (data.get("experience") or [])[:_MAX_EXPERIENCE]:
+        if not isinstance(entry, dict):
             continue
-        bullets = [
-            _s(b) for b in (role.get("bullets") or [])[:_MAX_BULLETS]
-            if isinstance(b, str) and b.strip()
+        roles = [
+            _role_entry(r) for r in (entry.get("roles") or [])[:_MAX_EXPERIENCE]
+            if isinstance(r, dict)
         ]
+        if not roles and (entry.get("title") or entry.get("bullets")):
+            roles = [_role_entry(entry)]
+        roles = [r for r in roles if r["title"] or r["bullets"] or r["dates"]]
         experience.append({
-            "company": _s(role.get("company")),
-            "title": _s(role.get("title")),
-            "dates": _s(role.get("dates")),
-            "bullets": bullets,
+            "company": _s(entry.get("company")),
+            "dates": _s(entry.get("dates")),
+            "roles": roles,
         })
     competencies = [
         {"label": _s(c.get("label")), "items": _s(c.get("items"))}
@@ -466,14 +535,19 @@ def _sanitize_structured(data: dict) -> dict:
         if isinstance(c, dict)
     ]
     education = [
-        {"degree": _s(e.get("degree")), "school": _s(e.get("school"))}
+        {
+            "degree": _s(e.get("degree")),
+            "school": _s(e.get("school")),
+            "dates": _s(e.get("dates")),
+        }
         for e in (data.get("education") or [])[:_MAX_EDUCATION]
         if isinstance(e, dict)
     ]
     return {
         "name": _s(data.get("name")),
-        "contact_line_1": _s(data.get("contact_line_1")),
-        "contact_line_2": _s(data.get("contact_line_2")),
+        "headline": _s(data.get("headline")),
+        "contact_line_1": _apply_link_rewrites(_s(data.get("contact_line_1"))),
+        "contact_line_2": _apply_link_rewrites(_s(data.get("contact_line_2"))),
         "summary": _s(data.get("summary")),
         "experience": experience,
         "competencies": competencies,
@@ -485,50 +559,59 @@ def _sanitize_structured(data: dict) -> dict:
 # ── PDF rendering ────────────────────────────────────────────────────────────
 
 def _styles():
+    """Layout mirrors the candidate's own Word resume: a centred name block over
+    a rule, then black underlined ALL-CAPS section headings with a colon,
+    company/date rows in bold with the dates flush right, and hanging bullets."""
     base = ParagraphStyle(
-        "Base", fontName="Helvetica", fontSize=10, leading=13, textColor=black
+        "Base", fontName="Helvetica", fontSize=10, leading=13.5, textColor=black
     )
     return {
         "name": ParagraphStyle(
-            "Name", parent=base, fontName="Helvetica-Bold", fontSize=24,
-            textColor=ACCENT, alignment=TA_CENTER, leading=28, spaceAfter=4,
+            "Name", parent=base, fontName="Helvetica-Bold", fontSize=14,
+            textColor=black, alignment=TA_CENTER, leading=17, spaceAfter=2,
+        ),
+        "headline": ParagraphStyle(
+            "Headline", parent=base, fontSize=10.5, alignment=TA_CENTER,
+            leading=14, spaceAfter=1,
         ),
         "contact": ParagraphStyle(
             "Contact", parent=base, alignment=TA_CENTER, fontSize=10,
-            textColor=black, leading=13,
+            textColor=black, leading=14,
         ),
         "summary": ParagraphStyle(
-            "Summary", parent=base, fontSize=10.5, leading=14, spaceAfter=10,
+            "Summary", parent=base, fontSize=10.5, leading=14.5, spaceBefore=8,
+            spaceAfter=6,
         ),
         "section": ParagraphStyle(
-            "Section", parent=base, fontName="Helvetica-Bold", fontSize=12.5,
-            textColor=ACCENT, leading=15, spaceBefore=10, spaceAfter=2,
+            "Section", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
+            textColor=black, leading=14, spaceBefore=10, spaceAfter=4,
         ),
         "company": ParagraphStyle(
-            "Company", parent=base, fontName="Helvetica-Bold", fontSize=11,
-            textColor=ACCENT, leading=14,
+            "Company", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
+            leading=14,
         ),
-        "dates": ParagraphStyle(
-            "Dates", parent=base, fontName="Helvetica-Bold", fontSize=10,
+        "company_dates": ParagraphStyle(
+            "CompanyDates", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
             alignment=TA_RIGHT, leading=14,
         ),
         "role": ParagraphStyle(
-            "Role", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
-            leading=13, spaceAfter=2,
+            "Role", parent=base, fontSize=10.5, leading=14,
+        ),
+        "role_dates": ParagraphStyle(
+            "RoleDates", parent=base, fontSize=10.5, alignment=TA_RIGHT, leading=14,
         ),
         "bullet": ParagraphStyle(
-            "Bullet", parent=base, fontSize=10, leading=13, leftIndent=14,
-            bulletIndent=2, spaceAfter=2,
-        ),
-        "comp_label": ParagraphStyle(
-            "CompLabel", parent=base, fontName="Helvetica-Bold", fontSize=10,
-            leading=13,
-        ),
-        "comp_items": ParagraphStyle(
-            "CompItems", parent=base, fontSize=10, leading=13,
+            "Bullet", parent=base, fontSize=10, leading=13.5, leftIndent=20,
+            bulletIndent=8, spaceAfter=3,
         ),
         "edu": ParagraphStyle(
-            "Edu", parent=base, fontSize=10.5, leading=14, spaceAfter=4,
+            "Edu", parent=base, fontSize=10.5, leading=14,
+        ),
+        "edu_dates": ParagraphStyle(
+            "EduDates", parent=base, fontSize=10.5, alignment=TA_RIGHT, leading=14,
+        ),
+        "tools": ParagraphStyle(
+            "Tools", parent=base, fontSize=10.5, leading=14.5, leftIndent=4,
         ),
     }
 
@@ -537,12 +620,80 @@ def _escape(text: str) -> str:
     return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _section_heading(label: str, styles) -> list:
-    return [
-        Paragraph(label.upper(), styles["section"]),
-        HRFlowable(width="100%", thickness=0.5, color=LIGHT_RULE,
-                   spaceBefore=0, spaceAfter=6),
-    ]
+# Bounded on purpose: this runs over text lifted out of an uploaded resume, so
+# an unbounded nested quantifier here is a denial-of-service knob a stranger can
+# turn by uploading one crafted PDF.
+_URLISH = re.compile(
+    r"^(?:https?://\S{1,300}|www\.\S{1,300}|[\w.+-]{1,64}@[\w-]{1,63}\.[\w.-]{1,63}"
+    r"|(?:[\w-]{1,63}\.){0,4}[\w-]{1,63}\.(?:com|io|dev|me|net|org|ai|co)(?:/\S{0,300})?)$",
+    re.I,
+)
+_MAX_LINK_FRAGMENT = 400
+
+
+def _linkify(fragment: str) -> str:
+    """Wrap a URL or email fragment in a real, clickable PDF link."""
+    bare = fragment.strip()
+    if not bare or len(bare) > _MAX_LINK_FRAGMENT or not _URLISH.match(bare):
+        return _escape(fragment)
+    if "@" in bare and "://" not in bare:
+        href = f"mailto:{bare}"
+    elif bare.lower().startswith(("http://", "https://")):
+        href = bare
+    else:
+        href = f"https://{bare}"
+    return (
+        f'<link href="{_escape(href)}" color="#0563C1">'
+        f'<u>{_escape(bare)}</u></link>'
+    )
+
+
+def _contact_markup(line: str) -> str:
+    """Render one contact line, linking the parts that are links.
+
+    Split on the pipes the line is already written with, so "Mobile: 555-0142"
+    stays plain text while the LinkedIn URL, the email and the portfolio become
+    clickable — the same treatment they get in the candidate's own resume.
+    """
+    parts = [p.strip() for p in line.split("|")]
+    rendered = []
+    for part in parts:
+        if not part:
+            continue
+        # "Mobile: 555-0142" or "divinedavis.com (portfolio)" — link only the
+        # link-shaped token, keep the label or the aside as plain text.
+        m = re.match(r"^(.*?)((?:https?://|www\.)?\S+)(\s*\(.*\))?$", part)
+        if m and _URLISH.match(m.group(2) or ""):
+            prefix, target, suffix = m.group(1) or "", m.group(2), m.group(3) or ""
+            rendered.append(f"{_escape(prefix)}{_linkify(target)}{_escape(suffix)}")
+        else:
+            rendered.append(_escape(part))
+    return " | ".join(rendered)
+
+
+def _section_heading(label: str, styles) -> Paragraph:
+    return Paragraph(f"<u>{_escape(label.upper())}:</u>", styles["section"])
+
+
+def _two_column_row(left: Paragraph, right: Paragraph) -> Table:
+    """One line with content pinned left and dates flush right.
+
+    hAlign LEFT matters: the columns sum to less than the frame width and a
+    Table otherwise centres itself, nudging the company name right of the
+    bullets below it.
+    """
+    return Table(
+        [[left, right]],
+        colWidths=[4.4 * inch, 2.6 * inch],
+        hAlign="LEFT",
+        style=TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]),
+    )
 
 
 def _header_block(data: dict, styles) -> list:
@@ -550,106 +701,98 @@ def _header_block(data: dict, styles) -> list:
     name = _escape(data.get("name", ""))
     if name:
         blocks.append(Paragraph(name, styles["name"]))
+    headline = _escape(data.get("headline", ""))
+    if headline:
+        blocks.append(Paragraph(headline, styles["headline"]))
     for key in ("contact_line_1", "contact_line_2"):
-        line = _escape(data.get(key, ""))
+        line = (data.get(key) or "").strip()
         if line:
-            blocks.append(Paragraph(line, styles["contact"]))
-    blocks.append(Spacer(1, 4))
-    blocks.append(HRFlowable(width="100%", thickness=1.5, color=ACCENT,
-                             spaceBefore=2, spaceAfter=10))
+            blocks.append(Paragraph(_contact_markup(line), styles["contact"]))
+    blocks.append(HRFlowable(width="100%", thickness=0.75, color=LIGHT_RULE,
+                             spaceBefore=6, spaceAfter=0))
     return blocks
 
 
 def _experience_block(data: dict, styles) -> list:
-    blocks = _section_heading("Professional Experience", styles)
-    for role in data.get("experience", []) or []:
-        company = _escape(role.get("company", ""))
-        dates = _escape(role.get("dates", ""))
-        title = _escape(role.get("title", ""))
-        bullets = role.get("bullets", []) or []
-        if not (company or title or bullets):
+    entries = data.get("experience", []) or []
+    if not entries:
+        return []
+    blocks = [_section_heading("Professional Experience", styles)]
+    for entry in entries:
+        company = _escape(entry.get("company", ""))
+        dates = _escape(entry.get("dates", ""))
+        roles = entry.get("roles", []) or []
+        if not (company or dates or roles):
             continue
-        row = Table(
-            [[Paragraph(company, styles["company"]), Paragraph(dates, styles["dates"])]],
-            colWidths=[4.2 * inch, 2.8 * inch],
-            # Pin to the left edge: the columns sum to less than the frame width,
-            # and a Table flowable otherwise centers itself, nudging the company
-            # name right of the job title / bullets below it.
-            hAlign="LEFT",
-            style=TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ]),
-        )
-        entry = [row]
-        if title:
-            entry.append(Paragraph(title, styles["role"]))
-        for b in bullets:
-            entry.append(Paragraph(f"• {_escape(b)}", styles["bullet"]))
-        entry.append(Spacer(1, 6))
-        blocks.append(KeepTogether(entry))
+        chunk = []
+        if company or dates:
+            chunk.append(_two_column_row(
+                Paragraph(company, styles["company"]),
+                Paragraph(dates, styles["company_dates"]),
+            ))
+        for role in roles:
+            title = _escape(role.get("title", ""))
+            role_dates = _escape(role.get("dates", ""))
+            if title or role_dates:
+                chunk.append(_two_column_row(
+                    Paragraph(title, styles["role"]),
+                    Paragraph(role_dates, styles["role_dates"]),
+                ))
+            for bullet in role.get("bullets", []) or []:
+                chunk.append(Paragraph(_escape(bullet), styles["bullet"], bulletText="\u2022"))
+        chunk.append(Spacer(1, 8))
+        # Keep the company heading with its first role; letting the whole block
+        # travel together would push a long employer onto its own page.
+        blocks.append(KeepTogether(chunk[:2]))
+        blocks.extend(chunk[2:])
     return blocks
 
 
 def _competencies_block(data: dict, styles) -> list:
     comps = data.get("competencies", []) or []
-    if not comps:
+    rows = [
+        (_escape(c.get("label", "")), _escape(c.get("items", "")))
+        for c in comps
+        if (c.get("label") or c.get("items"))
+    ]
+    if not rows:
         return []
-    blocks = _section_heading("Core Competencies", styles)
-    rows = []
-    for c in comps:
-        label = _escape(c.get("label", ""))
-        items = _escape(c.get("items", ""))
-        if not (label or items):
-            continue
-        rows.append([
-            Paragraph(f"{label}:" if label else "", styles["comp_label"]),
-            Paragraph(items, styles["comp_items"]),
-        ])
-    if rows:
-        blocks.append(Table(
-            rows,
-            colWidths=[1.9 * inch, 5.1 * inch],
-            hAlign="LEFT",  # left-pin to align with section heading + other rows
-            style=TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                # Gutter after the label column so long labels (e.g. "Technical
-                # Domain Expertise:") wrap within their cell instead of running
-                # to the column edge and colliding with the value text. Keeps a
-                # consistent gap whether a label wraps or not.
-                ("RIGHTPADDING", (0, 0), (0, -1), 12),
-                ("RIGHTPADDING", (1, 0), (1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ]),
-        ))
+    blocks = [_section_heading("Core Competencies", styles)]
+    for label, items in rows:
+        text = f"<b>{label}:</b> {items}" if label else items
+        blocks.append(Paragraph(text, styles["bullet"], bulletText="\u2022"))
     return blocks
 
 
 def _education_block(data: dict, styles) -> list:
     edu = data.get("education", []) or []
-    tools = (data.get("tools") or "").strip()
-    if not (edu or tools):
-        return []
-    blocks = _section_heading("Education & Technical Skills", styles)
+    rows = []
     for e in edu:
-        degree = _escape(e.get("degree", ""))
         school = _escape(e.get("school", ""))
-        if degree and school:
-            blocks.append(Paragraph(
-                f"<b>{degree}</b> | {school}", styles["edu"]))
-        elif degree:
-            blocks.append(Paragraph(f"<b>{degree}</b>", styles["edu"]))
-        elif school:
-            blocks.append(Paragraph(school, styles["edu"]))
-    if tools:
-        blocks.append(Paragraph(
-            f"<b>Tools:</b> {_escape(tools)}", styles["edu"]))
+        degree = _escape(e.get("degree", ""))
+        left = "| ".join(p for p in (school, degree) if p)
+        if not left:
+            continue
+        rows.append((left, _escape(e.get("dates", ""))))
+    if not rows:
+        return []
+    blocks = [_section_heading("Education & Certification", styles)]
+    for left, dates in rows:
+        blocks.append(_two_column_row(
+            Paragraph(left, styles["edu"]),
+            Paragraph(dates, styles["edu_dates"]),
+        ))
     return blocks
+
+
+def _tools_block(data: dict, styles) -> list:
+    tools = (data.get("tools") or "").strip()
+    if not tools:
+        return []
+    return [
+        _section_heading("Software & Tools", styles),
+        Paragraph(_escape(tools), styles["tools"]),
+    ]
 
 
 def _scrub_pdf_metadata(path: str, title: str, author: str) -> None:
@@ -692,10 +835,10 @@ def render_resume_pdf(data: dict, output_path: str, title: Optional[str] = None)
     doc = SimpleDocTemplate(
         output_path,
         pagesize=LETTER,
-        leftMargin=0.6 * inch,
-        rightMargin=0.6 * inch,
-        topMargin=0.55 * inch,
-        bottomMargin=0.55 * inch,
+        leftMargin=0.75 * inch,
+        rightMargin=0.75 * inch,
+        topMargin=0.6 * inch,
+        bottomMargin=0.6 * inch,
         title=title,
         author=author,
         subject="Resume",
@@ -707,9 +850,10 @@ def render_resume_pdf(data: dict, output_path: str, title: Optional[str] = None)
     summary = (data.get("summary") or "").strip()
     if summary:
         flowables.append(Paragraph(_escape(summary), styles["summary"]))
-    flowables.extend(_experience_block(data, styles))
     flowables.extend(_competencies_block(data, styles))
+    flowables.extend(_experience_block(data, styles))
     flowables.extend(_education_block(data, styles))
+    flowables.extend(_tools_block(data, styles))
     doc.build(flowables)
     _scrub_pdf_metadata(output_path, title=title, author=author)
     return output_path
@@ -821,6 +965,8 @@ def _parse_experience(blob: str) -> list:
         return [{"company": "", "title": "", "dates": "", "bullets": [blob.strip()]}]
     # Each date range marks one job; the company/title precedes it, bullets follow.
     cursor = 0
+    carried = ""  # a role title peeled off the previous segment's last bullet
+    carried_company = ""  # ditto for an employer name
     for i, m in enumerate(matches):
         # Find boundary between this entry and the previous one — pick the
         # earliest of "the bullet marker before this date" or just the cursor.
@@ -834,13 +980,26 @@ def _parse_experience(blob: str) -> list:
         after_dates = segment[date_match.end():].strip(" .,;:")
         # Heuristic: the company comes first, optionally followed by " | " or " - " then title.
         company, title = _split_company_title(before_dates)
-        bullets = _extract_bullets(after_dates)
+        lead, bullets = _split_lead_and_bullets(after_dates)
+        bullets, next_title = _peel_role_title(bullets)
+        bullets, next_company = _peel_company(bullets)
+        if not company and carried_company:
+            company = carried_company
+        if not title and len(bullets) == 1 and _looks_like_role_title(bullets[0]):
+            title, bullets = bullets[0].rstrip("."), []
+        if not title:
+            title = carried or lead
+        elif lead and not carried:
+            # A company line carrying its own title AND a lead-in: the lead-in
+            # belongs to the role, the split-off part to the company.
+            title = lead
         entries.append({
             "company": company,
             "title": title,
             "dates": date_match.group(0),
             "bullets": bullets,
         })
+        carried, carried_company = next_title, next_company
         cursor = seg_end
     return entries
 
@@ -861,6 +1020,98 @@ def _split_company_title(text: str) -> tuple[str, str]:
                 continue
             return " ".join(words[: i + 1]).strip(), " ".join(words[i + 1:]).strip()
     return text.strip(), ""
+
+
+# A role title glued to the end of the previous bullet. Two-column PDFs
+# extract as "…support tickets by 25%. Senior Associate, Technical Program
+# Manager  August 2021 - January 2024 • Managed…", so the next job's title
+# arrives inside the last bullet of the job above it.
+_ROLE_TAIL = re.compile(
+    r"(?<=[.!?])\s+((?:[A-Z][\w&/.'-]{0,24}[\s,]{1,2}){0,5}"
+    r"(?:Manager|Engineer|Analyst|Director|President|Lead|Associate|Specialist"
+    r"|Architect|Consultant|Officer|Coordinator|Administrator|Developer"
+    r"|Designer|Scientist|Intern)\b[^.]{0,40})\.?\s*$"
+)
+
+
+_ROLE_WORDS = (
+    r"Manager|Engineer|Analyst|Director|President|Lead|Associate|Specialist"
+    r"|Architect|Consultant|Officer|Coordinator|Administrator|Developer"
+    r"|Designer|Scientist|Intern"
+)
+
+# Corporate suffixes that mark the end of an employer name. Used to peel a
+# company off the tail of a bullet, where two-column extraction leaves it
+# ("…across technology teams. Armstrong World Industries.  November 2016 – …").
+_COMPANY_TAIL = re.compile(
+    r"(?<=[.!?])\s+((?:[A-Z][\w&/.'-]{0,24}[\s,]{1,2}){0,4}"
+    r"(?:Industries|Inc|Inc\.|LLC|Ltd|Corp|Corporation|Company|Group|Bank"
+    r"|Technologies|Solutions|Systems|Partners|Capital|Holdings|Labs|Media"
+    r"|University|College|Health|Financial|Chase|Associates)\.?)\s*$"
+)
+
+
+def _looks_like_role_title(text: str) -> bool:
+    """A short, number-free phrase naming a job — not a bullet point."""
+    stripped = (text or "").strip().rstrip(".")
+    if not stripped or len(stripped) > 90 or len(stripped.split()) > 10:
+        return False
+    if any(ch.isdigit() for ch in stripped):
+        return False
+    return bool(re.search(_ROLE_WORDS, stripped, re.I))
+
+
+def _split_lead_and_bullets(text: str) -> tuple[str, list]:
+    """Separate the run-in text before the first bullet marker from the bullets.
+
+    That lead-in is the role title — "Vice President, Technical Program and
+    Product Manager" sits between the employer's date range and the first "•".
+    Treating it as a bullet (which is what splitting on "•" alone does) printed
+    the job title as the first bullet point of the job.
+    """
+    if not text:
+        return "", []
+    if "•" in text:
+        lead, _, rest = text.partition("•")
+        return lead.strip(" .;,-"), _extract_bullets("•" + rest)
+    # No bullet markers at all: a short job-title phrase is a title, not a
+    # one-line bullet. This is the gap between an employer's date range and its
+    # role's date range in a two-column layout.
+    if _looks_like_role_title(text):
+        return text.strip(" .;,-"), []
+    return "", _extract_bullets(text)
+
+
+def _peel_role_title(bullets: list) -> tuple[list, str]:
+    """Pull a trailing role title out of the last bullet, if one is stuck there."""
+    if not bullets:
+        return bullets, ""
+    match = _ROLE_TAIL.search(bullets[-1][-240:])
+    if not match:
+        return bullets, ""
+    if not _looks_like_role_title(match.group(1)):
+        return bullets, ""
+    title = match.group(1).strip(" .,")
+    offset = max(0, len(bullets[-1]) - 240)
+    trimmed = bullets[-1][: offset + match.start()].strip()
+    if len(trimmed) < 20:  # the "bullet" was only ever the title
+        return bullets[:-1], title
+    return bullets[:-1] + [trimmed], title
+
+
+def _peel_company(bullets: list) -> tuple[list, str]:
+    """Pull a trailing employer name out of the last bullet, if one is stuck there."""
+    if not bullets:
+        return bullets, ""
+    match = _COMPANY_TAIL.search(bullets[-1][-240:])
+    if not match:
+        return bullets, ""
+    company = match.group(1).strip(" .,")
+    offset = max(0, len(bullets[-1]) - 240)
+    trimmed = bullets[-1][: offset + match.start()].strip()
+    if len(trimmed) < 20:
+        return bullets[:-1], company
+    return bullets[:-1] + [trimmed], company
 
 
 def _extract_bullets(text: str) -> list:
@@ -897,18 +1148,39 @@ def _parse_competencies(blob: str) -> list:
     return rows[:6]
 
 
+_SCHOOL_WORDS = ("university", "college", "institute", "school", "academy", "polytechnic")
+_EDU_DATE = re.compile(
+    r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|(?:19|20)\d{2})\s*$"
+)
+
+
 def _parse_education(blob: str) -> list:
+    """Pull school / degree / graduation date out of an education line.
+
+    The template prints "School| Degree" on the left with the date flush right,
+    so the date has to come off the end before the line is split — otherwise it
+    rides along inside the degree ("Bachelor of Science in Computer Science
+    May 2016").
+    """
     if not blob:
         return []
-    # Split on "|" or hard sentence breaks.
-    items = [p.strip() for p in re.split(r"[|•·]", blob) if p.strip()]
     rows = []
-    for it in items:
-        if "," in it and any(k in it.lower() for k in ("bachelor", "master", "associate", "phd", "doctorate", "mba")):
-            parts = [p.strip() for p in it.split(",")]
-            rows.append({"degree": parts[0], "school": ", ".join(parts[1:])})
-        else:
-            rows.append({"degree": it, "school": ""})
+    for raw in [p.strip() for p in re.split(r"\n|•", blob) if p.strip()][:4]:
+        item, dates = raw, ""
+        found = _EDU_DATE.search(item)
+        if found:
+            dates = found.group(1)
+            item = item[: found.start()].strip(" ,|-–—")
+        parts = [p.strip() for p in re.split(r"[|·]", item) if p.strip()]
+        school = degree = ""
+        for part in parts:
+            if not school and any(w in part.lower() for w in _SCHOOL_WORDS):
+                school = part
+            elif not degree:
+                degree = part
+        if not (school or degree):
+            degree = item
+        rows.append({"school": school, "degree": degree, "dates": dates})
     return rows[:4]
 
 
@@ -945,25 +1217,36 @@ def _strip_leading_contact(text: str) -> str:
     return text.lstrip(" |•·,;–—-").strip()
 
 
-def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, str]:
-    """Pull name, contact line 1, contact line 2 out of the resume preamble."""
+def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, str, str]:
+    """Pull name, headline, and the two contact lines out of the preamble.
+
+    Returns (name, headline, contact_line_1, contact_line_2). The headline is
+    the "Senior Product Manager | Private Wealth Management" strip that sits
+    under the name on the candidate's own resume; before it was parsed out it
+    was either swallowed into the name or lost entirely.
+    """
     if not preamble:
-        return "", "", user_email or ""
+        return "", "", user_email or "", ""
     flat = re.sub(r"\s+", " ", preamble).strip()
     email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", flat)
     phone_match = re.search(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", flat)
-    linkedin_match = re.search(r"linkedin\.com/in/[\w-]+", flat, re.I)
+    linkedin_match = re.search(
+        r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+", flat, re.I
+    )
     # Name: the words before the first contact token, cut at the headline.
     # Resumes routinely put "Name | Title | Specialty" on one line, so taking
     # the first four words blindly produced "DIVINE DAVIS SENIOR PRODUCT".
     earliest = min([m.start() for m in [email_match, phone_match, linkedin_match] if m] or [len(flat)])
-    name_blob = re.split(r"[|•·\t]", flat[:earliest])[0].strip(" |•·–—-,")
+    head_blob = flat[:earliest].strip(" |•·–—-,")
+    name_blob = re.split(r"[|•·\t]", head_blob)[0].strip(" |•·–—-,")
     name_words = []
     for word in name_blob.split()[:4]:
         if word.strip(".,").lower() in _TITLE_WORDS:
             break
         name_words.append(word)
-    name = " ".join(name_words).upper()
+    # Natural case, not ALL CAPS — the template prints the name as written.
+    name = " ".join(name_words)
+    headline = head_blob[len(name):].strip(" |•·–—-,") if name else head_blob
     contact_bits = []
     if phone_match:
         contact_bits.append(phone_match.group(0))
@@ -971,7 +1254,7 @@ def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, st
         contact_bits.append(email_match.group(0))
     elif user_email:
         contact_bits.append(user_email)
-    contact_1 = " | ".join(contact_bits)
+    contact_1 = " | ".join(contact_bits)  # rebuilt below into one line
     contact_2_bits = []
     if linkedin_match:
         contact_2_bits.append(linkedin_match.group(0))
@@ -987,7 +1270,54 @@ def _extract_contact_lines(preamble: str, user_email: str) -> tuple[str, str, st
         contact_2_bits.append(site.group(0))
         break
     contact_2 = " | ".join(contact_2_bits)
-    return name, contact_1, contact_2
+    # One centred line, ordered the way the candidate's own resume runs it:
+    # profile links first, then phone, then email, then the personal site.
+    single = []
+    if linkedin_match:
+        single.append(linkedin_match.group(0))
+    if phone_match:
+        single.append(f"Mobile: {phone_match.group(0)}")
+    single.extend(b for b in contact_bits if b != (phone_match.group(0) if phone_match else None))
+    single.extend(b for b in contact_2_bits if b != (linkedin_match.group(0) if linkedin_match else None))
+    return name, headline, " | ".join(dict.fromkeys(single)), ""
+
+
+def _group_experience(entries: list) -> list:
+    """Fold the flat date-range entries into company -> roles.
+
+    Extraction flattens an employer's own span and its role's span onto the
+    same run of text ("JPMorgan Chase … August 2021 - Present   January 2024 -
+    Present  • Lead …"), so the splitter emits one entry carrying the company
+    and title with no bullets, followed by a headless entry carrying the role's
+    dates and its bullets. Stitch those back together, and attach any later
+    headless entry to the employer above it as another role.
+    """
+    grouped: list = []
+    for entry in entries:
+        company = (entry.get("company") or "").strip()
+        title = (entry.get("title") or "").strip()
+        dates = (entry.get("dates") or "").strip()
+        bullets = entry.get("bullets") or []
+        if company:
+            grouped.append({"company": company, "dates": dates, "roles": []})
+            if title:
+                grouped[-1]["roles"].append({"title": title, "dates": "", "bullets": []})
+            if bullets:
+                if not grouped[-1]["roles"]:
+                    grouped[-1]["roles"].append({"title": "", "dates": dates, "bullets": []})
+                grouped[-1]["roles"][-1]["bullets"] = bullets
+            continue
+        if not grouped:
+            grouped.append({"company": "", "dates": dates, "roles": []})
+        roles = grouped[-1]["roles"]
+        # A headless entry right after a title with no bullets is that title's
+        # own date range; anything else is the next role at the same employer.
+        if roles and not roles[-1]["dates"] and not roles[-1]["bullets"]:
+            roles[-1]["dates"] = dates
+            roles[-1]["bullets"] = bullets
+        else:
+            roles.append({"title": title, "dates": dates, "bullets": bullets})
+    return grouped
 
 
 def heuristic_structured_parse(text: str, user_email: str = "") -> dict:
@@ -995,7 +1325,7 @@ def heuristic_structured_parse(text: str, user_email: str = "") -> dict:
     if not text:
         return {}
     sections = _split_sections(text)
-    name, contact_1, contact_2 = _extract_contact_lines(
+    name, headline, contact_1, contact_2 = _extract_contact_lines(
         sections.get("_preamble", text[:500]), user_email
     )
     summary = sections.get("summary", "").strip()
@@ -1023,12 +1353,13 @@ def heuristic_structured_parse(text: str, user_email: str = "") -> dict:
         if idx != -1:
             after = pre[idx:].split(" ", 1)
             summary = _strip_leading_contact(after[1]) if len(after) > 1 else ""
-    experience = _parse_experience(sections.get("experience", ""))
+    experience = _group_experience(_parse_experience(sections.get("experience", "")))
     competencies = _parse_competencies(sections.get("competencies", ""))
     education = _parse_education(sections.get("education", ""))
     tools = sections.get("skills", "").rstrip(".").strip()
     return {
         "name": name,
+        "headline": headline,
         "contact_line_1": contact_1,
         "contact_line_2": contact_2,
         "summary": summary,

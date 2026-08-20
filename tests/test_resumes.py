@@ -9,7 +9,7 @@ from reportlab.pdfgen import canvas
 
 
 SAMPLE_STRUCTURED = {
-    "name": "JORDAN DOE",
+    "name": "Jordan Doe",
     "contact_line_1": "New York, NY | 555-0142 | jordan.doe@example.com",
     "contact_line_2": "linkedin.com/in/jordandoe | jordandoe.dev",
     "summary": "Senior Product Manager with 10 years of experience driving digital platform transformations.",
@@ -146,7 +146,7 @@ def test_render_resume_pdf_produces_valid_pdf(app, tmp_path):
     from pypdf import PdfReader
     reader = PdfReader(io.BytesIO(pdf_bytes))
     text = "\n".join(p.extract_text() or "" for p in reader.pages)
-    assert "JORDAN DOE" in text
+    assert "Jordan Doe" in text
     assert "PROFESSIONAL EXPERIENCE" in text
     assert "JPMorgan Chase" in text
     assert "August 2021" in text
@@ -327,7 +327,7 @@ def test_tailor_resume_structured_parses_json_with_markdown_fences(app, monkeypa
             job_description="Looking for a PM.",
         )
     assert result is not None
-    assert result["name"] == "JORDAN DOE"
+    assert result["name"] == "Jordan Doe"
     assert result["experience"][0]["company"] == "JPMorgan Chase"
 
 
@@ -361,7 +361,7 @@ def test_tailor_resume_structured_tolerates_trailing_prose(app, monkeypatch):
             job_description="Looking for a PM.",
         )
     assert result is not None
-    assert result["name"] == "JORDAN DOE"
+    assert result["name"] == "Jordan Doe"
 
 
 def test_tailor_resume_structured_tolerates_leading_prose(app, monkeypatch):
@@ -393,7 +393,7 @@ def test_tailor_resume_structured_tolerates_leading_prose(app, monkeypatch):
             job_description="Looking for a PM.",
         )
     assert result is not None
-    assert result["name"] == "JORDAN DOE"
+    assert result["name"] == "Jordan Doe"
 
 
 def _seed_match_for_signed_in_user(db_session, with_base_resume=True):
@@ -613,31 +613,27 @@ def test_experience_and_competency_tables_are_left_aligned(app):
         assert t.hAlign == "LEFT"
 
 
-def test_long_competency_label_wraps_within_its_column(app):
-    """Regression: a label that nearly fills the label column (e.g. "Technical
-    Domain Expertise:") must wrap inside its cell rather than run to the edge
-    and collide with the value text. The right-gutter on the label column
-    guarantees it wraps like the other multi-word labels."""
-    from reportlab.lib.units import inch
+def test_competencies_render_as_bold_labelled_bullets(app):
+    """2026-08-20: competencies used to be a two-column table, which forced
+    long labels to wrap in a narrow gutter. The candidate's own resume runs
+    them as bullets — "**Label:** items" on one flowing line — so the label
+    can't collide with its items no matter how long it is."""
     from reportlab.platypus import Paragraph
-    from app.resumes import _styles
+    from app.resumes import _competencies_block, _styles
 
     with app.app_context():
-        styles = _styles()
-        leading = styles["comp_label"].leading
-        # Label column is 1.9" with a 12pt right gutter (see _competencies_block).
-        avail = 1.9 * inch - 12
-
-        def line_count(label):
-            p = Paragraph(f"{label}:", styles["comp_label"])
-            _w, h = p.wrap(avail, 1000)
-            return round(h / leading)
-
-        # The label that used to overflow now wraps to two lines, matching the
-        # other long labels — none stay on a single overflowing line.
-        assert line_count("Technical Domain Expertise") == 2
-        assert line_count("Program & Project Management") == 2
-        assert line_count("Business & Operational Skills") == 2
+        blocks = _competencies_block(
+            {"competencies": [
+                {"label": "Technical Domain Expertise", "items": "AWS, APIs."},
+                {"label": "", "items": "Unlabelled row still renders."},
+            ]},
+            _styles(),
+        )
+    paragraphs = [b for b in blocks if isinstance(b, Paragraph)]
+    # Heading + one paragraph per row.
+    assert len(paragraphs) == 3
+    assert "<b>Technical Domain Expertise:</b>" in paragraphs[1].text
+    assert all(p.bulletText == "\u2022" for p in paragraphs[1:])
 
 
 def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
@@ -798,16 +794,20 @@ def test_heuristic_header_stops_at_the_headline():
     text = (
         "Jordan Doe Senior Product Manager | Private Wealth Management & AI "
         "Transformation http://www.linkedin.com/in/jordandoe | Mobile: "
-        "555-0142| jordan.doe@example.com | jordandoe.dev (portfolio)    "
+        "555-555-0142| jordan.doe@example.com | jordandoe.dev (portfolio)    "
         "Strategic Product Manager with 10 years of experience in financial "
         "services."
     )
     parsed = heuristic_structured_parse(text, user_email="jordan.doe@example.com")
-    assert parsed["name"] == "JORDAN DOE"
+    assert parsed["name"] == "Jordan Doe"
     assert parsed["summary"].startswith("Strategic Product Manager")
     # The portfolio domain belongs on the contact line, not in the summary.
-    assert "jordandoe.dev" in parsed["contact_line_2"]
+    # One line, ordered like the candidate's resume: profile, phone, email, site.
+    assert "jordandoe.dev" in parsed["contact_line_1"]
+    assert parsed["contact_line_1"].startswith("http://www.linkedin.com/in/jordandoe")
+    assert "Mobile: 555-555-0142" in parsed["contact_line_1"]
     assert "jordandoe.dev" not in parsed["summary"]
+    assert parsed["headline"] == "Senior Product Manager | Private Wealth Management & AI Transformation"
 
 
 def test_renderable_strips_invisible_characters():
@@ -823,3 +823,132 @@ def test_renderable_strips_invisible_characters():
     for zero_width in ("​", "‌", "‍", "⁠", "﻿", "‮"):
         assert zero_width not in _renderable(f"a{zero_width}b")
     assert _renderable("a​b") == "ab"
+
+
+def test_layout_matches_the_candidates_own_resume(app, tmp_path):
+    """2026-08-20: the generated PDF is laid out like the candidate's own Word
+    resume — name over a headline over one contact line, a rule, the summary,
+    then CORE COMPETENCIES before PROFESSIONAL EXPERIENCE, and EDUCATION and
+    SOFTWARE & TOOLS as their own sections. One employer with two roles prints
+    ONE company heading with two dated titles under it."""
+    from pypdf import PdfReader
+    from app.resumes import render_resume_pdf
+
+    data = {
+        "name": "Jordan Doe",
+        "headline": "Senior Product Manager | Platform Modernization",
+        "contact_line_1": "linkedin.com/in/jordandoe | Mobile: 555-0142 | jordan.doe@example.com",
+        "summary": "Ten years shipping platforms.",
+        "experience": [{
+            "company": "Acme Bank",
+            "dates": "August 2021 - Present",
+            "roles": [
+                {"title": "Vice President", "dates": "January 2024 - Present",
+                 "bullets": ["Led the migration."]},
+                {"title": "Senior Associate", "dates": "August 2021 - January 2024",
+                 "bullets": ["Ran delivery."]},
+            ],
+        }],
+        "competencies": [{"label": "Delivery", "items": "Agile, Scrum."}],
+        "education": [{"school": "State University", "degree": "B.S. Computer Science",
+                       "dates": "May 2016"}],
+        "tools": "Jira, Confluence",
+    }
+    out = tmp_path / "resume.pdf"
+    with app.app_context():
+        render_resume_pdf(data, str(out))
+    text = "".join(p.extract_text() for p in PdfReader(str(out)).pages)
+
+    for expected in (
+        "Jordan Doe", "Senior Product Manager | Platform Modernization",
+        "CORE COMPETENCIES:", "PROFESSIONAL EXPERIENCE:",
+        "EDUCATION & CERTIFICATION:", "SOFTWARE & TOOLS:",
+        "Acme Bank", "Vice President", "Senior Associate",
+        "State University| B.S. Computer Science", "May 2016", "Jira, Confluence",
+    ):
+        assert expected in text, expected
+    # The employer is named once, not once per role.
+    assert text.count("Acme Bank") == 1
+    # Competencies come before experience, the way the candidate's resume runs.
+    assert text.index("CORE COMPETENCIES:") < text.index("PROFESSIONAL EXPERIENCE:")
+
+
+def test_contact_links_are_clickable_and_rewritten(app, tmp_path):
+    """Portfolio domains are rewritten to the URL the candidate wants used, and
+    every link-shaped fragment becomes a real PDF link — a plain-text URL on a
+    resume is a URL nobody clicks."""
+    from pypdf import PdfReader
+    from app.resumes import _sanitize_structured, render_resume_pdf
+
+    app.config["RESUME_LINK_REWRITES"] = '{"jordandoe.dev": "https://jordandoe.dev/portfolio.html"}'
+    with app.app_context():
+        clean = _sanitize_structured({
+            "name": "Jordan Doe",
+            "contact_line_1": "linkedin.com/in/jordandoe | Mobile: 555-0142 | jordandoe.dev",
+        })
+        assert "https://jordandoe.dev/portfolio.html" in clean["contact_line_1"]
+        # An already-correct URL isn't rewritten into itself.
+        again = _sanitize_structured(
+            {"contact_line_1": "https://jordandoe.dev/portfolio.html"}
+        )
+        assert again["contact_line_1"] == "https://jordandoe.dev/portfolio.html"
+
+        out = tmp_path / "links.pdf"
+        render_resume_pdf(clean, str(out))
+    annots = PdfReader(str(out)).pages[0].get("/Annots") or []
+    hrefs = {str(a.get_object()["/A"]["/URI"]) for a in annots}
+    assert "https://jordandoe.dev/portfolio.html" in hrefs
+    assert any(h.startswith("https://linkedin.com/in/") for h in hrefs)
+    # The phone number is not a link.
+    assert not any("555-0142" in h for h in hrefs)
+
+
+def test_heuristic_splits_roles_from_bullets_and_employers():
+    """Two-column extraction flattens "company  dates / title  dates / bullets"
+    into one run, which used to print the job title as the first bullet point
+    and file every later employer under the first one."""
+    from app.resumes import heuristic_structured_parse
+
+    text = (
+        "Jordan Doe Senior Product Manager | Platforms "
+        "linkedin.com/in/jordandoe | 555-0142 | jordan.doe@example.com "
+        "Summary: Ten years shipping platforms. "
+        "Professional Experience: Acme Bank August 2021 - Present "
+        "Vice President, Product January 2024 - Present "
+        "• Led the AWS migration for 50 applications. "
+        "• Cut latency by 20%. Senior Associate, Product "
+        "August 2021 - January 2024 "
+        "• Ran modernization delivery. Globex Industries. "
+        "November 2016 - August 2021 • Technical Program Manager. "
+        "January 2018 - August 2021 • Managed three integrations."
+    )
+    parsed = heuristic_structured_parse(text, user_email="jordan.doe@example.com")
+    companies = [e["company"] for e in parsed["experience"]]
+    assert "Acme Bank" in companies
+    assert "Globex Industries" in companies
+    acme = parsed["experience"][companies.index("Acme Bank")]
+    titles = [r["title"] for r in acme["roles"]]
+    assert "Vice President, Product" in titles
+    assert "Senior Associate, Product" in titles
+    # The title must not survive as a bullet point.
+    assert all(
+        "Vice President" not in b for r in acme["roles"] for b in r["bullets"]
+    )
+
+
+def test_resume_regexes_do_not_blow_up_on_hostile_text():
+    """Every one of these patterns runs over text lifted out of an UPLOADED
+    resume. A nested quantifier against a $ anchor is a denial-of-service knob
+    a stranger can turn with one crafted PDF, so they're all bounded."""
+    import time
+    from app.resumes import (
+        _contact_markup, _normalize_ligatures, _peel_company, _peel_role_title,
+    )
+
+    bomb = "Word. " + ("Aa " * 4_000) + "Manager"
+    started = time.monotonic()
+    _peel_role_title([bomb])
+    _peel_company([bomb])
+    _contact_markup(("a." * 3_000) + "com | " + ("b" * 5_000))
+    _normalize_ligatures(bomb)
+    assert time.monotonic() - started < 5

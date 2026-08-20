@@ -198,12 +198,13 @@ def test_sanitize_structured_coerces_and_bounds():
     }
     clean = _sanitize_structured(dirty)
     assert set(clean.keys()) == {
-        "name", "contact_line_1", "contact_line_2", "summary",
+        "name", "headline", "contact_line_1", "contact_line_2", "summary",
         "experience", "competencies", "education", "tools",
     }
     assert clean["name"] == ""           # non-str coerced
     assert len(clean["experience"]) == 1  # non-dict entry dropped
-    assert clean["experience"][0]["bullets"] == ["b1", "b2"]  # non-str bullet dropped
+    # The flat {company, title, bullets} shape still normalises into one role.
+    assert clean["experience"][0]["roles"][0]["bullets"] == ["b1", "b2"]
 
 
 # ── Resume-credit atomic spend ────────────────────────────────────────────────

@@ -346,6 +346,42 @@ The configured SUPERUSER_EMAIL still exists in catalog.py but no longer governs 
 - Dashboard renders a "Tailored Resume" button on every match card that has a TailoredResume row.
 - Required env: `ANTHROPIC_API_KEY=sk-ant-...` in `.env`. Optional: `ANTHROPIC_MODEL`, `RESUME_UPLOAD_DIR`, `RESUME_TAILORED_DIR`, `RESUME_MAX_UPLOAD_BYTES`.
 
+### The rendered template mirrors the owner's own resume (2026-08-20)
+
+The owner's own Word resume (kept locally, not in this repo) is the reference.
+Layout, in order: centred **name**, **headline** (the "Title | Specialty" strip),
+one **contact line**, a hairline rule, the summary paragraph, then `CORE COMPETENCIES:` **before** `PROFESSIONAL
+EXPERIENCE:`, then `EDUCATION & CERTIFICATION:` and `SOFTWARE & TOOLS:`.
+Section headings are black, bold, ALL CAPS, underlined, with a trailing colon —
+not the old blue headings with a rule under them.
+
+The structured schema grew to match it:
+
+- `headline` — the strip under the name.
+- `experience[]` is `{company, dates, roles: [{title, dates, bullets}]}`. **One
+  employer with two roles is ONE entry with two roles**, printing one company
+  heading with two dated titles beneath. The old flat
+  `{company, title, dates, bullets}` shape is still accepted by
+  `_sanitize_structured` — every resume generated before this used it.
+- `education[]` carries `dates`, printed flush right.
+
+`RESUME_LINK_REWRITES` (`.env`, JSON) maps a bare domain from the base resume to
+the URL the candidate wants recruiters to land on, e.g.
+`{"example.com":"https://example.com/portfolio.html"}` (the live value is set on
+the server only — personal URLs stay out of a public repo). It must be
+single-quoted in `.env`: the file is both shell-sourced and read by systemd, and
+bash strips the inner double quotes otherwise. Contact-line fragments that look
+like links are rendered as real clickable PDF links.
+
+**The heuristic parser reconstructs this shape from flattened text.** A
+two-column resume extracts as "company dates / title dates / bullets" in one
+run, so `_split_lead_and_bullets` treats the text before the first "•" as the
+role title, and `_peel_role_title` / `_peel_company` pull the next job's title
+or employer off the tail of the previous bullet, where extraction strands them.
+Those tail patterns run over UPLOADED text — keep them bounded (they search only
+the last 240 chars, and every quantifier has a ceiling) or a crafted PDF becomes
+a ReDoS. Test: `tests/test_resumes.py::test_resume_regexes_do_not_blow_up_on_hostile_text`.
+
 ### Rendered PDFs carry no generator fingerprint (2026-08-20)
 
 `render_resume_pdf` sets the document properties to the candidate's own name
