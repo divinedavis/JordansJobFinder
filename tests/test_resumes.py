@@ -481,11 +481,101 @@ def test_tailored_download_generates_on_demand(signed_in_client, db_session, mon
     assert os.path.exists(row.pdf_path)
 
 
-def test_tailored_download_404_without_base_resume(signed_in_client, db_session):
-    """No base resume and no pre-built PDF → 404, not a 500."""
+def test_tailored_download_without_base_resume_sends_user_to_profile(signed_in_client, db_session):
+    """No base resume and no pre-built PDF → a redirect with an explanation,
+    not the bare Werkzeug 404 the button used to land on."""
     _user_id, job_id = _seed_match_for_signed_in_user(db_session, with_base_resume=False)
     response = signed_in_client.get(f"/resume/tailored/{job_id}")
-    assert response.status_code == 404
+    assert response.status_code == 302
+    assert "/profile" in response.headers["Location"]
+
+
+def _break_anthropic(monkeypatch):
+    """Make every Anthropic call raise the way an empty credit balance does."""
+    class _Messages:
+        def create(self, **kw):
+            raise RuntimeError(
+                "Error code: 400 - Your credit balance is too low to access the "
+                "Anthropic API."
+            )
+
+    class _Client:
+        def __init__(self, api_key):
+            self.messages = _Messages()
+
+    import anthropic
+    monkeypatch.setattr(anthropic, "Anthropic", _Client)
+
+
+def test_tailored_download_falls_back_when_the_api_fails(
+    signed_in_client, db_session, monkeypatch, tmp_path
+):
+    """2026-08-20: the Anthropic balance ran out, the 400 escaped
+    tailor_resume_structured, and the dashboard's Tailored Resume button
+    returned a bare 404. The documented fallback never ran because it only
+    triggers on None. Now the styled base resume is served instead, the
+    AI-resume credit spent up front is refunded, and NO TailoredResume row is
+    written — otherwise the un-tailored PDF would be served forever once the
+    API came back."""
+    from app.models import Subscription, TailoredResume
+
+    user_id, job_id = _seed_match_for_signed_in_user(db_session, with_base_resume=True)
+    _break_anthropic(monkeypatch)
+
+    app = signed_in_client.application
+    app.config["ANTHROPIC_API_KEY"] = "sk-test"
+    app.config["RESUME_TAILORED_DIR"] = str(tmp_path / "tailored")
+
+    response = signed_in_client.get(f"/resume/tailored/{job_id}")
+    assert response.status_code == 200
+    assert response.data[:4] == b"%PDF"
+
+    assert db_session.query(TailoredResume).filter(
+        TailoredResume.user_id == user_id, TailoredResume.job_id == job_id
+    ).count() == 0
+
+    sub = db_session.query(Subscription).filter(
+        Subscription.user_id == user_id
+    ).one_or_none()
+    assert sub is None or sub.resume_credits_used == 0
+
+
+def test_tailor_resume_structured_returns_none_on_api_error(app, monkeypatch):
+    """The API call is wrapped: a billing/network/rate-limit failure returns
+    None so the caller can fall back, instead of raising."""
+    from app.resumes import tailor_resume_structured
+
+    _break_anthropic(monkeypatch)
+    with app.app_context():
+        app.config["ANTHROPIC_API_KEY"] = "sk-test"
+        assert tailor_resume_structured(
+            base_text="Jordan Doe — Senior Product Manager",
+            job_title="Senior Product Manager",
+            company="Acme",
+            job_description="We need a PM.",
+        ) is None
+
+
+def test_refund_resume_credit_never_goes_negative(signed_in_client, db_session):
+    """A double refund must not drive the counter below zero — that would hand
+    out free AI-resume creations."""
+    from app.models import Subscription, User
+    from app.payments import refund_resume_credit
+
+    user = db_session.query(User).first()
+    sub = db_session.query(Subscription).filter(
+        Subscription.user_id == user.id
+    ).one_or_none()
+    if sub is None:
+        sub = Subscription(user_id=user.id, status="free")
+        db_session.add(sub)
+    sub.resume_credits_used = 1
+    db_session.commit()
+
+    refund_resume_credit(sub)
+    assert sub.resume_credits_used == 0
+    refund_resume_credit(sub)
+    assert sub.resume_credits_used == 0
 
 
 def test_experience_and_competency_tables_are_left_aligned(app):

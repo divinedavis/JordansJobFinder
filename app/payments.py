@@ -324,6 +324,28 @@ def resume_quota_state(subscription, city_limit: int) -> dict:
             "unlimited": False, "is_lifetime": is_lifetime}
 
 
+def refund_resume_credit(subscription) -> None:
+    """Give back a credit spent on a creation that never happened.
+
+    The download route spends the credit up front (the guarded UPDATE in
+    consume_resume_credit is what keeps two concurrent clicks from overshooting
+    the cap), so a tailoring run that fails — or falls back to the non-AI
+    heuristic parse because the API is unreachable — has to hand it back. The
+    guard on ``> 0`` keeps a double refund from driving the counter negative
+    and silently handing out free credits.
+    """
+    if subscription is None:
+        return
+    db = get_db()
+    db.execute(
+        update(Subscription)
+        .where(Subscription.id == subscription.id, Subscription.resume_credits_used > 0)
+        .values(resume_credits_used=Subscription.resume_credits_used - 1)
+    )
+    db.commit()
+    db.refresh(subscription)
+
+
 def consume_resume_credit(subscription, city_limit: int) -> bool:
     """Try to spend one AI-resume creation. Returns True if allowed (and
     increments the counter), False if the user is out of quota."""

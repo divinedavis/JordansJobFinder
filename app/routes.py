@@ -48,6 +48,7 @@ from .payments import (
     create_billing_portal_session,
     create_checkout_session,
     handle_webhook_event,
+    refund_resume_credit,
     resume_quota_state,
     stripe_configured,
     sync_checkout_result,
@@ -1041,6 +1042,7 @@ def resume_download_tailored(job_id: int):
         TailoredResume.job_id == job_id,
     ).one_or_none()
     already_built = bool(tailored and tailored.pdf_path and os.path.exists(tailored.pdf_path))
+    serve_path = tailored.pdf_path if already_built else None
     if not already_built:
         # Creating a NEW tailored resume spends one AI-resume credit
         # (free = 10 lifetime, $4.99 = 25/mo, $19.99 = unlimited). Re-downloading
@@ -1056,25 +1058,55 @@ def resume_download_tailored(job_id: int):
         # Not pre-built — generate it on demand.
         base = user.base_resume if user else None
         if not base:
-            abort(404)
+            refund_resume_credit(subscription)
+            flash(
+                "Upload a resume first — tailored versions are built from it.",
+                "error",
+            )
+            return redirect(url_for("web.profile"))
         from .resumes import generate_tailored_resume
+        # Anything short of a real AI tailoring gives the credit back. A dead
+        # API key or an empty Anthropic balance is our problem, not a spend of
+        # the user's quota.
+        report: dict = {}
         try:
             pdf_path = generate_tailored_resume(
-                user=user, job=job, base_resume=base, allow_fallback=True
+                user=user, job=job, base_resume=base, allow_fallback=True,
+                report=report,
             )
         except Exception:
             logger.exception("On-demand tailoring failed user=%s job=%s", user.id, job_id)
-            abort(404)
+            pdf_path = None
         if not pdf_path:
-            abort(404)
-        if tailored:
-            tailored.pdf_path = pdf_path
-        else:
-            tailored = TailoredResume(
-                user_id=user.id, job_id=job_id, content_text="", pdf_path=pdf_path
+            refund_resume_credit(subscription)
+            flash(
+                "Couldn't build that tailored resume just now. Nothing was "
+                "charged against your resume credits — try again in a bit.",
+                "error",
             )
-            db.add(tailored)
-        db.commit()
+            return redirect(url_for("web.dashboard"))
+        serve_path = pdf_path
+        if report.get("used_ai"):
+            if tailored:
+                tailored.pdf_path = pdf_path
+            else:
+                tailored = TailoredResume(
+                    user_id=user.id, job_id=job_id, content_text="", pdf_path=pdf_path
+                )
+                db.add(tailored)
+            db.commit()
+        else:
+            # Styled from the base resume, not tailored to the posting. The
+            # user still gets a usable PDF and doesn't pay for it — and it is
+            # deliberately NOT recorded as the tailored resume for this job, so
+            # the next click retries the model instead of serving this one
+            # forever.
+            refund_resume_credit(subscription)
+            flash(
+                "AI tailoring is unavailable right now, so this download is a "
+                "formatted copy of your base resume. No credit was used.",
+                "error",
+            )
     # Clicking "Tailored Resume" counts as applying. Two records get written:
     #   1. JobMatch.applied_at — drives the green "Applied" badge on the board.
     #   2. AppliedJob (record_application) — the durable, ~1-year history that
@@ -1096,7 +1128,7 @@ def resume_download_tailored(job_id: int):
             parts.append(cleaned)
     stem = "-".join(parts) or "resume"
     download_name = f"{stem[:120]}.pdf"
-    return send_file(tailored.pdf_path, as_attachment=True, download_name=download_name)
+    return send_file(serve_path, as_attachment=True, download_name=download_name)
 
 
 @web.get("/applied")

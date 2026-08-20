@@ -273,7 +273,13 @@ def tailor_resume_structured(
     base_text: str, job_title: str, company: str, job_description: str
 ) -> Optional[dict]:
     """Call Anthropic and return a structured resume dict, or None if the API
-    key is missing or the response isn't parseable JSON."""
+    key is missing, the call fails, or the response isn't parseable JSON.
+
+    Every failure returns None rather than raising: the caller's fallback
+    (``generate_tailored_resume(allow_fallback=True)``) only engages on None,
+    so an exception escaping here turned an exhausted credit balance into a
+    bare 404 on the download link instead of a styled base resume.
+    """
     api_key = current_app.config.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         logger.warning("ANTHROPIC_API_KEY not set — skipping tailored resume generation")
@@ -291,11 +297,18 @@ def tailor_resume_structured(
         job_description=(job_description or "(no description provided)")[:MAX_JOB_DESC_CHARS],
         base_text=(base_text or "")[:MAX_BASE_RESUME_CHARS],
     )
-    message = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        message = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        # Billing (an empty credit balance returns 400), rate limits, an
+        # invalid key, or the network being down. All the same to the caller:
+        # no structured resume, fall back to the heuristic parse.
+        logger.exception("Anthropic tailoring call failed")
+        return None
     raw = "".join(
         block.text for block in message.content if getattr(block, "type", "") == "text"
     ).strip()
@@ -582,7 +595,7 @@ def tailored_pdf_path(user_id: int, job_id: int) -> str:
 
 
 def generate_tailored_resume(
-    user, job, base_resume, allow_fallback: bool = False
+    user, job, base_resume, allow_fallback: bool = False, report: Optional[dict] = None
 ) -> Optional[str]:
     """End-to-end: call AI, render PDF, return path.
 
@@ -591,7 +604,14 @@ def generate_tailored_resume(
     the styled layout. The daily sync passes the default ``False`` so we never
     pollute the DB with non-AI-tailored content; the on-demand route passes
     ``True`` so users always get a styled PDF back.
+
+    Pass a dict as ``report`` to learn which path ran: ``report["used_ai"]`` is
+    True only when the model actually tailored the resume. The download route
+    uses it to refund the AI-resume credit it spent up front when the answer
+    came from the heuristic fallback.
     """
+    if report is not None:
+        report["used_ai"] = False
     if not base_resume or not base_resume.extracted_text:
         return None
     base_text = _normalize_ligatures(base_resume.extracted_text)
@@ -601,7 +621,10 @@ def generate_tailored_resume(
         company=job.company,
         job_description=job.description or "",
     )
-    if not structured:
+    if structured:
+        if report is not None:
+            report["used_ai"] = True
+    else:
         if not allow_fallback:
             return None
         structured = heuristic_structured_parse(base_text, user_email=user.email)
