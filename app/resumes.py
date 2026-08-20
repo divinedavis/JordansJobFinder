@@ -303,6 +303,16 @@ def _renderable(text: str) -> str:
         return text
     out = []
     for ch in text:
+        # Invisible characters go first. A soft hyphen and a non-breaking space
+        # both survive cp1252, so the encoding filter below would wave them
+        # through — and an unprintable character sitting inside a word is
+        # exactly the shape a hidden marker takes (and breaks ATS parsing).
+        # Nothing we generate needs one.
+        if unicodedata.category(ch) == "Cf" or ch in "\u00ad\ufeff":
+            continue
+        if ch == "\u00a0":
+            out.append(" ")
+            continue
         expanded = _LIGATURE_CHARS.get(ch)
         if expanded is not None:
             out.append(expanded)

@@ -808,3 +808,18 @@ def test_heuristic_header_stops_at_the_headline():
     # The portfolio domain belongs on the contact line, not in the summary.
     assert "jordandoe.dev" in parsed["contact_line_2"]
     assert "jordandoe.dev" not in parsed["summary"]
+
+
+def test_renderable_strips_invisible_characters():
+    """Nothing unprintable survives into a rendered document. A soft hyphen and
+    a non-breaking space both encode in cp1252, so the encoding filter alone
+    would pass them through — and an invisible character wedged inside a word
+    is both the shape a hidden marker takes and a reliable way to break ATS
+    keyword matching."""
+    from app.resumes import _renderable
+
+    assert _renderable("prod­uct man​ager") == "product manager"
+    assert _renderable("Senior Product Manager") == "Senior Product Manager"
+    for zero_width in ("​", "‌", "‍", "⁠", "﻿", "‮"):
+        assert zero_width not in _renderable(f"a{zero_width}b")
+    assert _renderable("a​b") == "ab"
