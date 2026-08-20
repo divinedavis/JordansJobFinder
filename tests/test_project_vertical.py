@@ -112,3 +112,57 @@ def test_project_ingest_tags_vertical():
 
     job = _normalize_one({"title": "Project Manager", "city": "charleston-sc"}, "project")
     assert job["vertical"] == "project"
+
+
+def test_pm_board_drops_sub_floor_project_and_it_jobs(app):
+    """2026-08-20: project/IT jobs riding the PM board must clear the same
+    $180K ceiling the PM track enforces. A "Program Manager III" at
+    $87,700-$157,800 was sitting on the board next to $230K roles because the
+    it/project branch returned before any salary gate ran. A posting with no
+    salary at all still shows — unknown isn't low."""
+    from types import SimpleNamespace
+    from app.sync import _search_matches_job
+
+    search = SimpleNamespace(
+        vertical="pm", title_slug="technical-product-manager",
+        experience_bucket="10+", cities=["New York, NY"],
+    )
+
+    def job(vertical, title, lo, hi):
+        return SimpleNamespace(
+            vertical=vertical, title=title, company="Centene", city="nyc",
+            location="New York, NY", description="",
+            salary_min=lo, salary_max=hi,
+        )
+
+    assert not _search_matches_job(
+        search, job("project", "Program Manager III", 87_700, 157_800), "u@example.com"
+    )
+    assert not _search_matches_job(
+        search, job("it", "IT Program Manager", 116_000, 155_000), "u@example.com"
+    )
+    assert _search_matches_job(
+        search, job("project", "Senior Technical Program Manager", 184_000, 230_000),
+        "u@example.com",
+    )
+    assert _search_matches_job(
+        search, job("project", "Project Manager, Facilities", None, None), "u@example.com"
+    )
+
+
+def test_project_own_board_keeps_no_salary_floor(app):
+    """The floor is a PM-board rule only: a project-vertical saved search
+    still shows whatever the posting pays."""
+    from types import SimpleNamespace
+    from app.sync import _search_matches_job
+
+    search = SimpleNamespace(
+        vertical="project", title_slug="project-management",
+        experience_bucket="10+", cities=["New York, NY"],
+    )
+    job = SimpleNamespace(
+        vertical="project", title="Program Manager III", company="Centene",
+        city="nyc", location="New York, NY", description="",
+        salary_min=87_700, salary_max=157_800,
+    )
+    assert _search_matches_job(search, job, "u@example.com")

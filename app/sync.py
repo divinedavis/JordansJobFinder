@@ -12,9 +12,11 @@ from .db import get_db
 from .experience import bucket_for_years
 from .ingest import normalized_shared_jobs
 from .matching import (
+    PM_MIN_SALARY,
     job_excluded,
     location_matches_city,
     match_job_for_user,
+    salary_meets_minimum,
     title_is_it_pm,
     title_is_project,
 )
@@ -75,12 +77,17 @@ def _search_matches_job(search, job, user_email, resume_years=None) -> bool:
             for label in allowed_cities
         ):
             return False
-    if search.vertical == "pm" and job.vertical == "it":
-        # IT-vertical feeds carry no salary or experience data — apply the IT
-        # track's own rule (title heuristic only) instead of the PM gates.
-        return title_is_it_pm(job.title)
-    if search.vertical == "pm" and job.vertical == "project":
-        # Same shape for project-management jobs riding the PM board.
+    if search.vertical == "pm" and job.vertical in ("it", "project"):
+        # IT/project feeds carry no experience data — apply their own title
+        # heuristic instead of the PM gates. The PM pay floor still applies:
+        # these ride the PM board, and a $88K "Program Manager III" sitting
+        # next to a $230K one is the board's problem regardless of which feed
+        # it came from. A posting with NO salary still shows (same rule the PM
+        # track has always used — an unknown range isn't a low one).
+        if not salary_meets_minimum(job.salary_min, job.salary_max, PM_MIN_SALARY):
+            return False
+        if job.vertical == "it":
+            return title_is_it_pm(job.title)
         return title_is_project(job.title)
     return match_job_for_user(
         search.title_slug,
