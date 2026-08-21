@@ -229,6 +229,12 @@ skills it matched and the ones it didn't. `app/fit.py`, surfaced as
 `match["fit"]` by `results.load_db_matches`, rendered as `.fit-badge` next to
 the role title. Users with no base resume get no badge (nothing to compare).
 
+**The card shows the score and ONE line of reasoning — not the keyword lists.**
+`fit.matched` / `fit.missing` are still computed and returned, but the "You
+have: …" / "Not on your resume: …" lines were removed at owner request
+(2026-08-21); don't re-render them without asking. Guard:
+`tests/test_fit.py::test_board_does_not_list_matched_or_missing_keywords`.
+
 **Deterministic — no model call, deliberately.** Every card would otherwise be
 a per-card API cost on every page load, and the score would vanish exactly when
 the tailoring API is down, which is when the board still has to be useful. It

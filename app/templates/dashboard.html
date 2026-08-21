@@ -159,14 +159,12 @@
                       </div>
                     {% endif %}
                     {% if match.fit %}
+                      {# Score + one line of reasoning only. The matched/missing
+                         keyword lists were removed at owner request 2026-08-21;
+                         fit.matched / fit.missing are still computed, so don't
+                         re-render them here without asking. #}
                       <div class="match-meta fit-detail">
                         <span>{{ match.fit.summary }}</span>
-                        {% if match.fit.matched %}
-                          <span class="fit-terms"><strong>You have:</strong> {{ match.fit.matched|join(', ') }}</span>
-                        {% endif %}
-                        {% if match.fit.missing %}
-                          <span class="fit-terms"><strong>Not on your resume:</strong> {{ match.fit.missing|join(', ') }}</span>
-                        {% endif %}
                       </div>
                     {% endif %}
                     {% if match.applied_by_others %}

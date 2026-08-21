@@ -140,3 +140,39 @@ def test_board_cards_carry_a_fit_score(signed_in_client, db_session):
     assert "fit-badge" in body
     assert "Strong fit" in body
     assert "skills this posting names" in body
+
+
+def test_board_does_not_list_matched_or_missing_keywords(signed_in_client, db_session):
+    """Removed at owner request 2026-08-21: the card shows the score and one
+    line of reasoning, not the keyword lists. fit.matched / fit.missing are
+    still computed — this guard is what keeps them off the board."""
+    from app.models import BaseResume, Job, JobMatch, SavedSearch, User
+
+    user = db_session.query(User).first()
+    db_session.add(BaseResume(
+        user_id=user.id, filename="r.pdf", file_path="/tmp/r.pdf",
+        content_type="application/pdf", extracted_text=RESUME, years_experience=10,
+    ))
+    job = Job(
+        source="test", company="Acme", title="Program Manager, Payments",
+        normalized_title="program manager, payments",
+        url="https://example.com/jobs/no-keywords", city="nyc",
+        location="New York, NY",
+        description=("Program management for payments. Requires agile, Jira, "
+                     "governance, process improvement and Kubernetes. 5+ years "
+                     "of experience."),
+        vertical="pm", is_technical=True,
+    )
+    db_session.add(job)
+    db_session.commit()
+    search = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
+    ).one()
+    db_session.add(JobMatch(saved_search_id=search.id, user_id=user.id, job_id=job.id))
+    db_session.commit()
+
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "fit-badge" in body            # the score itself stays
+    assert "You have:" not in body
+    assert "Not on your resume:" not in body
+    assert "kubernetes" not in body.lower()
