@@ -10,6 +10,7 @@ from .company_revenue import revenue_for
 from .catalog import TITLE_LABELS
 from .db import get_db
 from .experience import bucket_for_years, resume_years_for_user
+from .fit import build_profile, score_fit
 from .ingest import normalized_shared_jobs
 from .matching import choose_cities, location_matches_city, match_job_for_user
 from .models import BaseResume, Job, JobMatch, TailoredResume
@@ -187,6 +188,16 @@ def load_db_matches(saved_search) -> list[dict]:
     has_base_resume = db.scalar(
         select(BaseResume.id).where(BaseResume.user_id == saved_search.user_id)
     ) is not None
+    # Fit scoring: build the candidate's profile ONCE, then score each card
+    # against it. Deterministic and local, so it costs nothing per card and
+    # keeps working while the tailoring API is down.
+    base_text = db.scalar(
+        select(BaseResume.extracted_text).where(BaseResume.user_id == saved_search.user_id)
+    )
+    profile = (
+        build_profile(base_text, resume_years_for_user(db, saved_search.user_id))
+        if base_text else None
+    )
 
     matches = []
     for job_match, job in rows:
@@ -214,6 +225,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "applied_at": min(applied_stamps) if applied_stamps else None,
                 "applied_by_others": other_applied.get(job.url, 0),
                 "revenue": revenue_for(job.company),
+                "fit": score_fit(profile, job.title, job.description or ""),
             }
         )
     return matches

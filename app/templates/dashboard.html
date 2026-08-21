@@ -152,10 +152,21 @@
                       </span>
                       <span class="match-posted">{{ match.posted_label }}</span>
                     </div>
-                    <div class="match-role">{{ match.title }}</div>
+                    <div class="match-role">{{ match.title }}{% if match.fit %}<span class="fit-badge fit-{{ match.fit.tone }}" title="{{ match.fit.summary }}">{{ match.fit.score }}% &middot; {{ match.fit.label }}</span>{% endif %}</div>
                     {% if match.salary_label %}
                       <div class="match-meta">
                         <span>{{ match.salary_label }}</span>
+                      </div>
+                    {% endif %}
+                    {% if match.fit %}
+                      <div class="match-meta fit-detail">
+                        <span>{{ match.fit.summary }}</span>
+                        {% if match.fit.matched %}
+                          <span class="fit-terms"><strong>You have:</strong> {{ match.fit.matched|join(', ') }}</span>
+                        {% endif %}
+                        {% if match.fit.missing %}
+                          <span class="fit-terms"><strong>Not on your resume:</strong> {{ match.fit.missing|join(', ') }}</span>
+                        {% endif %}
                       </div>
                     {% endif %}
                     {% if match.applied_by_others %}

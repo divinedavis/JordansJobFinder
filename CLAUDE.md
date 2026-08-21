@@ -221,6 +221,45 @@ Tests: `tests/test_project_vertical.py`. NOTE: undated Workday postings (empty
 `postedOn`, e.g. many MUSC roles) are dropped by the recency filter — a shared
 SCM/Project limitation, not yet addressed.
 
+## Resume Fit Score on every card (2026-08-20)
+
+Each board card carries a **0-100 fit score** and a label (Strong / Good /
+Possible / Stretch) comparing the user's base resume to that posting, plus the
+skills it matched and the ones it didn't. `app/fit.py`, surfaced as
+`match["fit"]` by `results.load_db_matches`, rendered as `.fit-badge` next to
+the role title. Users with no base resume get no badge (nothing to compare).
+
+**Deterministic — no model call, deliberately.** Every card would otherwise be
+a per-card API cost on every page load, and the score would vanish exactly when
+the tailoring API is down, which is when the board still has to be useful. It
+also has to be explainable: a number the user can't interrogate is worse than
+no number.
+
+Score = 0.55 × skill coverage + 0.25 × experience + 0.20 × title, where:
+
+- **Skill coverage** is "of the skills this posting names, how many does the
+  resume show" — over a curated `SKILL_ALIASES` vocabulary, NOT raw token
+  overlap (which scores "the", "team" and "role" and puts every job at 80%).
+  Aliases matter more than the list: a resume says "Technical Program Manager"
+  where a posting says "program management", and without the mapping a
+  ten-year program manager scored **1 of 10** against a program manager job.
+- Coverage is curved by `TARGET_COVERAGE = 0.6` — real postings name 15-20
+  things and nobody has all of them, so raw coverage put a genuinely strong
+  candidate at 45% and made the whole board look mediocre.
+- **Experience** compares the candidate's parsed resume years to the years the
+  posting requires. Being >5 years OVER damps to 0.85: a ten-year TPM against a
+  one-year associate role shouldn't top the board.
+- A posting naming fewer than `MIN_TERMS_FOR_SIGNAL` skills is marked
+  `low_signal` and its skills weight is redistributed — a description the
+  scraper couldn't reach is our problem, not the candidate's.
+
+**Known limit:** the experience half only fires when `parse_experience_years`
+recognises the phrasing. "8+ years of experience" parses; "8+ years required"
+does not, and that posting falls back to the neutral 0.6. Widening that parser
+changes job MATCHING everywhere, not just this score — don't do it casually.
+
+Tests: `tests/test_fit.py`.
+
 ## Board Social Proof — "N others applied" (2026-07-11)
 
 Each dashboard job card shows how many OTHER users applied to that job from the

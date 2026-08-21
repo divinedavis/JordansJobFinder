@@ -505,6 +505,35 @@
       font-size: 13px;
       margin-bottom: 8px;
     }
+    /* Resume-fit badge. Tones carry the meaning for anyone who reads colour,
+       but the score and the label are always spelled out — the badge never
+       relies on colour alone. */
+    .fit-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      margin-left: 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      vertical-align: middle;
+      border: 1px solid transparent;
+    }
+    .fit-strong   { color: #0a7f3f; background: #e7f7ee; border-color: #b6e6c9; }
+    .fit-good     { color: #2356b2; background: #e9eefb; border-color: #c3d3f2; }
+    .fit-possible { color: #8a6100; background: #fdf4e3; border-color: #f0dcae; }
+    .fit-stretch  { color: #5f5f5f; background: #f1f1f1; border-color: #dcdcdc; }
+    .fit-detail {
+      margin-bottom: 8px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .fit-terms { color: var(--muted); }
+    .fit-terms strong { color: #3d3d3d; font-weight: 600; }
     .match-card .button-row {
       margin-top: 10px;
     }
