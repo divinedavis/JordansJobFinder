@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import unicodedata
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -363,6 +364,71 @@ def save_base_resume(user_id: int, filename: str, raw_bytes: bytes, kind: str) -
     return out_path
 
 
+# ── AI availability ──────────────────────────────────────────────────────────
+# The tailoring API can be down for reasons no user can see or fix (an empty
+# credit balance, most often). Without a durable marker, the only signal was a
+# flash message that lands AFTER the file download — so the board hands over an
+# untailored resume and looks like it worked. Recorded to a file rather than
+# process memory because gunicorn runs several workers, and to a file rather
+# than a table because it needs no migration.
+_AI_STATUS_FILE = "ai_status.json"
+AI_FAILURE_TTL_HOURS = 24
+
+
+def _ai_status_path() -> Optional[str]:
+    try:
+        base = current_app.config.get("RESUME_TAILORED_DIR")
+    except RuntimeError:
+        return None
+    if not base:
+        return None
+    return os.path.join(os.path.dirname(base.rstrip("/")) or ".", _AI_STATUS_FILE)
+
+
+def record_ai_failure(reason: str) -> None:
+    path = _ai_status_path()
+    if not path:
+        return
+    try:
+        _ensure_dir(os.path.dirname(path))
+        with open(path, "w") as fh:
+            json.dump({"failed_at": datetime.now(timezone.utc).isoformat(),
+                       "reason": reason[:200]}, fh)
+    except OSError:
+        logger.warning("Could not record AI status", exc_info=True)
+
+
+def clear_ai_failure() -> None:
+    path = _ai_status_path()
+    if not path or not os.path.exists(path):
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def ai_tailoring_status() -> dict:
+    """{"available": bool, "reason": str} — what the board should tell the user.
+
+    A failure older than AI_FAILURE_TTL_HOURS is treated as stale: the API may
+    well be back and nobody has tried since.
+    """
+    path = _ai_status_path()
+    if not path or not os.path.exists(path):
+        return {"available": True, "reason": ""}
+    try:
+        with open(path) as fh:
+            state = json.load(fh)
+        failed_at = datetime.fromisoformat(state["failed_at"])
+    except (OSError, ValueError, KeyError):
+        return {"available": True, "reason": ""}
+    age = datetime.now(timezone.utc) - failed_at
+    if age > timedelta(hours=AI_FAILURE_TTL_HOURS):
+        return {"available": True, "reason": ""}
+    return {"available": False, "reason": str(state.get("reason", ""))}
+
+
 def tailor_resume_structured(
     base_text: str, job_title: str, company: str, job_description: str
 ) -> Optional[dict]:
@@ -397,11 +463,16 @@ def tailor_resume_structured(
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
-    except Exception:
+    except Exception as exc:
         # Billing (an empty credit balance returns 400), rate limits, an
         # invalid key, or the network being down. All the same to the caller:
         # no structured resume, fall back to the heuristic parse.
         logger.exception("Anthropic tailoring call failed")
+        record_ai_failure(
+            "The résumé-tailoring API is rejecting requests"
+            if "credit balance" not in str(exc).lower()
+            else "The résumé-tailoring API has no credit balance"
+        )
         return None
     raw = "".join(
         block.text for block in message.content if getattr(block, "type", "") == "text"
@@ -411,6 +482,7 @@ def tailor_resume_structured(
         raw = re.sub(r"^```(?:json)?", "", raw).strip()
         if raw.endswith("```"):
             raw = raw[:-3].strip()
+    clear_ai_failure()
     try:
         return json.loads(raw)
     except json.JSONDecodeError:

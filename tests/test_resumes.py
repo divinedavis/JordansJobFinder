@@ -952,3 +952,52 @@ def test_resume_regexes_do_not_blow_up_on_hostile_text():
     _contact_markup(("a." * 3_000) + "com | " + ("b" * 5_000))
     _normalize_ligatures(bomb)
     assert time.monotonic() - started < 5
+
+
+def test_dashboard_warns_before_the_click_when_tailoring_is_down(
+    signed_in_client, db_session, monkeypatch, tmp_path
+):
+    """2026-08-20: the only warning was a flash shown AFTER the download, so an
+    untailored resume read as a broken template rather than an outage. The
+    board now says so up front, and stops saying it once a call succeeds."""
+    from app import resumes as resumes_module
+
+    app = signed_in_client.application
+    app.config["RESUME_TAILORED_DIR"] = str(tmp_path / "tailored")
+    _seed_match_for_signed_in_user(db_session, with_base_resume=True)
+
+    with app.app_context():
+        resumes_module.clear_ai_failure()
+    assert "Tailoring is paused" not in signed_in_client.get("/dashboard").get_data(as_text=True)
+
+    with app.app_context():
+        resumes_module.record_ai_failure("The test API has no credit balance")
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "Tailoring is paused" in body
+    assert "no credit balance" in body
+
+    with app.app_context():
+        resumes_module.clear_ai_failure()
+    assert "Tailoring is paused" not in signed_in_client.get("/dashboard").get_data(as_text=True)
+
+
+def test_ai_failure_marker_goes_stale(app, tmp_path):
+    """A day-old failure stops nagging: nothing has tried since, and the API may
+    well be back."""
+    import json
+    import os
+    from datetime import datetime, timedelta, timezone
+    from app import resumes as resumes_module
+
+    app.config["RESUME_TAILORED_DIR"] = str(tmp_path / "tailored")
+    with app.app_context():
+        resumes_module.record_ai_failure("down")
+        assert resumes_module.ai_tailoring_status()["available"] is False
+        path = resumes_module._ai_status_path()
+        stale = datetime.now(timezone.utc) - timedelta(
+            hours=resumes_module.AI_FAILURE_TTL_HOURS + 1
+        )
+        with open(path, "w") as fh:
+            json.dump({"failed_at": stale.isoformat(), "reason": "down"}, fh)
+        assert resumes_module.ai_tailoring_status()["available"] is True
+        os.remove(path)

@@ -3,6 +3,21 @@
 {% block title %}Dashboard | Jordan's Job Finder{% endblock %}
 
 {% block content %}
+  {% if ai_status and not ai_status.available %}
+    {# Says so BEFORE the click. The flash that follows a download only lands on
+       the next page load, so a resume that came back untailored read as a bug
+       in the resume, not as an outage. #}
+    <section class="panel" style="border-left: 4px solid #b3261e;">
+      <h2 style="margin-top:0;">Tailoring is paused</h2>
+      <p style="max-width: 68ch;">
+        {{ ai_status.reason or "The résumé-tailoring service isn't responding" }},
+        so <strong>Tailored Resume</strong> returns a formatted copy of your base
+        resume instead of one written for the posting. No resume credits are
+        charged while this is happening, and tailoring resumes on its own once
+        the service is back.
+      </p>
+    </section>
+  {% endif %}
   <section class="panel">
     <span class="eyebrow">Private Jobs</span>
     <h1>Your current job matches.</h1>

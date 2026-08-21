@@ -36,6 +36,7 @@ from .models import AppliedJob, BaseResume, Feedback, InterviewPlan, Job, JobMat
 from .models import utc_now
 from .resumes import (
     ResumeError,
+    ai_tailoring_status,
     detect_kind,
     extract_text,
     save_base_resume,
@@ -466,6 +467,7 @@ def dashboard():
         tab_order=tabs,
         resume_years=resume_years,
         resume_bucket=bucket_for_years(resume_years),
+        ai_status=ai_tailoring_status(),
     )
 
 
