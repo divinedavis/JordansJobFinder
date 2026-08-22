@@ -176,3 +176,114 @@ def test_board_does_not_list_matched_or_missing_keywords(signed_in_client, db_se
     assert "You have:" not in body
     assert "Not on your resume:" not in body
     assert "kubernetes" not in body.lower()
+
+
+# --- Off-track vocabulary -------------------------------------------------
+#
+# The failure these guard against: a posting that names risk management,
+# compliance, reporting and governance scores like a strong program-manager
+# match even when the actual job is supervising sales-practice misconduct
+# across retail brokerage products. Every posting below is a real one the owner
+# flagged as "this is not a tech role".
+
+SECURITIES_POSTING = """
+High level understanding of FRB, SEC and FINRA regulations, with a focus on
+sales practice, misconduct and suitability concerns around retail products in
+brokerage and advisory accounts. Working knowledge of Futures, FX, Annuities,
+Structured Investments, Alternative Investments, Exchange-Traded Products,
+Fixed Income, Equities, Options, Unit Investment Trusts and Mutual Funds.
+Partner with stakeholders on risk management, compliance and reporting.
+"""
+
+HR_POSTING = """
+Background in People Operations, HR transformation, People systems, or
+supporting executive-level initiatives and Chief of Staff functions is a strong
+plus. Own the roadmap, partner with stakeholders, agile delivery, reporting.
+"""
+
+QUANT_POSTING = """
+Quantitative background in business, economics, finance, engineering,
+mathematics, analytics, or a related discipline. Own the roadmap, work with
+stakeholders, agile delivery, sql, reporting, risk management.
+"""
+
+CUSTODY_POSTING = """
+Experience in wealth management, RIA custody, or advisor technology, or working
+with custodial/clearing operations (e.g., First Clearing, Schwab, Fidelity).
+Own the roadmap, partner with stakeholders, agile delivery, reporting.
+"""
+
+LICENSE_POSTING = """
+Series 7, 63 and SIE or ability to obtain. Own the roadmap, partner with
+stakeholders, agile delivery, reporting, risk management, jira, dependencies.
+"""
+
+CLEAN_POSTING = """
+Technical Program Manager: own the roadmap, run agile delivery, manage
+stakeholders and dependencies, risk management, reporting, Jira, cloud
+migration, API integration, compliance. Benefits include a 401(k) with mutual
+funds and company match, payroll deductions, and high fidelity design tooling.
+Qualitative and quantitative user research a plus. Contact Human Resources for
+accommodation requests.
+"""
+
+
+def test_off_track_postings_sink_below_a_real_match():
+    profile = build_profile(RESUME, years=10)
+    clean = score_fit(profile, "Technical Program Manager", CLEAN_POSTING, "pm")
+    for posting in (SECURITIES_POSTING, HR_POSTING, QUANT_POSTING,
+                    CUSTODY_POSTING, LICENSE_POSTING):
+        fit = score_fit(profile, "Program Manager", posting, "pm")
+        assert fit["off_track"], posting[:60]
+        assert fit["score"] < clean["score"], posting[:60]
+        # It is a downrank, not a filter — the card still shows a number.
+        assert fit["score"] > 0
+    assert not clean["off_track"]
+
+
+def test_off_track_reason_reaches_the_card():
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(profile, "Program Manager", SECURITIES_POSTING, "pm")
+    assert "Reads as a securities / brokerage role" in fit["summary"]
+    assert "finra" in fit["off_track_terms"]
+
+
+def test_one_decisive_term_is_enough():
+    """A Series 7 requirement is the whole signal — waiting for a third
+    securities term would let the most decisive postings through untouched."""
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(profile, "Program Manager", LICENSE_POSTING, "pm")
+    assert fit["off_track"] == ["a securities / brokerage role"]
+
+
+def test_boilerplate_alone_never_fires():
+    """"Mutual funds" is 401(k) boilerplate, "human resources" is the EEO
+    paragraph, and "high fidelity" is ordinary product vocabulary. None of them
+    may cost a real posting a single point."""
+    profile = build_profile(RESUME, years=10)
+    assert not score_fit(profile, "Technical Program Manager",
+                         CLEAN_POSTING, "pm")["off_track"]
+
+
+def test_a_vocabulary_is_not_off_track_on_its_own_board():
+    """Brokerage language is the point of the finance board, HR language of the
+    HR board — the penalty only ever applies to boards the posting is off."""
+    profile = build_profile(RESUME, years=10)
+    for posting, vertical in ((SECURITIES_POSTING, "finance"),
+                              (CUSTODY_POSTING, "finance"),
+                              (LICENSE_POSTING, "finance"),
+                              (HR_POSTING, "hr"),
+                              (QUANT_POSTING, "analyst")):
+        on_board = score_fit(profile, "Program Manager", posting, vertical)
+        off_board = score_fit(profile, "Program Manager", posting, "pm")
+        assert not on_board["off_track"]
+        assert on_board["score"] > off_board["score"]
+
+
+def test_off_track_scan_is_bounded():
+    """Same bound as the skills scan: a scraped description can't make the
+    board render slowly."""
+    profile = build_profile(RESUME, years=10)
+    started = time.monotonic()
+    score_fit(profile, "Program Manager", SECURITIES_POSTING * 20_000, "pm")
+    assert time.monotonic() - started < 2.0

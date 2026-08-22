@@ -225,7 +225,9 @@ def load_db_matches(saved_search) -> list[dict]:
                 "applied_at": min(applied_stamps) if applied_stamps else None,
                 "applied_by_others": other_applied.get(job.url, 0),
                 "revenue": revenue_for(job.company),
-                "fit": score_fit(profile, job.title, job.description or ""),
+                "fit": score_fit(
+                    profile, job.title, job.description or "", saved_search.vertical
+                ),
             }
         )
     return matches
