@@ -507,7 +507,9 @@
     }
     /* Resume-fit badge. Tones carry the meaning for anyone who reads colour,
        but the score and the label are always spelled out — the badge never
-       relies on colour alone. */
+       relies on colour alone. Green is only ever 85+; "Good fit" is amber like
+       "Possible fit", one shade deeper, so nothing under 85 reads as a green
+       light. */
     .fit-badge {
       display: inline-flex;
       align-items: center;
@@ -522,7 +524,7 @@
       border: 1px solid transparent;
     }
     .fit-strong   { color: #0a7f3f; background: #e7f7ee; border-color: #b6e6c9; }
-    .fit-good     { color: #2356b2; background: #e9eefb; border-color: #c3d3f2; }
+    .fit-good     { color: #8a6100; background: #fdf1d8; border-color: #e8cd8f; }
     .fit-possible { color: #8a6100; background: #fdf4e3; border-color: #f0dcae; }
     .fit-stretch  { color: #5f5f5f; background: #f1f1f1; border-color: #dcdcdc; }
     .fit-detail {

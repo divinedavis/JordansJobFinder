@@ -185,8 +185,11 @@ MIN_TERMS_FOR_SIGNAL = 3
 # which is worse than useless — the point of the number is to sort the board.
 TARGET_COVERAGE = 0.6
 
+# Green is reserved for 85 and up, at the owner's call: an 80 was reading as
+# "apply to this" when the board had genuinely better matches on it. Everything
+# from there down to the stretch floor is amber.
 LABELS = (
-    (80, "Strong fit", "strong"),
+    (85, "Strong fit", "strong"),
     (65, "Good fit", "good"),
     (45, "Possible fit", "possible"),
     (0, "Stretch", "stretch"),

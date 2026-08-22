@@ -287,3 +287,29 @@ def test_off_track_scan_is_bounded():
     started = time.monotonic()
     score_fit(profile, "Program Manager", SECURITIES_POSTING * 20_000, "pm")
     assert time.monotonic() - started < 2.0
+
+
+def test_green_starts_at_85():
+    """Owner's call 2026-08-22: an 80 was reading as "apply to this" while
+    better matches sat below it on the board. Nothing under 85 may come back
+    with the green tone."""
+    from app.fit import LABELS
+
+    tones = {label: (floor, tone) for floor, label, tone in LABELS}
+    assert tones["Strong fit"] == (85, "strong")
+    # Everything between the stretch floor and green shares the amber tone in
+    # base.html — the only green tone on the board is "strong".
+    assert [tone for _, _, tone in LABELS] == ["strong", "good", "possible", "stretch"]
+
+
+def test_only_the_strong_tone_is_green():
+    """The badge palette lives in base.html; this is the guard that keeps
+    "Good fit" from drifting back to a blue/green swatch."""
+    from pathlib import Path
+
+    css = Path(__file__).resolve().parents[1].joinpath("app/templates/base.html").read_text()
+    amber = "#8a6100"
+    for tone in ("good", "possible"):
+        line = next(l for l in css.splitlines() if f".fit-{tone} " in l)
+        assert amber in line, line
+    assert "#0a7f3f" in next(l for l in css.splitlines() if ".fit-strong " in l)
