@@ -218,6 +218,21 @@ Series 7, 63 and SIE or ability to obtain. Own the roadmap, partner with
 stakeholders, agile delivery, reporting, risk management, jira, dependencies.
 """
 
+MARKETING_POSTING = """
+Own demand generation and lifecycle marketing across paid search and paid
+social, run campaign strategy end to end, and manage the martech stack.
+Own the roadmap, partner with stakeholders, agile delivery, reporting.
+"""
+
+BENEFICIAL_MARKETING_POSTING = """
+Securities Finance Product Manager: lead the product strategy and roadmap,
+act as Product Owner within agile delivery teams, translate business needs
+into user stories and acceptance criteria, apply data and performance
+analytics, partner with stakeholders across global teams, reporting.
+Beneficial: functional background in marketing, credit, acquisitions, or
+analytics within a financial services context. Go-to-market strategy a plus.
+"""
+
 CLEAN_POSTING = """
 Technical Program Manager: own the roadmap, run agile delivery, manage
 stakeholders and dependencies, risk management, reporting, Jira, cloud
@@ -232,7 +247,7 @@ def test_off_track_postings_sink_below_a_real_match():
     profile = build_profile(RESUME, years=10)
     clean = score_fit(profile, "Technical Program Manager", CLEAN_POSTING, "pm")
     for posting in (SECURITIES_POSTING, HR_POSTING, QUANT_POSTING,
-                    CUSTODY_POSTING, LICENSE_POSTING):
+                    CUSTODY_POSTING, LICENSE_POSTING, MARKETING_POSTING):
         fit = score_fit(profile, "Program Manager", posting, "pm")
         assert fit["off_track"], posting[:60]
         assert fit["score"] < clean["score"], posting[:60]
@@ -263,6 +278,24 @@ def test_boilerplate_alone_never_fires():
     profile = build_profile(RESUME, years=10)
     assert not score_fit(profile, "Technical Program Manager",
                          CLEAN_POSTING, "pm")["off_track"]
+
+
+def test_marketing_as_a_nice_to_have_never_fires():
+    """Citi's securities finance product role lists "functional background in
+    marketing, credit, acquisitions, or analytics" under Beneficial Skills.
+    One mention of the function is not a marketing job, and neither is the
+    go-to-market strategy on the owner's own resume."""
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(profile, "Securities Finance Product Manager, Vice President",
+                    BENEFICIAL_MARKETING_POSTING, "pm")
+    assert "a marketing role" not in fit["off_track"]
+
+
+def test_marketing_reason_reaches_the_card():
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(profile, "Growth Marketing Manager", MARKETING_POSTING, "pm")
+    assert fit["off_track"] == ["a marketing role"]
+    assert "Reads as a marketing role" in fit["summary"]
 
 
 def test_a_vocabulary_is_not_off_track_on_its_own_board():

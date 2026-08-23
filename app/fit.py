@@ -306,6 +306,50 @@ OFF_TRACK_VOCABULARIES = {
             "employee lifecycle": ("onboarding and offboarding",),
         },
     },
+    "marketing": {
+        "label": "a marketing role",
+        "verticals": frozenset({"marketing"}),
+        # Three, and the bare word "marketing" is only one of them. Product
+        # postings name the function constantly — "partner with Marketing",
+        # "functional background in marketing, credit, acquisitions, or
+        # analytics" — and at one term that sentence alone was enough to
+        # downrank Citi's securities finance product role, where marketing is
+        # a nice-to-have listed under Beneficial Skills.
+        "min_terms": 3,
+        # Only the terms that make marketing the *subject* of the job fire on
+        # their own. A campaign or an email is something a product manager
+        # ships for someone else; demand generation is a job description.
+        "decisive": frozenset({
+            "demand generation", "brand marketing", "growth marketing",
+            "performance marketing", "marketing operations",
+        }),
+        "terms": {
+            "marketing": (),
+            "demand generation": ("demand gen", "lead generation", "lead gen"),
+            "brand marketing": ("brand management", "brand strategy",
+                                "brand positioning", "brand identity"),
+            "growth marketing": ("growth hacking",),
+            "performance marketing": ("paid media", "paid social", "paid search",
+                                      "media buying", "programmatic advertising"),
+            "marketing operations": ("marketing ops",),
+            "campaign management": ("marketing campaigns", "campaign strategy",
+                                    "campaign execution"),
+            "seo": ("search engine optimization", "sem",
+                    "search engine marketing"),
+            "content marketing": ("editorial calendar", "content calendar"),
+            "lifecycle marketing": ("email marketing", "crm marketing",
+                                    "marketing emails", "drip campaigns"),
+            "martech": ("marketing technology", "marketing stack",
+                        "marketing automation", "marketo", "hubspot"),
+            "customer acquisition": ("acquisition marketing", "top of funnel"),
+            "product marketing": ("pmm", "product marketing manager"),
+            "advertising": ("adtech", "ad campaigns", "ad spend"),
+            # Deliberately absent: "go-to-market"/"GTM", "positioning" and
+            # "messaging" are ordinary product vocabulary — GTM strategy is on
+            # the owner's own resume — and "acquisitions" on a bank posting
+            # means M&A, not customer acquisition.
+        },
+    },
     "quant": {
         "label": "a quantitative / research role",
         "verticals": frozenset({"finance", "analyst"}),
