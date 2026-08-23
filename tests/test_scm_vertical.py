@@ -117,7 +117,8 @@ def test_selecting_scm_adds_track_with_every_metro(signed_in_client, db_session)
     assert list(search.cities) == list(ALL_CITY_LABELS)
 
     body = signed_in_client.get("/dashboard?tab=scm").get_data(as_text=True)
-    assert "Supply chain" in body
+    assert "?tab=scm" in body
+    assert "Supply Chain" in body
 
 
 def test_scm_board_keeps_a_week(app, signed_in_client, db_session):

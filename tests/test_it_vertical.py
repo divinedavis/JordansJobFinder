@@ -111,7 +111,7 @@ def test_it_user_sees_only_it_tab(signed_in_client, db_session):
     assert "?tab=finance" not in body
     assert "?tab=sales" not in body
     assert "?tab=pm" not in body
-    assert "IT project and program manager roles" in body
+    assert "IT Project/Program Manager" in body
 
 
 def test_default_user_does_not_see_it_tab(signed_in_client):

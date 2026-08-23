@@ -87,7 +87,8 @@ def test_selecting_analyst_adds_tab(signed_in_client, db_session):
     assert list(search.cities) == list(ALL_CITY_LABELS)
 
     body = signed_in_client.get("/dashboard?tab=analyst").get_data(as_text=True)
-    assert "Data analyst, business analyst" in body
+    assert "?tab=analyst" in body
+    assert "Data / Business Analyst" in body
 
 
 def test_analyst_board_keeps_a_week(app, signed_in_client, db_session):

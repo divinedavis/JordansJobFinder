@@ -5,7 +5,15 @@ def test_dashboard_renders_for_logged_in_user(signed_in_client):
     response = signed_in_client.get("/dashboard")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Your current job matches" in body
+    assert "Private Jobs" in body
+
+
+def test_dashboard_has_no_heading_blurb(signed_in_client):
+    """The heading and the tab description paragraph were removed — regression guard."""
+    response = signed_in_client.get("/dashboard")
+    body = response.get_data(as_text=True)
+    assert "Your current job matches" not in body
+    assert "Product manager, program manager, and project manager jobs" not in body
 
 
 def test_dashboard_does_not_link_to_settings(signed_in_client):
