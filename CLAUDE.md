@@ -53,7 +53,7 @@ just showed nothing new, with no error anywhere.
 
 ## Scraper Pipeline (scraper.py)
 
-Scrapes 5 ATS platforms: Workday (~246 entries), Greenhouse (~86), Lever (~7), Eightfold (~2), custom Playwright (JPMorgan, Goldman, MetLife, Google, Meta, Amazon). Entry counts are company×city tuples — many companies appear in multiple cities.
+Scrapes 6 ATS platforms: Workday (~246 entries), Greenhouse (~86), Lever (~7), Eightfold (~2), Oracle Cloud Recruiting (~1), custom Playwright (JPMorgan, Goldman, MetLife, Google, Meta, Amazon). Entry counts are company×city tuples — many companies appear in multiple cities.
 
 Filter chain for each job:
 1. **Role** — title contains "product manager" or "program manager"
@@ -64,6 +64,32 @@ Filter chain for each job:
 6. **Tech focus** — 3+ tech keywords in description (agile, cloud, API, etc.)
 
 Outputs: jobs.html (static public board), jobs_store.json, shared_jobs.json, seen_jobs.json
+
+### Oracle Cloud Recruiting — ORACLE_MULTI (2026-08-23)
+
+Uber is on Oracle's Candidate Experience app, not Workday. It had been sitting
+in `WORKDAY_COMPANIES` under the tenant `uber` since it was added, logging
+`[Uber] 0 candidate(s)` every single morning — the tenant 422s on every
+version/site pair, and per Workday's convention **422 = the tenant does not
+exist** (a real tenant with a wrong site name answers 404). Nothing surfaced the
+failure because a scraper that finds nothing looks exactly like a board with no
+new jobs.
+
+`scrape_oracle_multi(name, host, siteNumber, sitePath)` hits
+`/hcmRestApi/resources/latest/recruitingCEJobRequisitions` sorted
+POSTING_DATES_DESC, and `fetch_oracle_detail` reads the body + pay range from
+`recruitingCEJobRequisitionDetails` (the public page is a JS shell, same as
+Workday's). Two gotchas:
+
+- **`siteNumber` is not the site name in the URL.** Uber's board is
+  `UberCareers` in the path and `CX_1` to the API, and Oracle answers an
+  unknown siteNumber with the pod's **default board** instead of a 404 — so a
+  wrong number silently scrapes some other employer under your company name.
+  Verify a new entry by reading titles back out of the response.
+- **`keyword` matching is loose** — a "product manager" search returns
+  software-engineer reqs. `is_target_role()` is what decides the role.
+
+Guards: `tests/test_scraper_oracle.py`.
 
 ### Multi-metro $1B+ employer lists (GREENHOUSE_MULTI / LEVER_MULTI / WORKDAY_MULTI)
 

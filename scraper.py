@@ -20,7 +20,14 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 from greenhouse_urls import greenhouse_job_url
-from job_enrich import DESCRIPTION_MAX_CHARS, workday_detail_by_url, workday_posting_removed
+from job_enrich import (
+    DESCRIPTION_MAX_CHARS,
+    ORACLE_URL,
+    oracle_detail_by_url,
+    oracle_job_url,
+    workday_detail_by_url,
+    workday_posting_removed,
+)
 from metros import ALL_METROS, LABELS as METRO_LABELS, infer_metro, matches_metro
 from posted_dates import RELATIVE_UNITS, parse_relative_posted
 
@@ -167,7 +174,9 @@ WORKDAY_COMPANIES = [
     ("Microsoft",        "microsoftcareers", 5, "MicrosoftCareers",       "nyc"),
     ("Visa",             "visa",          5,   "Visa",                    "nyc"),
     ("PayPal",           "paypal",        5,   "paypal",                  "nyc"),
-    ("Uber",             "uber",          5,   "External",                "nyc"),
+    # Uber is NOT on Workday — the "uber" tenant 422s on every version/site
+    # pair and returned 0 candidates every morning from the day it was added.
+    # It now lives in ORACLE_MULTI (Oracle Cloud Recruiting).
     ("Spotify",          "spotify",       5,   "External",                "nyc"),
     ("ByteDance",        "bytedance",     5,   "External",                "nyc"),
     ("Workday Inc",      "workday",       5,   "workday",                 "nyc"),
@@ -681,6 +690,22 @@ ULTIPRO_BOARDS = [
 
 # UltiPro pages through Skip/Top; this caps a board that grows unexpectedly.
 MAX_ULTIPRO_PAGES = 8
+
+# Oracle answers up to 100 reqs per request; two pages of newest-first results
+# covers far more than the 2-day recency window ever needs.
+ORACLE_PAGE_SIZE = 100
+MAX_ORACLE_PAGES = 2
+
+# Oracle Cloud Recruiting: (name, pod host, siteNumber, site path)
+#
+# `siteNumber` is what the REST API filters on and it is NOT the site name in
+# the public URL — Uber's board is "UberCareers" in the path and "CX_1" to the
+# API. Verify a new entry by reading titles back out of the response: Oracle
+# answers an unknown siteNumber with the pod's DEFAULT board instead of a 404,
+# so a wrong number scrapes some other employer's jobs under this name.
+ORACLE_MULTI = [
+    ("Uber", "iaziqy.fa.ocs.oraclecloud.com", "CX_1", "UberCareers"),
+]
 
 ASHBY_MULTI = [
     ("UiPath", "uipath"),   # NYC HQ, ~$1.4B revenue
@@ -1624,6 +1649,21 @@ def fetch_workday_detail(url):
     return salary, description, detail["posted"]
 
 
+def fetch_oracle_detail(url, site_number):
+    """Return (salary_text, description, posted) for an Oracle ORC posting.
+
+    Same reasoning as `fetch_workday_detail`: the public Candidate Experience
+    page is a JavaScript shell, so a Playwright scrape of it stores no body and
+    no pay. The REST resource carries both — Uber publishes real ranges
+    ($237,682 - $285,219 on a Product Manager II) that would otherwise reach the
+    board as "See posting".
+    """
+    detail = oracle_detail_by_url(url, site_number, timeout=20)
+    description = detail["description"][:DESCRIPTION_MAX_CHARS]
+    salary = format_salary_label(parse_salary_in_context(description)) if description else ""
+    return salary, description, detail["posted"]
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  SCRAPERS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2234,6 +2274,84 @@ def scrape_workday_multi(name, tenant, wd_ver, site):
     return candidates
 
 
+def scrape_oracle_multi(name, host, site_number, site_path):
+    """Oracle Cloud Recruiting search API — metro inferred per posting.
+
+    Results come back POSTING_DATES_DESC, so paging stops as soon as a page's
+    newest posting is already outside the recency window, and is capped at
+    MAX_ORACLE_PAGES regardless. Oracle's `keyword` match is loose — searching
+    "product manager" returns software-engineer reqs too — so `is_target_role`
+    is what actually decides the role, not the query.
+    """
+    base = (f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            f"?onlyData=true&expand=requisitionList.secondaryLocations")
+    candidates = []
+
+    for term in ["product manager", "program manager"]:
+        quoted = urllib.parse.quote(f'"{term}"')
+        for page in range(MAX_ORACLE_PAGES):
+            api = (f"{base}&finder=findReqs;siteNumber={site_number},"
+                   f"limit={ORACLE_PAGE_SIZE},offset={page * ORACLE_PAGE_SIZE},"
+                   f"sortBy=POSTING_DATES_DESC,keyword={quoted}")
+            try:
+                resp = requests.get(api, headers={**HEADERS, "Accept": "application/json"},
+                                    timeout=20)
+                if resp.status_code != 200:
+                    log(f"    [{name}] Oracle {resp.status_code}")
+                    break
+                items = (resp.json() or {}).get("items") or []
+            except Exception as e:
+                log(f"    [{name}] Error: {e}")
+                break
+
+            block = items[0] if items else {}
+            postings = block.get("requisitionList") or []
+            total = block.get("TotalJobsCount") or 0
+            if not postings:
+                break
+
+            page_has_recent = False
+            for job in postings:
+                posted = (job.get("PostedDate") or "")[:10]
+                if posted and is_recent_iso(posted):
+                    page_has_recent = True
+
+                title = (job.get("Title") or "").strip()
+                req_id = str(job.get("Id") or "")
+                if not (title and req_id) or not is_target_role(title):
+                    continue
+                if posted and not is_recent_iso(posted):
+                    continue
+
+                locations = [job.get("PrimaryLocation") or ""]
+                locations += [(loc or {}).get("Name") or ""
+                              for loc in job.get("secondaryLocations") or []]
+                city = location = None
+                for loc in locations:
+                    if not loc:
+                        continue
+                    found = infer_pm_city_or_extra(loc)
+                    if found:
+                        city, location = found, loc
+                        break
+                if not city or not level_ok(title, city):
+                    continue
+
+                candidates.append(make_job(
+                    title=title, url=oracle_job_url(host, site_path, req_id),
+                    company=name, city=city, posted=posted, location=location,
+                    source="oracle"
+                ))
+
+            # Newest-first: once a whole page predates the window, so does the rest.
+            if not page_has_recent:
+                break
+            if (page + 1) * ORACLE_PAGE_SIZE >= total:
+                break
+            time.sleep(0.5)
+
+    return candidates
+
 # ── Generic Eightfold API ──────────────────────────────────────────────────────
 
 def scrape_eightfold_company(name, domain, base_url, city):
@@ -2699,6 +2817,12 @@ def main():
         log(f"  [{name}] {len(result)} candidate(s)")
         all_candidates += result
 
+    for name, host, site_number, site_path in ORACLE_MULTI:
+        log(f"  [{name}] Oracle (multi)...")
+        result = scrape_oracle_multi(name, host, site_number, site_path)
+        log(f"  [{name}] {len(result)} candidate(s)")
+        all_candidates += result
+
     all_candidates += scrape_amazon("nyc")
     all_candidates += scrape_amazon("atlanta")
     all_candidates += scrape_amazon("miami")
@@ -2760,6 +2884,7 @@ def main():
 
             is_workday = "myworkdayjobs.com" in url
             is_builtin = job.get("source") == "builtinnyc"
+            is_oracle = job.get("source") == "oracle"
 
             if is_builtin:
                 # Listing tile already has salary/posted/description — skip detail fetch.
@@ -2774,6 +2899,24 @@ def main():
                                 if kw in description.lower() or kw in title_lower)
                 if tech_hits < 2:
                     log(f"    ✗ Not tech-focused (builtin tile, {tech_hits} signals)")
+                    continue
+            elif is_oracle:
+                site_number = next((num for _, host, num, _ in ORACLE_MULTI
+                                    if host in url), "")
+                salary, description, posted = fetch_oracle_detail(url, site_number)
+                job["description"] = description
+                if salary:
+                    job["salary"] = salary
+                if posted and posted != "Unknown":
+                    job["posted"] = posted
+                if job["salary"] and not salary_ok(job["salary"]):
+                    if job.get("city") not in SALARY_OPTIONAL_CITIES:
+                        log(f"    ✗ Salary too low: {job['salary']}")
+                        continue
+                if not job["salary"]:
+                    job["salary"] = "See posting"
+                if len(description) > 500 and not is_tech(description):
+                    log(f"    ✗ Not tech-focused")
                     continue
             elif is_workday:
                 salary, description, posted = fetch_workday_detail(url)

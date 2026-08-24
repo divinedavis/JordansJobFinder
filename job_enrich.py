@@ -171,3 +171,84 @@ def enrich_job(job: dict, *texts: str) -> dict:
         job["experience_max"] = parsed.max_years
 
     return job
+
+
+# ── Oracle Cloud Recruiting (ORC) ─────────────────────────────────────────────
+#
+# Uber moved off Workday to Oracle's Candidate Experience app, which is why the
+# `uber` Workday tenant returned 0 candidates every morning (422 on every
+# version/site pair — per Workday's convention 422 means the tenant does not
+# exist, where a real tenant with a wrong site name answers 404).
+#
+# A public ORC posting URL looks like
+# https://iaziqy.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/UberCareers/job/301148
+# but the REST API is addressed by `siteNumber` (CX_1), not by the site name in
+# the path, so the caller has to supply it. Getting it wrong is silent: Oracle
+# serves the pod's DEFAULT board for an unknown siteNumber rather than erroring.
+ORACLE_URL = re.compile(
+    r"^https://(?P<host>[^/]+\.oraclecloud\.com)/hcmUI/CandidateExperience/"
+    r"(?P<lang>[^/]+)/sites/(?P<site>[^/]+)/job/(?P<id>\d+)"
+)
+
+_ORACLE_DETAIL_CACHE: dict[str, dict] = {}
+
+
+def oracle_job_url(host: str, site: str, req_id: str) -> str:
+    return (f"https://{host}/hcmUI/CandidateExperience/en/sites/{site}"
+            f"/job/{req_id}")
+
+
+def oracle_detail(host: str, site_number: str, req_id: str, timeout: int = 20) -> dict:
+    """Fetch one Oracle Cloud Recruiting posting.
+
+    Returns {"description", "locations", "posted", "status"} — the same shape as
+    `workday_detail`, so both feed the enrichment path unchanged. The body is
+    split across three HTML fields (the corporate boilerplate, the role itself
+    and the qualifications); they are concatenated because the pay range lives
+    in whichever one the recruiter pasted it into.
+    """
+    detail = {"description": "", "locations": [], "posted": "", "status": 0}
+    if not (host and site_number and req_id):
+        return detail
+
+    api = (f"https://{host}/hcmRestApi/resources/latest/"
+           f"recruitingCEJobRequisitionDetails?expand=all&onlyData=true"
+           f"&finder=ById;Id=%22{req_id}%22,siteNumber={site_number}")
+    if api in _ORACLE_DETAIL_CACHE:
+        return _ORACLE_DETAIL_CACHE[api]
+
+    try:
+        resp = requests.get(api, headers={**HEADERS, "Accept": "application/json"},
+                            timeout=timeout)
+        detail["status"] = resp.status_code
+        if resp.status_code == 200:
+            items = (resp.json() or {}).get("items") or []
+            info = items[0] if items else {}
+            body = " ".join(filter(None, (
+                info.get("ExternalDescriptionStr"),
+                info.get("ExternalResponsibilitiesStr"),
+                info.get("ExternalQualificationsStr"),
+                info.get("CorporateDescriptionStr"),
+            )))
+            detail["description"] = html_to_text(body)[:DESCRIPTION_MAX_CHARS]
+            locations = [info.get("PrimaryLocation") or ""]
+            locations += [(loc or {}).get("Name") or ""
+                          for loc in info.get("secondaryLocations") or []]
+            detail["locations"] = [loc for loc in locations if loc]
+            # PostedDate is null on the detail resource even when the search
+            # result carried one; ExternalPostedStartDate is the field that is
+            # actually populated.
+            detail["posted"] = ((info.get("ExternalPostedStartDate")
+                                 or info.get("PostedDate") or "")[:10]).strip()
+    except Exception:
+        pass
+
+    _ORACLE_DETAIL_CACHE[api] = detail
+    return detail
+
+
+def oracle_detail_by_url(url: str, site_number: str, timeout: int = 20) -> dict:
+    match = ORACLE_URL.match(url or "")
+    if not match:
+        return {"description": "", "locations": [], "posted": "", "status": 0}
+    return oracle_detail(match["host"], site_number, match["id"], timeout=timeout)
