@@ -21,14 +21,66 @@
   <section class="panel">
     <span class="eyebrow">Private Jobs</span>
 
-    <nav class="tab-nav" style="margin-top: 24px; display: flex; gap: 8px; flex-wrap: wrap;">
+    {# The role pill IS the role picker, and it opens IN PLACE. One title per
+       account means this bar is usually a single pill, and clicking it used to
+       reload the tab you were already on — /search isn't in the nav, so there
+       was no way to change roles from the UI at all. Sending the user to
+       /search for one dropdown was a page load for nothing, so the picker is a
+       <details> right here; it still POSTs to /search and lands back on the
+       board. No JS. #}
+    <nav class="tab-nav" style="margin-top: 24px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
       {% for slug in tab_order %}
-        <a
-          href="{{ url_for('web.dashboard') }}?tab={{ slug }}"
-          class="tab-pill{% if slug == active_tab %} active{% endif %}"
-        >{{ tab_labels[slug] }}</a>
+        {% if slug != active_tab %}
+          <a
+            href="{{ url_for('web.dashboard') }}?tab={{ slug }}"
+            class="tab-pill"
+          >{{ tab_labels[slug] }}</a>
+        {% endif %}
       {% endfor %}
     </nav>
+
+    <details class="role-switcher" data-active-role="{{ active_tab }}" style="margin-top: 12px;">
+      <summary style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; list-style: none;">
+        <span class="tab-pill active">{{ tab_labels[active_tab] }} <span aria-hidden="true">&#9662;</span></span>
+        <span class="muted" style="font-size: 13px; text-decoration: underline;">Change role</span>
+      </summary>
+
+      <form method="post" action="{{ url_for('web.saved_search') }}"
+            style="margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; max-width: 640px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="flex: 1 1 260px;">
+          <label for="dash_title_slug">I&rsquo;m looking for</label>
+          <select id="dash_title_slug" name="title_slug" required style="margin-bottom: 0;">
+            {% for option in title_options %}
+              <option value="{{ option.slug }}"{% if saved_search and saved_search.title_slug == option.slug %} selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if resume_years is not none and saved_search %}
+          {# The resume wins over the picker, but the route still validates the
+             field — send back what's already stored rather than blanking it. #}
+          <input type="hidden" name="experience_bucket"
+                 value="{{ saved_search.experience_bucket if saved_search else '' }}">
+        {% else %}
+          <div style="flex: 0 1 180px;">
+            <label for="dash_experience_bucket">Experience</label>
+            <select id="dash_experience_bucket" name="experience_bucket" required style="margin-bottom: 0;">
+              {% for option in experience_options %}
+                <option value="{{ option.slug }}"{% if saved_search and saved_search.experience_bucket == option.slug %} selected{% endif %}>
+                  {{ option.label }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        {% endif %}
+        <button class="button" type="submit">Save</button>
+      </form>
+      <p class="muted" style="margin: 10px 0 0; font-size: 13px;">
+        Change it as often as you like &mdash; your board rebuilds straight away.
+      </p>
+    </details>
   </section>
 
   {% if saved_search %}
@@ -130,7 +182,7 @@
                   <article class="match-card">
                     <div class="match-card-top">
                       <span class="match-company">
-                        {{ match.company }}{% if match.display_city %}<span class="match-city">{{ match.display_city }}</span>{% endif %}{% if match.revenue %}<span class="match-city" style="color: #0a7f3f;" title="Approximate annual revenue">{{ match.revenue }} rev</span>{% endif %}
+                        {{ match.company }}{% if match.card_city or match.display_city %}<span class="match-city">{{ match.card_city or match.display_city }}</span>{% endif %}{% if match.revenue %}<span class="match-city" style="color: #0a7f3f;" title="Approximate annual revenue">{{ match.revenue }} rev</span>{% endif %}
                       </span>
                       <span class="match-posted">{{ match.posted_label }}</span>
                     </div>
@@ -183,7 +235,7 @@
               <div>
                 <strong>{{ match.company }}</strong>
                 <div style="margin-top: 4px;">{{ match.title }}</div>
-                <div class="muted" style="margin-top: 6px;">{{ match.display_city }} · {{ match.posted_label }}</div>
+                <div class="muted" style="margin-top: 6px;">{{ match.card_city or match.display_city }} · {{ match.posted_label }}</div>
               </div>
               <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View</a>
             </div>

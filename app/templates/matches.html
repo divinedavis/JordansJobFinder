@@ -76,7 +76,7 @@
               <div>
                 <strong>{{ match.company }}</strong>
                 <div style="margin-top: 4px;">{{ match.title }}</div>
-                <div class="muted" style="margin-top: 6px;">{{ match.display_city }} · {{ match.posted_label }}</div>
+                <div class="muted" style="margin-top: 6px;">{{ match.card_city or match.display_city }} · {{ match.posted_label }}</div>
               </div>
               <a class="button secondary" href="{{ match.url if match.url.startswith("http") else "#" }}" target="_blank" rel="noreferrer">View</a>
             </div>

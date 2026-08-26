@@ -51,8 +51,10 @@ def test_scm_scraper_infers_sc_and_nationwide_metros():
     assert infer_city("Boston, MA") == "boston"
     assert infer_city("Seattle, WA") == "seattle"
     assert infer_city("Denver, CO") == "denver"
-    # Out of scope -> dropped.
-    assert infer_city("Charlotte, NC") == ""
+    # Charlotte was out of scope until 2026-08-26, when NC/SC/GA got full
+    # statewide coverage. It's a real metro now.
+    assert infer_city("Charlotte, NC") == "charlotte-nc"
+    assert infer_city("Boone, NC") == "nc-other"
 
 
 def test_verified_sc_1b_employers_are_in_scm_union():
@@ -103,7 +105,6 @@ def test_selecting_scm_adds_track_with_every_metro(signed_in_client, db_session)
     from app.models import SavedSearch, User
 
     resp = signed_in_client.post("/search", data={
-        "ack_lock": "1",
         "title_slug": "supply-chain-mgmt", "experience_bucket": "3-6",
     })
     assert resp.status_code == 302
@@ -117,7 +118,7 @@ def test_selecting_scm_adds_track_with_every_metro(signed_in_client, db_session)
     assert list(search.cities) == list(ALL_CITY_LABELS)
 
     body = signed_in_client.get("/dashboard?tab=scm").get_data(as_text=True)
-    assert "?tab=scm" in body
+    assert 'data-active-role="scm"' in body
     assert "Supply Chain" in body
 
 
@@ -129,7 +130,7 @@ def test_scm_board_keeps_a_week(app, signed_in_client, db_session):
     from app.sync import rebuild_matches_for_user
 
     signed_in_client.post("/search", data={
-        "ack_lock": "1", "title_slug": "supply-chain-mgmt", "experience_bucket": "3-6",
+        "title_slug": "supply-chain-mgmt", "experience_bucket": "3-6",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
     five_days_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=5)

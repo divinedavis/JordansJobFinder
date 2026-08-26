@@ -54,14 +54,11 @@
       <p class="match-kicker">Job search</p>
       <h3 class="match-title">Title, experience &amp; cities</h3>
     </div></div>
-    {% if is_locked %}
-      <p class="muted" style="margin-top: 10px;">
-        Locked until <strong>{{ locked_until.strftime('%b %-d, %Y') }}</strong>.
-        Searches lock for 30 days after saving.
-      </p>
-    {% endif %}
+    <p class="muted" style="margin-top: 10px;">
+      Switch roles whenever you want &mdash; there is no waiting period.
+    </p>
     <div class="button-row" style="margin-top: 14px;">
-      <a class="button {% if is_locked %}secondary{% endif %}" href="{{ url_for('web.saved_search') }}">Edit search</a>
+      <a class="button" href="{{ url_for('web.saved_search') }}">Edit search</a>
     </div>
   </section>
 

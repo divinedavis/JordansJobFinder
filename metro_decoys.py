@@ -60,6 +60,7 @@ DECOY_LOCS = {
         "washington, il",
         "washington, in",
         "washington, nc",
+        "college park, ga",
         "washington, ut",
         "washington, ia",
         "port washington",      # NY / WI
@@ -218,6 +219,94 @@ DECOY_LOCS = {
         "harrisburg, sd",
         "harrisburg, il",
     ),
+    # ── North Carolina ────────────────────────────────────────────────────
+    "charlotte-nc": (
+        "charlottesville",      # VA — contains "charlotte"
+        "charlotte, mi",
+        "charlotte, tn",
+        "charlotte, vt",
+        "charlotte county",     # FL / VA
+        "charlotte hall",       # MD
+        "port charlotte",       # FL
+        "charlotte amalie",     # USVI
+        "mooresville, in",
+        "mooresville, al",
+        "lincolnton, ga",
+    ),
+    "raleigh-nc": (
+        "raleigh, ms",
+        "raleigh, wv",
+        "raleigh, il",
+        "raleigh, nd",
+        "raleigh county",       # WV
+    ),
+    "durham-nc": (
+        "durham, uk",
+        "durham, england",
+        "durham, ct",
+        "durham, nh",
+        "durham, ca",
+        "chapel hill, tn",
+        "chapel hill, oh",
+    ),
+    "greensboro-nc": (
+        "greensboro, ga",
+        "greensboro, al",
+        "greensboro, md",
+    ),
+    "asheville-nc": (
+        "asheville, oh",
+        "waynesville, mo",
+        "waynesville, oh",
+    ),
+    "hickory-nc": (
+        "morganton, ga",
+    ),
+    "rocky-mount-nc": (
+        "rocky mount, va",
+    ),
+    "goldsboro-nc": (
+        "goldsboro, md",
+        "goldsboro, pa",
+    ),
+    "hilton-head-sc": (
+        "beaufort, nc",
+    ),
+
+    # ── Georgia ───────────────────────────────────────────────────────────
+    "savannah-ga": (
+        "savannah, tn",
+        "savannah, mo",
+        "savannah, tx",
+        "savannah, ny",
+    ),
+    "macon-ga": (
+        "macon, mo",
+        "macon, il",
+        "macon, ms",
+        "macon, france",
+    ),
+    "brunswick-ga": (
+        "brunswick, oh",
+        "brunswick, me",
+        "brunswick, nj",
+        "brunswick, md",
+        "new brunswick",
+    ),
+    "ga-other": (
+        # ", georgia" is normalised to ", ga" before any pattern runs, so the
+        # country arrives here spelled exactly like the state. Enumerate the
+        # country (a short list) rather than the state (not a short list) —
+        # and decoy the whole ", ga" tail, since blanking "tbilisi" alone
+        # would leave the token that matched.
+        "tbilisi, ga",
+        "batumi, ga",
+        "kutaisi, ga",
+        "rustavi, ga",
+        "georgian",             # "Georgian Bay", "Georgian College"
+        "republic of ga",
+    ),
+
     "lagos-ng": (
         # All three turned up in a real sweep of the boards we already scrape
         # (2026-08-01): Ecolab posts "CHL - Los Lagos - Osorno" and Skechers

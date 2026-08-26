@@ -107,7 +107,9 @@ def test_it_user_sees_only_it_tab(signed_in_client, db_session):
     _convert_to_it_user(db_session)
 
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
-    assert "?tab=it" in body
+    # The active track is the role picker's <summary>, not a ?tab= link —
+    # so the marker for "this is the board I'm on" is data-active-role.
+    assert 'data-active-role="it"' in body
     assert "?tab=finance" not in body
     assert "?tab=sales" not in body
     assert "?tab=pm" not in body
@@ -117,7 +119,7 @@ def test_it_user_sees_only_it_tab(signed_in_client, db_session):
 def test_default_user_does_not_see_it_tab(signed_in_client):
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
     # Single-title rule: signup seeds only the PM track now.
-    assert "?tab=pm" in body
+    assert 'data-active-role="pm"' in body
     assert "?tab=it" not in body
     assert "?tab=finance" not in body
 

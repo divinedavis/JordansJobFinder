@@ -73,7 +73,6 @@ def test_selecting_analyst_adds_tab(signed_in_client, db_session):
     from app.models import SavedSearch, User
 
     resp = signed_in_client.post("/search", data={
-        "ack_lock": "1",
         "title_slug": "data-business-analyst", "experience_bucket": "3-6",
     })
     assert resp.status_code == 302
@@ -87,7 +86,7 @@ def test_selecting_analyst_adds_tab(signed_in_client, db_session):
     assert list(search.cities) == list(ALL_CITY_LABELS)
 
     body = signed_in_client.get("/dashboard?tab=analyst").get_data(as_text=True)
-    assert "?tab=analyst" in body
+    assert 'data-active-role="analyst"' in body
     assert "Data / Business Analyst" in body
 
 
@@ -99,7 +98,7 @@ def test_analyst_board_keeps_a_week(app, signed_in_client, db_session):
     from app.sync import rebuild_matches_for_user
 
     signed_in_client.post("/search", data={
-        "ack_lock": "1", "title_slug": "data-business-analyst",
+        "title_slug": "data-business-analyst",
         "experience_bucket": "3-6",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()

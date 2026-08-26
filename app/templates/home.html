@@ -30,7 +30,7 @@
                 <span class="match-posted">{{ job.posted_label }}</span>
               </div>
               <div style="margin-top: 6px; font-weight: 600;">{{ job.title }}</div>
-              <div class="muted" style="margin-top: 4px; font-size: 13px;">{{ job.display_city }}</div>
+              <div class="muted" style="margin-top: 4px; font-size: 13px;">{{ job.card_city or job.display_city }}</div>
             </div>
             {% else %}
             <div class="card" style="padding: 14px 16px;">

@@ -123,7 +123,6 @@ def test_saving_ignores_submitted_cities_and_stores_the_full_set(signed_in_clien
     from app.models import SavedSearch, User
 
     resp = signed_in_client.post("/search", data={
-        "ack_lock": "1",
         "title_slug": "technical-product-manager",
         "experience_bucket": "7-9",
         "city_1": "Boise, ID",
@@ -160,7 +159,7 @@ def test_signup_seeds_a_single_track(client, db_session):
 def test_choosing_new_title_replaces_track_for_regular_user(signed_in_client, db_session):
     from app.models import SavedSearch, User
 
-    signed_in_client.post("/search", data={"ack_lock": "1", 
+    signed_in_client.post("/search", data={
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
@@ -180,7 +179,7 @@ def test_admin_is_also_limited_to_one_track(client, db_session):
         "email": "superuser@example.com", "password": "Str0ng-Pass-9x",
         "confirm_password": "Str0ng-Pass-9x",
     })
-    client.post("/search", data={"ack_lock": "1", 
+    client.post("/search", data={
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     user = db_session.query(User).filter(User.email == "superuser@example.com").one()

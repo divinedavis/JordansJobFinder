@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import re
-from datetime import timedelta
 
 from flask import (
     Blueprint,
@@ -195,20 +194,17 @@ def is_pro(user, subscription) -> bool:
     return True
 
 
-SEARCH_LOCK_DAYS = 30
-
-
-def _lock_search(subscription) -> None:
-    """Freeze the saved search for 30 days from now (caller commits)."""
-    subscription.search_locked_until = utc_now().replace(tzinfo=None) + timedelta(days=SEARCH_LOCK_DAYS)
+# The saved search used to freeze for 30 days after every save, gated behind
+# an "I understand" checkbox. Removed 2026-08-26 at the owner's request: there
+# are no restrictions on switching roles any more, so a user can change title
+# and experience level as often as they like. `Subscription.search_locked_until`
+# is kept on the model (and cleared for everyone who still carried a stamp)
+# rather than migrated away — nothing reads it now.
 
 
 def search_locked(user, subscription) -> bool:
-    """Whether the saved search is currently frozen. The owner is never locked."""
-    if is_admin_email(user.email):
-        return False
-    until = subscription.search_locked_until
-    return until is not None and until > utc_now().replace(tzinfo=None)
+    """Kept so old call sites keep working. Nothing locks a search any more."""
+    return False
 
 
 @web.get("/")
@@ -465,6 +461,11 @@ def dashboard():
         active_tab=active_tab,
         tab_labels=VERTICAL_LABELS,
         tab_order=tabs,
+        # The role picker lives ON the board (an inline <details>), so the
+        # dashboard needs the same options /search renders. Sending the user to
+        # another page to change one dropdown was a page load for nothing.
+        title_options=title_choices(),
+        experience_options=experience_choices(),
         resume_years=resume_years,
         resume_bucket=bucket_for_years(resume_years),
         ai_status=ai_tailoring_status(),
@@ -658,24 +659,7 @@ def saved_search():
     subscription = ensure_subscription(user, db)
 
     if request.method == "POST":
-        # Search lock: after the first save the whole search (title, experience,
-        # cities) is frozen for 30 days. Upgrading a tier clears the lock.
-        if search_locked(user, subscription):
-            flash(
-                f"Your search is locked until {subscription.search_locked_until:%b %-d, %Y}. "
-                "Upgrade your plan to change it sooner.",
-                "error",
-            )
-            return redirect(url_for("web.saved_search"))
-
-        # The user must explicitly acknowledge the 30-day lock before saving.
-        if not request.form.get("ack_lock"):
-            flash(
-                "Please confirm you understand your search locks for 30 days before saving.",
-                "error",
-            )
-            return redirect(url_for("web.saved_search"))
-
+        # No lock and no acknowledgment: switching roles is unrestricted.
         title_slug = request.form.get("title_slug", "").strip()
         experience_bucket = request.form.get("experience_bucket", "").strip()
         # Resume-derived seniority wins: when the user's resume has parseable
@@ -713,7 +697,6 @@ def saved_search():
             search.cities = list(VERTICAL_DEFAULT_CITIES[vertical])
             search.is_paid_city_override = False
             _enforce_single_title()
-            _lock_search(subscription)
             db.commit()
             try:
                 from .sync import rebuild_matches_for_user
@@ -746,7 +729,6 @@ def saved_search():
         search.cities = list(selected_cities)
         search.is_paid_city_override = False
         _enforce_single_title()
-        _lock_search(subscription)
         db.commit()
         try:
             from .sync import rebuild_matches_for_user
@@ -768,8 +750,6 @@ def saved_search():
         resume_years=resume_years_for_user(db, user.id),
         covered_cities=ALL_CITY_LABELS,
         is_superuser=is_superuser_email(user.email),
-        is_locked=search_locked(user, subscription),
-        locked_until=subscription.search_locked_until,
     )
 
 
@@ -818,8 +798,6 @@ def profile():
         city_limit=limit,
         resume=resume_quota_state(subscription, limit),
         is_billing_exempt=is_admin_email(user.email),
-        is_locked=search_locked(user, subscription),
-        locked_until=subscription.search_locked_until,
         has_stripe_customer=bool(subscription.stripe_customer_id),
     )
 

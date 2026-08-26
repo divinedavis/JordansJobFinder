@@ -5,14 +5,17 @@ below is one that actually bit or nearly bit.
 """
 import pytest
 
-from metros import (ALL_METROS, INTERNATIONAL, LABELS, MATCH_ORDER, PATTERNS,
-                    STATE_FALLBACK, TOP_20, infer_metro, matches_metro)
+from metros import (ALL_METROS, GA_REGIONAL, INTERNATIONAL, LABELS,
+                    MATCH_ORDER, NC_REGIONAL, PATTERNS, SC_REGIONAL,
+                    STATE_FALLBACK, STATEWIDE_CATCH_ALLS, TOP_20, infer_metro,
+                    matches_metro)
 
 
 def test_registry_is_internally_consistent():
     assert set(MATCH_ORDER) == set(PATTERNS) == set(LABELS)
     assert len(TOP_20) == 20
-    assert len(ALL_METROS) == 30  # top 20 + 3 PA + 6 SC + 1 international
+    # top 20 + 3 PA + 16 NC + 9 SC + 14 GA + 1 international
+    assert len(ALL_METROS) == 63
     assert len(set(MATCH_ORDER)) == len(MATCH_ORDER), "duplicate slug"
 
 
@@ -78,11 +81,25 @@ def test_dropped_metros_are_excluded_not_relabelled(location):
     assert infer_metro(location) == ""
 
 
-@pytest.mark.parametrize("location", ["Austin, TX", "Savannah, GA", "Tucson, AZ"])
+@pytest.mark.parametrize("location", ["Austin, TX", "Tucson, AZ"])
 def test_state_catch_alls_never_fire_during_inference(location):
-    """A job elsewhere in Texas/Georgia/Arizona is not a Dallas/Atlanta/Phoenix
-    job. The bare state tokens are per-city-scrape only."""
+    """A job elsewhere in Texas/Arizona is not a Dallas/Phoenix job. The bare
+    state tokens in STATE_FALLBACK are per-city-scrape only.
+
+    Georgia dropped off this list on 2026-08-26: the state is covered now, so
+    a Savannah job is a Savannah job. What must still never happen is it
+    reading as ATLANTA — that's the bug this test was written for, and it's
+    asserted directly below."""
     assert infer_metro(location) == ""
+
+
+@pytest.mark.parametrize("location", [
+    "Savannah, GA", "Macon, GA", "Tifton, GA", "Remote - Georgia",
+])
+def test_a_georgia_job_is_never_relabelled_as_atlanta(location):
+    """The original sin this file was written around: Atlanta carried a bare
+    ", ga" and every Georgia posting read as an Atlanta one."""
+    assert infer_metro(location) != "atlanta"
 
 
 def test_state_fallback_is_available_to_per_city_callers():
@@ -284,3 +301,161 @@ def test_normalisation_does_not_create_false_matches():
     # "west virginia" must not be eaten by "virginia".
     assert normalize_states("charleston, west virginia") == "charleston, wv"
     assert infer_metro("Charleston, West Virginia") == ""
+
+
+# ── NC / SC / GA statewide coverage (2026-08-26) ─────────────────────────────
+
+
+@pytest.mark.parametrize("location,expected", [
+    # North Carolina — one metro per MSA.
+    ("Charlotte, NC", "charlotte-nc"),
+    ("Charlotte, North Carolina", "charlotte-nc"),
+    ("Raleigh, NC", "raleigh-nc"),
+    ("Durham, NC", "durham-nc"),
+    ("Chapel Hill, NC", "durham-nc"),
+    ("Research Triangle Park, NC", "durham-nc"),
+    ("Greensboro, NC", "greensboro-nc"),
+    ("Winston-Salem, NC", "winston-salem-nc"),
+    ("Fayetteville, NC", "fayetteville-nc"),
+    ("Asheville, NC", "asheville-nc"),
+    ("Wilmington, NC", "wilmington-nc"),
+    ("Hickory, NC", "hickory-nc"),
+    ("Greenville, NC", "greenville-nc"),
+    ("Jacksonville, NC", "jacksonville-nc"),
+    ("Burlington, NC", "burlington-nc"),
+    ("New Bern, NC", "new-bern-nc"),
+    ("Rocky Mount, NC", "rocky-mount-nc"),
+    ("Goldsboro, NC", "goldsboro-nc"),
+    # South Carolina — the two MSAs the SC keep-list was missing.
+    ("Myrtle Beach, SC", "myrtle-beach-sc"),
+    ("Hilton Head Island, SC", "hilton-head-sc"),
+    ("Bluffton, SC", "hilton-head-sc"),
+    # Georgia.
+    ("Atlanta, GA", "atlanta"),
+    ("Augusta, GA", "augusta-ga"),
+    ("Savannah, GA", "savannah-ga"),
+    ("Columbus, GA", "columbus-ga"),
+    ("Macon, GA", "macon-ga"),
+    ("Athens, GA", "athens-ga"),
+    ("Gainesville, GA", "gainesville-ga"),
+    ("Warner Robins, GA", "warner-robins-ga"),
+    ("Albany, GA", "albany-ga"),
+    ("Dalton, GA", "dalton-ga"),
+    ("Valdosta, GA", "valdosta-ga"),
+    ("Rome, GA", "rome-ga"),
+    ("Brunswick, GA", "brunswick-ga"),
+    ("Hinesville, GA", "hinesville-ga"),
+])
+def test_carolinas_and_georgia_metros_match_their_own_names(location, expected):
+    assert infer_metro(location) == expected
+
+
+@pytest.mark.parametrize("location,expected", [
+    # Towns too small for an MSA. The whole point of "all cities in NC, SC and
+    # GA" is that none of these fall off the board.
+    ("Boone, NC", "nc-other"),
+    ("Elizabeth City, NC", "nc-other"),
+    ("Southern Pines, NC", "nc-other"),
+    ("Remote - North Carolina", "nc-other"),
+    ("Walterboro, SC", "sc-other"),
+    ("Lancaster, SC", "sc-other"),
+    ("Newberry, SC", "sc-other"),
+    ("Tifton, GA", "ga-other"),
+    ("Statesboro, GA", "ga-other"),
+    ("Thomasville, GA", "ga-other"),
+])
+def test_the_statewide_catch_alls_catch_everything_else(location, expected):
+    assert infer_metro(location) == expected
+
+
+def test_the_catch_alls_are_checked_last():
+    """A catch-all ahead of a named metro in its own state would relabel every
+    Charlotte / Savannah job as "(other)"."""
+    tail = set(MATCH_ORDER[-len(STATEWIDE_CATCH_ALLS):])
+    assert tail == STATEWIDE_CATCH_ALLS
+
+
+@pytest.mark.parametrize("location,expected", [
+    # Same-name places in other states must not be dragged into the Carolinas
+    # or Georgia by the new bare patterns.
+    ("Charlottesville, VA", ""),
+    ("Charlotte, MI", ""),
+    ("Port Charlotte, FL", ""),
+    ("Raleigh, MS", ""),
+    ("Greensboro, GA", "ga-other"),
+    ("Savannah, TN", ""),
+    ("Macon, MO", ""),
+    ("New Brunswick, NJ", ""),
+    ("Beaufort, NC", "nc-other"),
+    ("Waynesville, MO", ""),
+    ("Rocky Mount, VA", ""),
+    ("Greenville, SC", "greenville-sc"),
+    ("Fayetteville, AR", ""),
+    ("Wilmington, DE", "philadelphia-pa"),
+    ("Jacksonville, FL", ""),
+])
+def test_new_bare_patterns_do_not_steal_other_states(location, expected):
+    assert infer_metro(location) == expected
+
+
+@pytest.mark.parametrize("location", [
+    "Tbilisi, Georgia", "Batumi, Georgia", "Georgian Bay, ON",
+])
+def test_the_country_of_georgia_is_not_the_state(location):
+    """normalize_states rewrites ", Georgia" to ", ga" before any pattern runs,
+    so Tbilisi arrives spelled exactly like Macon. The country is a short list;
+    the state's towns are not — so the country goes in the decoys."""
+    assert infer_metro(location) == ""
+
+
+@pytest.mark.parametrize("location,expected", [
+    # Atlanta's pattern list was a dozen inner suburbs. With a Georgia
+    # catch-all in play, everything past the perimeter would have read as
+    # "Georgia (other)".
+    ("Douglasville, GA", "atlanta"),
+    ("Lawrenceville, GA", "atlanta"),
+    ("Woodstock, GA", "atlanta"),
+    ("McDonough, GA", "atlanta"),
+    ("Newnan, GA", "atlanta"),
+    ("Dallas, GA", "atlanta"),
+    ("Carrollton, GA", "atlanta"),
+    ("Carrollton, TX", "dallas"),
+    ("College Park, GA", "atlanta"),
+    ("College Park, MD", "dc"),
+])
+def test_metro_atlanta_actually_covers_metro_atlanta(location, expected):
+    assert infer_metro(location) == expected
+
+
+@pytest.mark.parametrize("location,expected", [
+    # Charlotte's suburbs are the decoy list of half the registry — Dallas NC,
+    # Denver NC, Harrisburg NC and Lowell NC each already sat in another
+    # metro's decoys, which kept them OFF the board rather than on Charlotte's.
+    ("Dallas, NC", "charlotte-nc"),
+    ("Denver, NC", "charlotte-nc"),
+    ("Harrisburg, NC", "charlotte-nc"),
+    ("Lowell, NC", "charlotte-nc"),
+    ("Concord, NC", "charlotte-nc"),
+    ("Concord, CA", "san-francisco"),
+])
+def test_charlotte_reclaims_its_own_suburbs(location, expected):
+    assert infer_metro(location) == expected
+
+
+def test_aiken_sc_belongs_to_the_augusta_labour_market():
+    """Boundaries follow the local labour market, not state lines — the same
+    rule that puts Spartanburg on Greenville and Ann Arbor on Detroit. The
+    catch-alls run last precisely so this survives."""
+    assert infer_metro("Aiken, SC") == "augusta-ga"
+    assert infer_metro("North Augusta, SC") == "augusta-ga"
+
+
+def test_the_new_states_are_on_the_board_layout():
+    """A metro missing from CITY_OPTIONS exists for the scrapers but never
+    renders a dashboard section."""
+    from app.catalog import ALL_CITY_LABELS, CITY_LABELS
+
+    for slug in (*NC_REGIONAL, *SC_REGIONAL, *GA_REGIONAL):
+        assert slug in CITY_LABELS, slug
+        assert CITY_LABELS[slug] in ALL_CITY_LABELS, slug
+    assert CITY_LABELS["nc-other"] == "North Carolina (other)"

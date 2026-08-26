@@ -12,9 +12,14 @@ deliberately:
 * **Central/eastern PA** — York, Lancaster, Harrisburg. These are reachable
   only through the regional ATS platforms in scraper_ats_extra.py, and they're
   the whole IT-track audience.
-* **South Carolina's 10 largest cities.** Eight already fall inside the four SC
-  metros (Charleston covers North Charleston / Mount Pleasant / Summerville /
-  Goose Creek; Greenville covers Greer), so only Sumter and Florence are new.
+* **North Carolina, South Carolina and Georgia — every city** (2026-08-26,
+  owner's request). One metro per MSA in each state, plus a statewide
+  catch-all (`nc-other` / `sc-other` / `ga-other`) checked after every named
+  metro, so a posting in a town too small for an MSA still lands on the board
+  under "North Carolina (other)" rather than being dropped. Atlanta's pattern
+  list was widened at the same time — it had a dozen inner suburbs, and with a
+  Georgia catch-all in play everything in Cobb/Gwinnett/Douglas/Paulding would
+  have read as "Georgia (other)".
 * **International** — Lagos, Nigeria (added 2026-08-01, owner's request). The
   first non-US metro in the registry. Nothing else in the app assumes US-only,
   but note that no employer list targets Nigeria: Lagos fills only when one of
@@ -61,8 +66,36 @@ TOP_20 = (
 # Kept outside the top 20: the PA trio (IT-track audience, and the only metros
 # the regional ATS platforms reach) and South Carolina.
 PA_REGIONAL = ("york-pa", "lancaster-pa", "harrisburg-pa")
+
+# ── The Carolinas + Georgia: every city in the three states (2026-08-26) ──────
+#
+# Owner asked for "all cities in NC, SC and GA". The registry is metro-shaped,
+# not city-shaped, so the way to cover a whole state is: one metro per
+# metropolitan statistical area (that's where the employers are, and it's what
+# makes a useful dashboard section), plus a **statewide catch-all** checked
+# LAST — so a posting in a town too small to have an MSA lands on
+# "North Carolina (other)" instead of falling off the board. Between the two,
+# no city in these three states can be dropped.
+#
+# The catch-alls are the only bare state tokens in PATTERNS, and they are safe
+# here for the reason STATE_FALLBACK is not: the label they produce IS the
+# state, so a Hickory job reads "North Carolina (other)", never "Charlotte".
+# The card still shows the posting's own location — see results._card_city.
+NC_REGIONAL = ("charlotte-nc", "raleigh-nc", "durham-nc", "greensboro-nc",
+               "winston-salem-nc", "fayetteville-nc", "asheville-nc",
+               "wilmington-nc", "hickory-nc", "greenville-nc",
+               "jacksonville-nc", "burlington-nc", "new-bern-nc",
+               "rocky-mount-nc", "goldsboro-nc", "nc-other")
 SC_REGIONAL = ("charleston-sc", "columbia-sc", "greenville-sc", "rock-hill-sc",
-               "sumter-sc", "florence-sc")
+               "myrtle-beach-sc", "hilton-head-sc", "sumter-sc", "florence-sc",
+               "sc-other")
+GA_REGIONAL = ("augusta-ga", "savannah-ga", "columbus-ga", "macon-ga",
+               "athens-ga", "gainesville-ga", "warner-robins-ga", "albany-ga",
+               "dalton-ga", "valdosta-ga", "rome-ga", "brunswick-ga",
+               "hinesville-ga", "ga-other")
+# Every statewide catch-all, so display code can tell "we know the metro" from
+# "we only know the state".
+STATEWIDE_CATCH_ALLS = frozenset({"nc-other", "sc-other", "ga-other"})
 # Non-US markets. Kept as its own group so the US-only assumptions elsewhere
 # (STATE_FALLBACK, normalize_states, uscities.py) stay visibly US-scoped.
 INTERNATIONAL = ("lagos-ng",)
@@ -95,8 +128,41 @@ LABELS = {
     "columbia-sc": "Columbia, SC",
     "greenville-sc": "Greenville, SC",
     "rock-hill-sc": "Rock Hill, SC",
+    "myrtle-beach-sc": "Myrtle Beach, SC",
+    "hilton-head-sc": "Hilton Head, SC",
     "sumter-sc": "Sumter, SC",
     "florence-sc": "Florence, SC",
+    "sc-other": "South Carolina (other)",
+    "charlotte-nc": "Charlotte, NC",
+    "raleigh-nc": "Raleigh, NC",
+    "durham-nc": "Durham, NC",
+    "greensboro-nc": "Greensboro, NC",
+    "winston-salem-nc": "Winston-Salem, NC",
+    "fayetteville-nc": "Fayetteville, NC",
+    "asheville-nc": "Asheville, NC",
+    "wilmington-nc": "Wilmington, NC",
+    "hickory-nc": "Hickory, NC",
+    "greenville-nc": "Greenville, NC",
+    "jacksonville-nc": "Jacksonville, NC",
+    "burlington-nc": "Burlington, NC",
+    "new-bern-nc": "New Bern, NC",
+    "rocky-mount-nc": "Rocky Mount, NC",
+    "goldsboro-nc": "Goldsboro, NC",
+    "nc-other": "North Carolina (other)",
+    "augusta-ga": "Augusta, GA",
+    "savannah-ga": "Savannah, GA",
+    "columbus-ga": "Columbus, GA",
+    "macon-ga": "Macon, GA",
+    "athens-ga": "Athens, GA",
+    "gainesville-ga": "Gainesville, GA",
+    "warner-robins-ga": "Warner Robins, GA",
+    "albany-ga": "Albany, GA",
+    "dalton-ga": "Dalton, GA",
+    "valdosta-ga": "Valdosta, GA",
+    "rome-ga": "Rome, GA",
+    "brunswick-ga": "Brunswick, GA",
+    "hinesville-ga": "Hinesville, GA",
+    "ga-other": "Georgia (other)",
     "lagos-ng": "Lagos, Nigeria",
 }
 
@@ -134,7 +200,20 @@ PATTERNS = {
     "atlanta": ("atlanta", "alpharetta", "buckhead", "sandy springs",
                 "dunwoody", "marietta", "roswell, ga", "duluth, ga",
                 "kennesaw", "smyrna, ga", "norcross", "peachtree",
-                "johns creek", "decatur, ga"),
+                "johns creek", "decatur, ga", "brookhaven, ga", "chamblee",
+                "doraville", "tucker, ga", "stone mountain", "lithonia",
+                "stonecrest", "conyers", "covington, ga", "snellville",
+                "lilburn", "lawrenceville", "suwanee", "buford",
+                "sugar hill, ga", "cumming, ga", "milton, ga", "canton, ga",
+                "woodstock, ga", "acworth", "powder springs", "austell",
+                "mableton", "lithia springs", "douglasville", "villa rica",
+                "dallas, ga", "hiram, ga", "cartersville", "carrollton, ga",
+                "newnan", "fayetteville, ga", "mcdonough", "stockbridge",
+                "jonesboro, ga", "morrow, ga", "riverdale, ga",
+                "forest park, ga", "union city, ga", "east point, ga",
+                "college park, ga", "hapeville", "griffin, ga",
+                "fulton county, ga", "dekalb county, ga",
+                "cobb county, ga", "gwinnett"),
     "dc": ("washington, dc", "washington dc", "washington, d.c.", "d.c.",
            "arlington, va", "mclean", "tysons", "reston", "bethesda",
            "rockville", "silver spring", "fairfax", "herndon", "chantilly",
@@ -253,6 +332,123 @@ PATTERNS = {
     "sumter-sc": ("sumter, sc", "sumter sc", "shaw afb", "shaw air force"),
     "florence-sc": ("florence, sc", "florence sc", "florence county, sc"),
 
+    # ── South Carolina, the rest ──────────────────────────────────────────
+    "myrtle-beach-sc": ("myrtle beach", "north myrtle beach", "conway, sc",
+                        "surfside beach", "murrells inlet", "socastee",
+                        "little river, sc", "horry county", "georgetown, sc",
+                        "pawleys island", "grand strand"),
+    "hilton-head-sc": ("hilton head", "bluffton, sc", "beaufort, sc",
+                       "port royal, sc", "okatie", "parris island",
+                       "ridgeland, sc", "hardeeville", "lowcountry, sc"),
+
+    # ── North Carolina ────────────────────────────────────────────────────
+    "charlotte-nc": ("charlotte", "concord, nc", "gastonia", "huntersville",
+                     "matthews, nc", "mint hill", "pineville, nc",
+                     "cornelius, nc", "davidson, nc", "mooresville",
+                     "kannapolis", "monroe, nc", "indian trail", "waxhaw",
+                     "harrisburg, nc", "belmont, nc", "mount holly, nc",
+                     "denver, nc", "dallas, nc", "lincolnton", "shelby, nc",
+                     "statesville", "salisbury, nc", "ballantyne",
+                     "lowell, nc", "cramerton", "mecklenburg", "gaston county"),
+    "raleigh-nc": ("raleigh", "cary, nc", "apex, nc", "morrisville",
+                   "wake forest", "garner, nc", "holly springs",
+                   "fuquay", "knightdale", "wendell, nc", "zebulon",
+                   "rolesville", "clayton, nc", "smithfield, nc",
+                   "wake county"),
+    "durham-nc": ("durham, nc", "durham nc", "chapel hill", "carrboro",
+                  "hillsborough, nc", "research triangle", "rtp, nc",
+                  "durham county"),
+    "greensboro-nc": ("greensboro", "high point, nc", "jamestown, nc",
+                      "oak ridge, nc", "summerfield, nc", "guilford county",
+                      "archdale", "asheboro"),
+    "winston-salem-nc": ("winston-salem", "winston salem", "kernersville",
+                         "clemmons", "lewisville, nc", "walkertown",
+                         "king, nc", "bermuda run", "mocksville",
+                         "forsyth county"),
+    "fayetteville-nc": ("fayetteville, nc", "fayetteville nc", "fort bragg",
+                        "fort liberty", "hope mills", "spring lake, nc",
+                        "raeford", "pope field", "pope army",
+                        "cumberland county, nc"),
+    "asheville-nc": ("asheville", "hendersonville, nc", "arden, nc",
+                     "fletcher, nc", "black mountain, nc", "weaverville",
+                     "waynesville", "brevard, nc", "biltmore",
+                     "buncombe county"),
+    "wilmington-nc": ("wilmington, nc", "wilmington nc", "leland, nc",
+                      "carolina beach", "wrightsville beach", "kure beach",
+                      "castle hayne", "hampstead", "southport, nc",
+                      "new hanover"),
+    "hickory-nc": ("hickory, nc", "conover, nc", "newton, nc", "morganton",
+                   "lenoir, nc", "valdese", "granite falls, nc",
+                   "taylorsville, nc", "catawba county"),
+    "greenville-nc": ("greenville, nc", "greenville nc", "winterville, nc",
+                      "ayden", "farmville, nc", "bethel, nc",
+                      "washington, nc", "pitt county"),
+    "jacksonville-nc": ("jacksonville, nc", "jacksonville nc", "camp lejeune",
+                        "lejeune", "richlands, nc", "swansboro", "hubert, nc",
+                        "onslow county"),
+    "burlington-nc": ("burlington, nc", "graham, nc", "mebane", "elon, nc",
+                      "gibsonville", "haw river", "alamance county"),
+    "new-bern-nc": ("new bern", "newbern", "havelock", "morehead city",
+                    "cherry point", "trent woods", "james city, nc",
+                    "craven county"),
+    "rocky-mount-nc": ("rocky mount", "wilson, nc", "nashville, nc",
+                       "tarboro", "battleboro", "nash county",
+                       "edgecombe county"),
+    "goldsboro-nc": ("goldsboro", "seymour johnson", "kinston",
+                     "mount olive, nc", "la grange, nc", "pikeville, nc",
+                     "snow hill, nc", "wayne county, nc"),
+
+    # ── Georgia, outside metro Atlanta ────────────────────────────────────
+    "augusta-ga": ("augusta, ga", "augusta ga", "martinez, ga", "evans, ga",
+                   "grovetown", "north augusta", "aiken, sc", "fort gordon",
+                   "fort eisenhower", "thomson, ga", "richmond county, ga",
+                   "columbia county, ga"),
+    "savannah-ga": ("savannah", "pooler", "garden city, ga",
+                    "richmond hill, ga", "port wentworth", "tybee island",
+                    "rincon, ga", "bloomingdale, ga", "hunter army",
+                    "chatham county, ga"),
+    "columbus-ga": ("columbus, ga", "columbus ga", "fort benning",
+                    "fort moore", "phenix city", "midland, ga",
+                    "muscogee county", "harris county, ga"),
+    "macon-ga": ("macon", "bibb county", "byron, ga", "forsyth, ga",
+                 "gray, ga", "jones county, ga"),
+    "athens-ga": ("athens, ga", "athens ga", "athens-clarke", "watkinsville",
+                  "bogart, ga", "winterville, ga", "clarke county, ga",
+                  "oconee county, ga"),
+    "gainesville-ga": ("gainesville, ga", "gainesville ga", "oakwood, ga",
+                       "flowery branch", "braselton", "dahlonega",
+                       "hall county, ga"),
+    "warner-robins-ga": ("warner robins", "robins air force", "robins afb",
+                         "centerville, ga", "perry, ga", "bonaire, ga",
+                         "houston county, ga"),
+    "albany-ga": ("albany, ga", "albany ga", "leesburg, ga",
+                  "dougherty county", "lee county, ga"),
+    "dalton-ga": ("dalton, ga", "dalton ga", "chatsworth, ga", "rocky face",
+                  "tunnel hill", "calhoun, ga", "whitfield county",
+                  "murray county, ga"),
+    "valdosta-ga": ("valdosta", "hahira", "remerton", "lake park, ga",
+                    "moody air force", "moody afb", "lowndes county, ga"),
+    "rome-ga": ("rome, ga", "rome ga", "cave spring, ga", "cedartown",
+                "rockmart", "armuchee", "floyd county, ga"),
+    "brunswick-ga": ("brunswick, ga", "brunswick ga", "st. simons",
+                     "st simons", "saint simons", "jekyll island",
+                     "kingsland, ga", "st. marys, ga", "glynn county"),
+    "hinesville-ga": ("hinesville", "fort stewart", "flemington, ga",
+                      "midway, ga", "walthourville", "liberty county, ga"),
+
+    # ── Statewide catch-alls ──────────────────────────────────────────────
+    # Checked LAST, after every named metro in the same state, so these only
+    # ever fire for a town nothing else claimed. A bare state token is exactly
+    # what STATE_FALLBACK exists to keep OUT of inference — the difference is
+    # that these do not lie about which market the job is in: the label is the
+    # state, and the card shows the posting's own location.
+    "nc-other": ("north carolina", ", nc"),
+    "sc-other": ("south carolina", ", sc"),
+    # ", georgia" is normalised to ", ga" before matching, so Tbilisi arrives
+    # here looking exactly like Macon. The country's cities are a short list;
+    # Georgia's towns are not — so the country goes in the decoys.
+    "ga-other": ("georgia", ", ga"),
+
     # ── International ─────────────────────────────────────────────────────
     # Bare "lagos" plus decoys, NOT a set of country-qualified patterns. The
     # first cut here country-qualified everything ("lagos, nigeria" etc.) to
@@ -288,12 +484,22 @@ MATCH_ORDER = (
     # State-qualified regionals next.
     "york-pa", "lancaster-pa", "harrisburg-pa",
     "charleston-sc", "columbia-sc", "greenville-sc", "rock-hill-sc",
-    "sumter-sc", "florence-sc",
+    "myrtle-beach-sc", "hilton-head-sc", "sumter-sc", "florence-sc",
+    "charlotte-nc", "raleigh-nc", "durham-nc", "greensboro-nc",
+    "winston-salem-nc", "fayetteville-nc", "asheville-nc", "wilmington-nc",
+    "hickory-nc", "greenville-nc", "jacksonville-nc", "burlington-nc",
+    "new-bern-nc", "rocky-mount-nc", "goldsboro-nc",
+    "augusta-ga", "savannah-ga", "columbus-ga", "macon-ga", "athens-ga",
+    "gainesville-ga", "warner-robins-ga", "albany-ga", "dalton-ga",
+    "valdosta-ga", "rome-ga", "brunswick-ga", "hinesville-ga",
     # Then the top 20, specific before catch-all.
     "minneapolis", "seattle", "denver", "boston", "detroit",
     "san-francisco", "riverside", "san-diego", "philadelphia-pa",
     "baltimore-md", "tampa-fl", "nyc", "miami", "chicago",
     "phoenix", "la", "dc", "atlanta", "houston", "dallas",
+    # Statewide catch-alls dead last: every named metro in NC/SC/GA — and
+    # every metro anywhere else — gets first refusal on the location.
+    "nc-other", "sc-other", "ga-other",
 )
 
 ALL_METROS = MATCH_ORDER
@@ -301,8 +507,13 @@ ALL_METROS = MATCH_ORDER
 assert set(MATCH_ORDER) == set(PATTERNS) == set(LABELS), (
     "MATCH_ORDER, PATTERNS and LABELS must cover exactly the same metros"
 )
-assert (set(TOP_20) | set(PA_REGIONAL) | set(SC_REGIONAL)
-        | set(INTERNATIONAL)) == set(MATCH_ORDER)
+assert (set(TOP_20) | set(PA_REGIONAL) | set(SC_REGIONAL) | set(NC_REGIONAL)
+        | set(GA_REGIONAL) | set(INTERNATIONAL)) == set(MATCH_ORDER)
+assert STATEWIDE_CATCH_ALLS <= set(MATCH_ORDER)
+assert set(MATCH_ORDER[-len(STATEWIDE_CATCH_ALLS):]) == STATEWIDE_CATCH_ALLS, (
+    "the statewide catch-alls must be checked last, or they steal from a "
+    "named metro in their own state"
+)
 
 
 # Bare state tokens, used ONLY when the caller already knows which metro it is

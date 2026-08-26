@@ -1,4 +1,5 @@
-from metros import DISPLAY_LABELS as METRO_DISPLAY_LABELS
+from metros import (DISPLAY_LABELS as METRO_DISPLAY_LABELS,
+                    STATEWIDE_CATCH_ALLS)
 
 import re
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,21 @@ CITY_LABELS = dict(METRO_DISPLAY_LABELS)
 def _display_city(job: dict) -> str:
     city_value = job.get("city", "")
     return CITY_LABELS.get(city_value, job.get("location", ""))
+
+
+def _card_city(city_slug: str, location: str) -> str:
+    """What the CARD says the job's location is.
+
+    Sections group by metro label, and for a real metro that label is also the
+    right thing to print on the card. The statewide catch-alls added with
+    NC/SC/GA coverage are the exception: "North Carolina (other)" is a fine
+    section header and a useless card, so a Hickory posting says "Hickory, NC"
+    on the card and still files under the state section.
+    """
+    label = CITY_LABELS.get(city_slug, "")
+    if city_slug in STATEWIDE_CATCH_ALLS and location:
+        return location
+    return label or location or ""
 
 
 _RELATIVE_LABEL_RE = re.compile(
@@ -145,6 +161,7 @@ def home_board_preview(limit: int = 3):
             "company": job.company,
             "title": job.title,
             "display_city": CITY_LABELS.get(job.city, job.location or ""),
+            "card_city": _card_city(job.city, job.location or ""),
             "posted_label": _posted_display(job.posted_label, job.found_at, job.posted_at),
         }
         for job in rows[:limit]
@@ -216,6 +233,7 @@ def load_db_matches(saved_search) -> list[dict]:
                 "title": job.title,
                 "url": job.url,
                 "display_city": CITY_LABELS.get(job.city, job.location or ""),
+                "card_city": _card_city(job.city, job.location or ""),
                 "location": job.location or CITY_LABELS.get(job.city, ""),
                 "posted_label": _posted_display(job.posted_label, job.found_at, job.posted_at),
                 "salary_label": job.salary_label if job.salary_label and job.salary_label != "See posting" else "",
@@ -274,5 +292,6 @@ def preview_matches(saved_search) -> list[dict]:
         ):
             continue
         job["display_city"] = city_label or job.get("location", "")
+        job["card_city"] = _card_city(job.get("city", ""), job.get("location", ""))
         matches.append(job)
     return matches

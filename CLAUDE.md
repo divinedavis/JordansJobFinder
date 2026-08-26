@@ -775,10 +775,8 @@ sets (finance=11) ignoring the plan limit, so a free user picking Corporate
 Finance saw 11 cities. Now every track caps to city_limit_for(user); existing
 over-limit searches trimmed in prod; admin + Frank comped to city_limit=10.
 
-**30-day search lock**: saving freezes the whole search (title+experience+
-cities) for 30 days (subscriptions.search_locked_until); the /search form
-disables + rejects while locked; upgrading a tier clears the lock. Owner never
-locked.
+**30-day search lock**: REMOVED 2026-08-26 — see "No search lock" above.
+Nothing freezes a saved search any more.
 
 **Profile hub** (`/profile`, profile.html): plan + resume credits, Edit search,
 resume upload (moved from /resume, which now redirects here), and **Manage
@@ -861,6 +859,86 @@ All should return 200 or 302. Any 500 means the change broke something — fix i
 - curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8100/resume     (expect 302)
 
 Any 500 response = broken. Check logs with: journalctl -u jordansjobfinder --no-pager -n 30
+
+## Every city in NC, SC and GA (2026-08-26)
+
+Owner's ask: "add all cities in North Carolina, South Carolina and Georgia."
+The registry is metro-shaped, not city-shaped, so covering a whole state is two
+things at once:
+
+1. **One metro per MSA** — 15 in NC, the 2 SC metros the old keep-list missed
+   (Myrtle Beach, Hilton Head), 13 in GA on top of Atlanta. That's where the
+   employers are, and it's what makes a dashboard section worth reading.
+2. **A statewide catch-all** — `nc-other` / `sc-other` / `ga-other`, labelled
+   "North Carolina (other)" etc., checked **dead last in MATCH_ORDER** so every
+   named metro anywhere gets first refusal. Between the two, no city in the
+   three states can fall off the board. `metros.STATEWIDE_CATCH_ALLS` names the
+   set and an assert pins them to the tail of MATCH_ORDER.
+
+These are the only bare state tokens in `PATTERNS`, and they are safe for the
+reason `STATE_FALLBACK` is not: the label they produce IS the state, so a
+Hickory posting reads "North Carolina (other)", never "Charlotte". The CARD
+still names the real place — `results._card_city` prefers the posting's own
+location string for a catch-all metro, so grouping stays state-level while the
+card says "Hickory, NC". Registry went 30 → 63 metros.
+
+Four traps this hit:
+
+- **Atlanta only ever listed a dozen inner suburbs.** With a Georgia catch-all
+  in play, everything past the perimeter — Cobb, Gwinnett, Douglas, Paulding,
+  Henry, Coweta — would have read as "Georgia (other)". Its pattern list was
+  widened at the same time. County names had to be state-qualified
+  (`"dekalb county, ga"`): DeKalb County is also in Illinois and Alabama, and
+  Chicago is checked BEFORE Atlanta.
+- **The country of Georgia arrives spelled exactly like the state.**
+  `normalize_states` rewrites ", Georgia" → ", ga" before any pattern runs, so
+  "Tbilisi, Georgia" matches `", ga"`. Decoyed as `"tbilisi, ga"` etc. — the
+  decoy has to swallow the `", ga"` tail, because blanking "tbilisi" alone
+  leaves the token that matched. Enumerate whichever side is finite: the
+  country's cities are a short list, Georgia's towns are not.
+- **Charlotte's suburbs were living in other metros' decoy lists.** "Dallas,
+  NC", "Denver, NC", "Harrisburg, NC" and "Lowell, NC" were each decoyed out of
+  Dallas / Denver / Harrisburg PA / Boston — which kept them OFF the board
+  rather than on Charlotte's. The NC block runs before the top 20, so listing
+  them in `charlotte-nc` reclaims them.
+- **DC's bare `"college park"` had been eating College Park, GA** for as long as
+  Atlanta has existed in this registry. Invisible until Georgia had somewhere
+  else to go.
+
+Aiken and North Augusta SC resolve to **Augusta, GA** on purpose — boundaries
+follow the local labour market, the same rule that puts Spartanburg on
+Greenville and Ann Arbor on Detroit. The catch-alls running last is what makes
+that survive.
+
+**Employers were NOT added for these states.** Coverage rides the existing
+national `*_MULTI` lists, whose metro is inferred per posting — so Bank of
+America / Truist / Lowe's / Duke Energy / Delta / Home Depot / UPS roles in the
+Carolinas and Georgia surface immediately, and a town with no $1B+ employer on
+a supported ATS stays quiet. To make a state first-class, clone
+`scraper_sc_employers.py` with a verified per-state set (probe recipe above).
+
+## No search lock — roles switch freely (2026-08-26)
+
+The 30-day freeze on a saved search is **gone** at the owner's request:
+`_lock_search`, `SEARCH_LOCK_DAYS`, the "I understand this locks for 30 days"
+checkbox and the disabled form are all removed, and every stored
+`subscriptions.search_locked_until` was cleared in prod. `routes.search_locked`
+survives as a `return False` stub so nothing has to be rewritten to call it.
+`Subscription.search_locked_until` stays on the model, unread.
+
+The dashboard's **active role pill is now the role picker, inline**. It used to
+link back to the tab you were already on, and `/search` isn't in the nav, so
+with one title per account there was no way to change roles from the UI at all.
+First cut linked the pill to `/search`; owner's follow-up was "the dropdown
+should be on the same screen", so it's a `<details>` on the board — the pill and
+a "Change role" caption are the `<summary>`, and opening it reveals the title
+select (plus the experience select for users with no resume, since the resume
+overrides that field when present). It POSTs to `/search` unchanged and the
+route already redirects back to the board. No JS. Any OTHER vertical a legacy
+user still has stays a plain tab link beside it.
+
+Guards: `tests/test_plans.py` (saving writes no lock stamp; three role changes
+back to back; the form carries no lock copy), `tests/test_dashboard.py`.
 
 ## Metro Coverage — top 20 + PA + SC + Lagos (2026-07-21, Lagos 2026-08-01)
 

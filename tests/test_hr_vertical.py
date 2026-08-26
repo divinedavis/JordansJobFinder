@@ -89,7 +89,7 @@ def test_selecting_hr_title_adds_hr_tab_with_every_metro(signed_in_client, db_se
     from app.models import SavedSearch, User
 
     signed_in_client.post("/search", data={
-        "ack_lock": "1", "title_slug": "hr-coordinator", "experience_bucket": "3-6",
+        "title_slug": "hr-coordinator", "experience_bucket": "3-6",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
     search = db_session.query(SavedSearch).filter(
@@ -102,7 +102,7 @@ def test_hr_search_matches_hr_jobs_in_pa(signed_in_client, db_session):
     from app.models import Job, JobMatch, User
     from app.sync import rebuild_matches_for_user
 
-    signed_in_client.post("/search", data={"ack_lock": "1", 
+    signed_in_client.post("/search", data={
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
@@ -141,11 +141,11 @@ def test_dashboard_has_no_hardcoded_track_switch_pill(signed_in_client):
     assert "Switch to" not in body
 
     # Switching to HR still works via the search form (the Edit search path).
-    signed_in_client.post("/search", data={"ack_lock": "1", 
+    signed_in_client.post("/search", data={
         "title_slug": "hr-coordinator", "experience_bucket": "7-9",
     })
     body = signed_in_client.get("/dashboard").get_data(as_text=True)
-    assert "?tab=hr" in body
+    assert 'data-active-role="hr"' in body
 
 
 def test_hr_scraper_infers_nationwide_metros():

@@ -1,6 +1,6 @@
-"""Plan enforcement: universal city cap (the >3-cities bug), the 30-day search
-lock, the AI-resume quota (one monthly allowance for everyone), and the Profile
-hub."""
+"""Plan enforcement: universal city cap (the >3-cities bug), the AI-resume
+quota (one monthly allowance for everyone), the Profile hub, and the guards
+that keep the retired 30-day search lock from creeping back."""
 
 
 def _sub(db_session, email="quota@example.com"):
@@ -33,7 +33,7 @@ def test_non_pm_track_gets_every_metro(signed_in_client, db_session):
     from app.catalog import ALL_CITY_LABELS
     from app.models import SavedSearch, User
 
-    signed_in_client.post("/search", data={"ack_lock": "1", 
+    signed_in_client.post("/search", data={
         "title_slug": "entry-finance-any", "experience_bucket": "0-2",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
@@ -43,36 +43,61 @@ def test_non_pm_track_gets_every_metro(signed_in_client, db_session):
     assert list(search.cities) == list(ALL_CITY_LABELS)
 
 
-# ── 30-day search lock ────────────────────────────────────────────────────────
+# ── No search lock: roles switch freely (2026-08-26) ─────────────────────────
 
 
-def test_saving_locks_search_for_30_days(signed_in_client, db_session):
-    from datetime import datetime
-
+def test_saving_never_locks_the_search(signed_in_client, db_session):
+    """The 30-day freeze is gone at the owner's request — nothing about saving
+    a search may write a lock stamp."""
     from app.models import Subscription, User
 
-    signed_in_client.post("/search", data={"ack_lock": "1", 
+    signed_in_client.post("/search", data={
         "title_slug": "technical-product-manager", "experience_bucket": "7-9",
-        "city_1": "New York, NY", "city_2": "Atlanta, GA", "city_3": "Miami, FL",
     })
     user = db_session.query(User).filter(User.email == "user@example.com").one()
     sub = db_session.query(Subscription).filter(Subscription.user_id == user.id).one()
-    assert sub.search_locked_until is not None
-    days = (sub.search_locked_until - datetime.utcnow()).days
-    assert 28 <= days <= 30
+    assert sub.search_locked_until is None
 
-    # A second save while locked is rejected.
-    resp = signed_in_client.post("/search", data={"ack_lock": "1", 
-        "title_slug": "technical-product-manager", "experience_bucket": "10+",
-        "city_1": "Dallas, TX", "city_2": "Houston, TX", "city_3": "Boise, ID",
-    }, follow_redirects=True)
-    assert "locked" in resp.get_data(as_text=True).lower()
-    db_session.expire_all()
-    search = user.saved_search
-    # Cities are no longer part of what locks — coverage is always complete.
-    from app.catalog import ALL_CITY_LABELS
-    assert list(search.cities) == list(ALL_CITY_LABELS)
-    assert search.experience_bucket == "7-9", "locked search was still edited"
+
+def test_a_role_can_be_changed_immediately_and_repeatedly(signed_in_client, db_session):
+    """Three saves back to back. The second used to be rejected with "your
+    search is locked until ..." and the change silently dropped."""
+    from app.models import User
+
+    for bucket in ("7-9", "10+", "3-6"):
+        resp = signed_in_client.post("/search", data={
+            "title_slug": "technical-product-manager", "experience_bucket": bucket,
+        }, follow_redirects=True)
+        body = resp.get_data(as_text=True)
+        assert "locked" not in body.lower()
+        db_session.expire_all()
+        user = db_session.query(User).filter(User.email == "user@example.com").one()
+        assert user.saved_search.experience_bucket == bucket
+
+
+def test_switching_track_needs_no_acknowledgment(signed_in_client, db_session):
+    """The "I understand this locks for 30 days" checkbox is gone, so a POST
+    without it must go through instead of bouncing back with a flash."""
+    from app.models import SavedSearch, User
+
+    signed_in_client.post("/search", data={
+        "title_slug": "entry-finance-any", "experience_bucket": "0-2",
+    })
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    assert db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "finance"
+    ).one_or_none() is not None
+
+
+def test_search_form_offers_no_lock_copy(signed_in_client):
+    body = signed_in_client.get("/search").get_data(as_text=True)
+    assert 'name="ack_lock"' not in body
+    assert "30 days" not in body
+    # Deliberately phrase-matched, not the bare word "lock": base.html's CSS
+    # carries the word "blocks", which a substring check reads as a lock.
+    lower = body.lower()
+    assert "search is locked" not in lower
+    assert "lock my job title" not in lower
 
 
 # ── AI-resume quota ───────────────────────────────────────────────────────────
@@ -126,25 +151,3 @@ def test_profile_shows_plan_resume_and_search(signed_in_client):
     assert "Edit search" in body
     assert "base resume" in body.lower()
     assert "resume creations" in body.lower()
-
-
-def test_save_requires_lock_acknowledgment(signed_in_client, db_session):
-    """Saving without ticking the 30-day-lock acknowledgment is rejected, and
-    nothing is locked."""
-    from app.models import Subscription, User
-
-    resp = signed_in_client.post("/search", data={
-        "title_slug": "technical-product-manager", "experience_bucket": "7-9",
-        "city_1": "New York, NY", "city_2": "Atlanta, GA", "city_3": "Miami, FL",
-        # no ack_lock
-    }, follow_redirects=True)
-    assert "confirm you understand" in resp.get_data(as_text=True).lower()
-    user = db_session.query(User).filter(User.email == "user@example.com").one()
-    sub = db_session.query(Subscription).filter(Subscription.user_id == user.id).one_or_none()
-    assert sub is None or sub.search_locked_until is None
-
-
-def test_search_form_shows_lock_acknowledgment(signed_in_client):
-    body = signed_in_client.get("/search").get_data(as_text=True)
-    assert 'name="ack_lock"' in body
-    assert "locks for 30 days" in body.lower() or "lock my job title" in body.lower()

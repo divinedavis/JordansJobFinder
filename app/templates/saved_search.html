@@ -10,22 +10,15 @@
       Pick a title and your experience level. Every market we cover is included.
     </p>
 
-    {% if is_locked %}
-      <div class="flash error" style="margin-top: 16px;">
-        Your search is locked until <strong>{{ locked_until.strftime('%b %-d, %Y') }}</strong>.
-        Searches lock for 30 days after saving.
-      </div>
-    {% else %}
-      <p class="muted" style="margin-top: 12px; max-width: 60ch;">
-        Heads up: once you save, your search <strong>locks for 30 days</strong>
-        (title and experience level). It unlocks monthly.
-      </p>
-    {% endif %}
+    <p class="muted" style="margin-top: 12px; max-width: 60ch;">
+      Change your role as often as you like &mdash; there is no waiting period,
+      and your board rebuilds the moment you save.
+    </p>
 
-    <form method="post" style="margin-top: 24px;"{% if is_locked %} onsubmit="return false"{% endif %}>
+    <form method="post" style="margin-top: 24px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="title_slug">Job Title</label>
-      <select id="title_slug" name="title_slug" required {% if is_locked %}disabled{% endif %}>
+      <select id="title_slug" name="title_slug" required>
         <option value="">Select a title</option>
         {% for option in title_options %}
           <option value="{{ option.slug }}" {% if saved_search and saved_search.title_slug == option.slug %}selected{% endif %}>
@@ -43,7 +36,7 @@
         </p>
       {% else %}
         <label for="experience_bucket">Experience Filter</label>
-        <select id="experience_bucket" name="experience_bucket" required {% if is_locked %}disabled{% endif %}>
+        <select id="experience_bucket" name="experience_bucket" required>
           <option value="">Select an experience bucket</option>
           {% for option in experience_options %}
             <option value="{{ option.slug }}" {% if saved_search and saved_search.experience_bucket == option.slug %}selected{% endif %}>
@@ -60,8 +53,9 @@
       <h2 style="margin-bottom: 6px;">Where we look</h2>
       <p class="muted" style="margin-bottom: 12px;">
         Every board covers all {{ covered_cities|length }} markets below &mdash; the
-        20 largest metros in the country, plus central Pennsylvania and South
-        Carolina. There is nothing to pick.
+        20 largest metros in the country, plus central Pennsylvania and every
+        city in North Carolina, South Carolina and Georgia. There is nothing to
+        pick.
       </p>
       <ul class="city-coverage" style="columns: 3; column-gap: 24px; margin-bottom: 18px; padding-left: 18px;">
         {% for city in covered_cities %}
@@ -69,20 +63,9 @@
         {% endfor %}
       </ul>
 
-      {% if not is_locked %}
-      <label style="display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; font-weight: 500;">
-        <input type="checkbox" name="ack_lock" value="1" required style="margin-top: 4px; width: auto;">
-        <span>I understand that saving will <strong>lock my job title and
-        experience level for 30 days</strong>. I can't change them until the
-        lock expires.</span>
-      </label>
-      {% endif %}
-
       <div class="button-row">
-        {% if not is_locked %}
-          <button class="button" type="submit">Confirm &amp; save (locks for 30 days)</button>
-        {% endif %}
-        <a class="button secondary" href="{{ url_for('web.profile') }}">Back to Profile</a>
+        <button class="button" type="submit">Save role</button>
+        <a class="button secondary" href="{{ url_for('web.dashboard') }}">Back to Board</a>
       </div>
     </form>
   </section>

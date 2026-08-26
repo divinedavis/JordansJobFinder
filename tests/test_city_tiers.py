@@ -29,7 +29,7 @@ def _sub(city_limit):
 def test_every_account_covers_every_metro():
     from app.routes import city_limit_for
 
-    assert city_limit_for(_User(), _sub(3)) == len(ALL_CITY_LABELS) == 30
+    assert city_limit_for(_User(), _sub(3)) == len(ALL_CITY_LABELS) == 63
 
 
 def test_a_legacy_paid_row_grants_nothing_extra():

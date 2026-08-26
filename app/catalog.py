@@ -1,8 +1,10 @@
 import os
 
-from metros import (INTERNATIONAL as METRO_INTERNATIONAL,
-                    LABELS as METRO_LABELS, PA_REGIONAL as METRO_PA,
-                    SC_REGIONAL as METRO_SC, TOP_20 as METRO_TOP_20)
+from metros import (GA_REGIONAL as METRO_GA,
+                    INTERNATIONAL as METRO_INTERNATIONAL,
+                    LABELS as METRO_LABELS, NC_REGIONAL as METRO_NC,
+                    PA_REGIONAL as METRO_PA, SC_REGIONAL as METRO_SC,
+                    TOP_20 as METRO_TOP_20)
 
 TITLE_OPTIONS = [
     {"slug": "technical-product-manager", "label": "Product Manager", "vertical": "pm"},
@@ -165,7 +167,8 @@ EXPERIENCE_BUCKETS = [
 # the dashboard groups big markets first.
 CITY_OPTIONS = [
     {"slug": slug, "label": METRO_LABELS[slug]}
-    for slug in (*METRO_TOP_20, *METRO_PA, *METRO_SC, *METRO_INTERNATIONAL)
+    for slug in (*METRO_TOP_20, *METRO_PA, *METRO_NC, *METRO_SC, *METRO_GA,
+                 *METRO_INTERNATIONAL)
 ]
 ALL_CITY_LABELS = [item["label"] for item in CITY_OPTIONS]
 # Every user's saved search covers every metro. Kept as a name because a lot of

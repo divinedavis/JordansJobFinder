@@ -53,3 +53,19 @@ def test_nav_has_mobile_hamburger(signed_in_client):
     assert 'id="nav-toggle"' in body
     assert 'for="nav-toggle"' in body
     assert body.count("nav-toggle-bar") >= 3
+
+
+def test_dashboard_role_pill_opens_the_role_picker(signed_in_client):
+    """The active role pill IS the "change my role" control. Before 2026-08-26
+    it linked back to the tab you were already on, and /search wasn't in the
+    nav — so there was no way to switch roles from the UI at all."""
+    body = signed_in_client.get("/dashboard").get_data(as_text=True)
+    assert "/search" in body
+    assert "Change role" in body
+
+
+def test_dashboard_does_not_claim_the_search_locks(signed_in_client):
+    """Roles switch freely now — no lock copy anywhere on the board."""
+    body = signed_in_client.get("/dashboard").get_data(as_text=True).lower()
+    assert "locks for 30 days" not in body
+    assert "your search is locked" not in body

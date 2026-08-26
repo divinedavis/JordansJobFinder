@@ -228,6 +228,9 @@
       background: var(--danger);
       border-color: var(--danger);
     }
+    .role-switcher > summary::-webkit-details-marker { display: none; }
+    .role-switcher > summary::marker { content: ""; }
+    .role-switcher > summary:focus-visible { outline: 2px solid #1a73e8; outline-offset: 3px; border-radius: 999px; }
     .tab-pill {
       display: inline-flex;
       align-items: center;
