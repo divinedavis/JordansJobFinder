@@ -5,3 +5,15 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Don't propose a release until it has been public for a week.
+    #
+    # The fastest-moving supply-chain attacks are a compromised maintainer
+    # account publishing a malicious patch release, which is then yanked once
+    # someone notices — usually within hours to a couple of days. Auto-opening
+    # a PR against a version that is minutes old is how that reaches a repo,
+    # and this project's Dependabot PRs are the input to a test-gated push.
+    #
+    # Security advisories are exempt: Dependabot still raises those immediately,
+    # so this delays routine version bumps without delaying a real CVE fix.
+    cooldown:
+      default-days: 7
