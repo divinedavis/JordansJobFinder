@@ -174,8 +174,9 @@ finance.
 
 ## IT Project/Program Manager Vertical (scraper_it.py)
 
-Third sibling vertical (`vertical="it"`), built for a specific user (Frank,
-fbnorris0502@gmail.com): **mid-to-senior IT project/program manager** roles at
+Third sibling vertical (`vertical="it"`), built for one specific user (their
+address is in ADMIN_EMAILS, not here): **mid-to-senior IT project/program
+manager** roles at
 $1B+ employers in **Lancaster PA, Philadelphia PA, Harrisburg PA, and every
 Florida metro** (miami, tampa-fl, orlando-fl, jacksonville-fl, plus a
 `florida-other` catch-all checked LAST so no FL posting is dropped). The job
