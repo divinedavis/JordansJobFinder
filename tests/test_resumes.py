@@ -578,39 +578,45 @@ def test_refund_resume_credit_never_goes_negative(signed_in_client, db_session):
     assert sub.resume_credits_used == 0
 
 
-def test_experience_and_competency_tables_are_left_aligned(app):
-    """Regression: the company/date and competency tables must pin to the left
-    (hAlign LEFT). A Table flowable defaults to CENTER, and since these tables
-    are narrower than the content frame, that nudged the company name right of
-    the job title + bullets rendered below it."""
-    from reportlab.platypus import KeepTogether, Table
+def test_experience_renders_without_table_flowables(app):
+    """2026-09-01: experience used a two-column Table with the dates in a
+    right-aligned cell. Text extractors read that wide gap as a column break
+    and parsed each side separately, so Workday's autofill built one dateless
+    work-experience record per date range and filled in no title or employer.
+    Supersedes the old hAlign regression — the tables are gone entirely."""
+    from reportlab.platypus import KeepTogether, Paragraph, Table
     from app.resumes import _competencies_block, _experience_block, _styles
 
     with app.app_context():
         styles = _styles()
         data = {
             "experience": [{
-                "company": "JPMorgan Chase & Co.", "dates": "2022 – Present",
-                "title": "Vice President", "bullets": ["Did things."],
+                "company": "JPMorgan Chase & Co.",
+                "location": "New York, NY",
+                "dates": "2022 – Present",
+                "roles": [{"title": "Vice President", "dates": "2022 – Present",
+                           "bullets": ["Did things."]}],
             }],
             "competencies": [{"label": "Strategy", "items": "Roadmaps, OKRs"}],
         }
-        exp = _experience_block(data, styles)
-        comp = _competencies_block(data, styles)
+        blocks = _experience_block(data, styles) + _competencies_block(data, styles)
 
-    def _tables(flowables):
-        found = []
+    def _flat(flowables):
         for f in flowables:
-            if isinstance(f, Table):
-                found.append(f)
-            elif isinstance(f, KeepTogether):
-                found.extend(_tables(getattr(f, "_content", []) or []))
-        return found
+            if isinstance(f, KeepTogether):
+                yield from _flat(getattr(f, "_content", []) or [])
+            else:
+                yield f
 
-    tables = _tables(exp) + _tables(comp)
-    assert tables, "expected at least one table flowable"
-    for t in tables:
-        assert t.hAlign == "LEFT"
+    flat = list(_flat(blocks))
+    assert not [f for f in flat if isinstance(f, Table)], "no tables in a parseable resume"
+    lines = [f.text for f in flat if isinstance(f, Paragraph)]
+    # The employer heading carries its location and NO date range — a dated
+    # company row was read as an extra, titleless job.
+    assert "JPMorgan Chase &amp; Co. | New York, NY" in lines
+    assert not any("Chase" in ln and "2022" in ln and "Vice President" not in ln for ln in lines)
+    # The role line is self-describing: title, employer and dates together.
+    assert "Vice President, JPMorgan Chase &amp; Co. | 2022 – Present" in lines
 
 
 def test_competencies_render_as_bold_labelled_bullets(app):
@@ -633,7 +639,10 @@ def test_competencies_render_as_bold_labelled_bullets(app):
     # Heading + one paragraph per row.
     assert len(paragraphs) == 3
     assert "<b>Technical Domain Expertise:</b>" in paragraphs[1].text
-    assert all(p.bulletText == "\u2022" for p in paragraphs[1:])
+    # The marker is part of the TEXT, not reportlab's bulletText, so it lands
+    # in the PDF's text layer where a resume parser can see it.
+    assert all(p.text.startswith("\u00b7 ") for p in paragraphs[1:])
+    assert all(not p.bulletText for p in paragraphs[1:])
 
 
 def test_tailor_resume_structured_returns_none_on_bad_json(app, monkeypatch):
@@ -864,11 +873,13 @@ def test_layout_matches_the_candidates_own_resume(app, tmp_path):
         "CORE COMPETENCIES:", "PROFESSIONAL EXPERIENCE:",
         "EDUCATION & CERTIFICATION:", "SOFTWARE & TOOLS:",
         "Acme Bank", "Vice President", "Senior Associate",
-        "State University| B.S. Computer Science", "May 2016", "Jira, Confluence",
+        "State University | B.S. Computer Science | May 2016",
+        "Jira, Confluence",
     ):
         assert expected in text, expected
-    # The employer is named once, not once per role.
-    assert text.count("Acme Bank") == 1
+    # The employer heads its roles AND is restated on each role line, so every
+    # date range an ATS finds sits next to the employer it belongs to.
+    assert text.count("Acme Bank") == 3
     # Competencies come before experience, the way the candidate's resume runs.
     assert text.index("CORE COMPETENCIES:") < text.index("PROFESSIONAL EXPERIENCE:")
 
@@ -967,6 +978,98 @@ def test_a_long_role_does_not_swallow_the_next_roles_title():
     assert len(acme["roles"][0]["bullets"]) == 9
 
 
+def test_rendered_pdf_is_parseable_by_an_ats(app, tmp_path):
+    """2026-09-01: Workday's "Autofill with Resume" turned four jobs into six
+    work-experience records, every one of them with a date range but no job
+    title and no company, and no role description at all.
+
+    The text layer is the whole contract with an ATS, so assert on it: one
+    line per role carrying title + employer + dates, no dated employer row to
+    spawn a phantom job, education split on a real delimiter, and bullet
+    markers that actually survive extraction."""
+    from pypdf import PdfReader
+    from app.resumes import render_resume_pdf
+
+    data = {
+        "name": "Jordan Doe",
+        "headline": "Senior Product Manager",
+        "contact_line_1": "jordan.doe@example.com",
+        "summary": "Ten years shipping platforms.",
+        "experience": [{
+            "company": "Acme Bank",
+            "location": "New York, NY",
+            "dates": "August 2021 - Present",
+            "roles": [
+                {"title": "Vice President", "dates": "January 2024 - Present",
+                 "bullets": ["Led the migration."]},
+                {"title": "Senior Associate", "dates": "August 2021 - January 2024",
+                 "bullets": ["Ran delivery."]},
+            ],
+        }],
+        "competencies": [{"label": "Delivery", "items": "Agile, Scrum."}],
+        "education": [{"school": "State University", "degree": "B.S. Computer Science",
+                       "dates": "May 2016"}],
+        "tools": "Jira, Confluence",
+    }
+    out = tmp_path / "ats.pdf"
+    with app.app_context():
+        render_resume_pdf(data, str(out))
+    pages = PdfReader(str(out)).pages
+    lines = [
+        ln.strip()
+        for p in pages
+        for ln in (p.extract_text(extraction_mode="layout") or "").splitlines()
+        if ln.strip()
+    ]
+
+    def line_with(*needles):
+        return [ln for ln in lines if all(n in ln for n in needles)]
+
+    # Each role is one self-describing line, not a title in one column and a
+    # date in another.
+    assert line_with("Vice President", "Acme Bank", "January 2024 - Present")
+    assert line_with("Senior Associate", "Acme Bank", "August 2021 - January 2024")
+    # No dated employer row: the ONLY line holding the employer's own span also
+    # names the role that span belongs to.
+    for ln in line_with("August 2021 - Present"):
+        assert "Senior Associate" in ln or "Vice President" in ln, ln
+    # A resume parser splits on the delimiter, so it must not be glued to a word.
+    assert line_with("State University | B.S. Computer Science | May 2016")
+    # Bullet markers reach the text layer.
+    text = "".join(p.extract_text() or "" for p in pages)
+    assert text.count("\u00b7") >= 3, "bullet markers must survive extraction"
+    # U+2022 comes back as a DEL control char from a base-14 font. Nothing in
+    # the text layer may be a control character.
+    assert not [c for c in text if ord(c) < 32 and c not in "\n\r\t"]
+    assert "\x7f" not in text
+    # No wide column gaps left for a parser to read as a table.
+    assert not [ln for ln in lines if "      " in ln.strip()], "column gap in the text layer"
+
+
+def test_employer_location_is_split_out_for_the_ats_location_field():
+    """Workday asks for a Location per work experience. Pull "City, ST" off the
+    employer line when it's there, and leave an employer whose own name has a
+    comma in it alone."""
+    from app.resumes import _split_company_location, heuristic_structured_parse
+
+    assert _split_company_location("Acme Bank | New York, NY") == ("Acme Bank", "New York, NY")
+    assert _split_company_location("Acme Bank, Lancaster, PA") == ("Acme Bank", "Lancaster, PA")
+    assert _split_company_location("Acme Bank \u2013 London, England") == ("Acme Bank", "London, England")
+    # Not a place: an employer name that merely ends in a comma-phrase.
+    assert _split_company_location("Smith, Kline and Co") == ("Smith, Kline and Co", "")
+    assert _split_company_location("Acme Bank") == ("Acme Bank", "")
+
+    text = (
+        "Jordan Doe jordan.doe@example.com "
+        "Professional Experience: Acme Bank | New York, NY August 2021 - Present "
+        "Vice President, Product January 2024 - Present "
+        "\u2022 Led the migration."
+    )
+    parsed = heuristic_structured_parse(text, user_email="jordan.doe@example.com")
+    assert parsed["experience"][0]["company"] == "Acme Bank"
+    assert parsed["experience"][0]["location"] == "New York, NY"
+
+
 def test_resume_regexes_do_not_blow_up_on_hostile_text():
     """Every one of these patterns runs over text lifted out of an UPLOADED
     resume. A nested quantifier against a $ anchor is a denial-of-service knob
@@ -974,12 +1077,14 @@ def test_resume_regexes_do_not_blow_up_on_hostile_text():
     import time
     from app.resumes import (
         _contact_markup, _normalize_ligatures, _peel_company, _peel_role_title,
+        _split_company_location,
     )
 
     bomb = "Word. " + ("Aa " * 4_000) + "Manager"
     started = time.monotonic()
     _peel_role_title([bomb])
     _peel_company([bomb])
+    _split_company_location(bomb)
     _contact_markup(("a." * 3_000) + "com | " + ("b" * 5_000))
     _normalize_ligatures(bomb)
     assert time.monotonic() - started < 5

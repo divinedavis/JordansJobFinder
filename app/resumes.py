@@ -24,7 +24,7 @@ from typing import Optional
 
 from flask import current_app
 from reportlab.lib.colors import HexColor, black
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
@@ -34,8 +34,6 @@ from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
     Spacer,
-    Table,
-    TableStyle,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +74,7 @@ Output ONLY a JSON object with this exact shape. No markdown fences, no commenta
   "experience": [
     {{
       "company": "Company name",
+      "location": "City, ST for that employer (empty string if the base resume does not say)",
       "dates": "Month Year – Month Year (or Present) — the WHOLE span at this employer",
       "roles": [
         {{
@@ -598,6 +597,7 @@ def _sanitize_structured(data: dict) -> dict:
         roles = [r for r in roles if r["title"] or r["bullets"] or r["dates"]]
         experience.append({
             "company": _s(entry.get("company")),
+            "location": _s(entry.get("location")),
             "dates": _s(entry.get("dates")),
             "roles": roles,
         })
@@ -662,25 +662,18 @@ def _styles():
             "Company", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
             leading=14,
         ),
-        "company_dates": ParagraphStyle(
-            "CompanyDates", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
-            alignment=TA_RIGHT, leading=14,
-        ),
         "role": ParagraphStyle(
             "Role", parent=base, fontSize=10.5, leading=14,
         ),
-        "role_dates": ParagraphStyle(
-            "RoleDates", parent=base, fontSize=10.5, alignment=TA_RIGHT, leading=14,
-        ),
+        # The "\u2022 " marker is part of the paragraph TEXT, not reportlab's
+        # bulletText — see _bulleted. A negative firstLineIndent hangs the
+        # wrapped lines under the words instead of under the marker.
         "bullet": ParagraphStyle(
             "Bullet", parent=base, fontSize=10, leading=13.5, leftIndent=20,
-            bulletIndent=8, spaceAfter=3,
+            firstLineIndent=-12, spaceAfter=3,
         ),
         "edu": ParagraphStyle(
             "Edu", parent=base, fontSize=10.5, leading=14,
-        ),
-        "edu_dates": ParagraphStyle(
-            "EduDates", parent=base, fontSize=10.5, alignment=TA_RIGHT, leading=14,
         ),
         "tools": ParagraphStyle(
             "Tools", parent=base, fontSize=10.5, leading=14.5, leftIndent=4,
@@ -747,25 +740,37 @@ def _section_heading(label: str, styles) -> Paragraph:
     return Paragraph(f"<u>{_escape(label.upper())}:</u>", styles["section"])
 
 
-def _two_column_row(left: Paragraph, right: Paragraph) -> Table:
-    """One line with content pinned left and dates flush right.
+# Middle dot, not U+2022 — see _bulleted for why the real bullet cannot be
+# read back out of the PDF.
+_BULLET = "\u00b7"
 
-    hAlign LEFT matters: the columns sum to less than the frame width and a
-    Table otherwise centres itself, nudging the company name right of the
-    bullets below it.
+
+def _bulleted(text: str, styles) -> Paragraph:
+    """A bullet whose marker survives text extraction.
+
+    Two separate reasons this is not reportlab's bulletText and not "\u2022":
+
+    bulletText draws the marker as its own text run, and an ATS parser saw an
+    undelimited wall of prose where the bullet list should be. Putting the
+    marker in the paragraph text costs a hanging indent (handled by the style).
+
+    U+2022 itself is unusable here. WinAnsiEncoding has bullet at BOTH 0x7F and
+    0x95; reportlab writes 0x7F, and with no /ToUnicode map on a base-14 font
+    an extractor reads it back as U+007F — a DEL control character sitting in
+    the middle of the resume. U+00B7 renders as a dot and round-trips.
     """
-    return Table(
-        [[left, right]],
-        colWidths=[4.4 * inch, 2.6 * inch],
-        hAlign="LEFT",
-        style=TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]),
-    )
+    return Paragraph(_BULLET + " " + text, styles["bullet"])
+
+
+def _ats_line(*parts: str) -> str:
+    """Join the fields of one resume line with a delimiter parsers split on.
+
+    " | " and not a wide column gap: dates used to sit in a right-aligned
+    second table column, and resume parsers read that gap as a column break,
+    then parsed each side as its own record. Workday turned four jobs into six
+    dateless entries that way.
+    """
+    return " | ".join(p for p in (str(x or "").strip() for x in parts) if p)
 
 
 def _header_block(data: dict, styles) -> list:
@@ -786,32 +791,50 @@ def _header_block(data: dict, styles) -> list:
 
 
 def _experience_block(data: dict, styles) -> list:
+    """Render experience so a resume parser can read it.
+
+    Every role prints as ONE line carrying its own title, employer and date
+    range, because an ATS builds a work-experience record per date range it
+    finds and fills the record from that same line. The employer heading is
+    deliberately dateless: a company row with its own span used to be read as a
+    seventh, titleless job.
+    """
     entries = data.get("experience", []) or []
     if not entries:
         return []
     blocks = [_section_heading("Professional Experience", styles)]
     for entry in entries:
-        company = _escape(entry.get("company", ""))
-        dates = _escape(entry.get("dates", ""))
+        company = entry.get("company", "")
+        location = entry.get("location", "")
         roles = entry.get("roles", []) or []
-        if not (company or dates or roles):
+        if not roles and (entry.get("title") or entry.get("dates") or entry.get("bullets")):
+            # The flat pre-2026-08-20 entry shape, which the model still
+            # returns now and then. _sanitize_structured folds it into a role;
+            # do it here too so a caller that skips the sanitizer doesn't lose
+            # the dates and bullets entirely.
+            roles = [{
+                "title": entry.get("title", ""),
+                "dates": entry.get("dates", ""),
+                "bullets": entry.get("bullets") or [],
+            }]
+        if not (company or roles):
             continue
         chunk = []
-        if company or dates:
-            chunk.append(_two_column_row(
-                Paragraph(company, styles["company"]),
-                Paragraph(dates, styles["company_dates"]),
+        if company:
+            chunk.append(Paragraph(
+                _escape(_ats_line(company, location)), styles["company"]
             ))
         for role in roles:
-            title = _escape(role.get("title", ""))
-            role_dates = _escape(role.get("dates", ""))
+            title = role.get("title", "")
+            role_dates = role.get("dates", "")
             if title or role_dates:
-                chunk.append(_two_column_row(
-                    Paragraph(title, styles["role"]),
-                    Paragraph(role_dates, styles["role_dates"]),
+                chunk.append(Paragraph(
+                    _escape(_ats_line(", ".join(p for p in (title, company) if p),
+                                      role_dates)),
+                    styles["role"],
                 ))
             for bullet in role.get("bullets", []) or []:
-                chunk.append(Paragraph(_escape(bullet), styles["bullet"], bulletText="\u2022"))
+                chunk.append(_bulleted(_escape(bullet), styles))
         chunk.append(Spacer(1, 8))
         # Keep the company heading with its first role; letting the whole block
         # travel together would push a long employer onto its own page.
@@ -832,7 +855,7 @@ def _competencies_block(data: dict, styles) -> list:
     blocks = [_section_heading("Core Competencies", styles)]
     for label, items in rows:
         text = f"<b>{label}:</b> {items}" if label else items
-        blocks.append(Paragraph(text, styles["bullet"], bulletText="\u2022"))
+        blocks.append(_bulleted(text, styles))
     return blocks
 
 
@@ -840,20 +863,17 @@ def _education_block(data: dict, styles) -> list:
     edu = data.get("education", []) or []
     rows = []
     for e in edu:
-        school = _escape(e.get("school", ""))
-        degree = _escape(e.get("degree", ""))
-        left = "| ".join(p for p in (school, degree) if p)
-        if not left:
-            continue
-        rows.append((left, _escape(e.get("dates", ""))))
+        line = _ats_line(e.get("school", ""), e.get("degree", ""), e.get("dates", ""))
+        if line:
+            rows.append(line)
     if not rows:
         return []
     blocks = [_section_heading("Education & Certification", styles)]
-    for left, dates in rows:
-        blocks.append(_two_column_row(
-            Paragraph(left, styles["edu"]),
-            Paragraph(dates, styles["edu_dates"]),
-        ))
+    # "School | Degree | Date" on one line. It used to be "School| Degree" in a
+    # table with the date in a right-aligned column: no space before the pipe
+    # made "University|" a single token, so parsers read neither the school nor
+    # the degree.
+    blocks.extend(Paragraph(_escape(row), styles["edu"]) for row in rows)
     return blocks
 
 
@@ -1050,6 +1070,9 @@ def _parse_experience(blob: str) -> list:
             continue
         before_dates = segment[: date_match.start()].strip(" .,;:")
         after_dates = segment[date_match.end():].strip(" .,;:")
+        # Location first: _split_company_title splits on the same " | " and
+        # would otherwise hand "New York, NY" back as the role title.
+        before_dates, location = _split_company_location(before_dates)
         # Heuristic: the company comes first, optionally followed by " | " or " - " then title.
         company, title = _split_company_title(before_dates)
         lead, bullets = _split_lead_and_bullets(after_dates)
@@ -1070,6 +1093,7 @@ def _parse_experience(blob: str) -> list:
             title = lead
         entries.append({
             "company": company,
+            "location": location,
             "title": title,
             "dates": date_match.group(0),
             "bullets": bullets,
@@ -1077,6 +1101,35 @@ def _parse_experience(blob: str) -> list:
         carried, carried_company = next_title, next_company
         cursor = seg_end
     return entries
+
+
+# A city/state trailing an employer name, for the Location field an ATS asks
+# for. Deliberately narrow — an employer name is also a comma-phrase, and
+# "Senior Associate, Product" must not surrender "Product" to the location.
+# Two accepted shapes:
+#   after an explicit " | " or dash delimiter, a place with a region word
+#   ("Acme Bank | London, England")
+#   otherwise a hard "City, ST" postal code and nothing looser
+#   ("Acme Bank, Lancaster, PA")
+_PLACE = r"[A-Z][A-Za-z.'-]{1,20}(?:[ ][A-Z][A-Za-z.'-]{1,20}){0,2}"
+_LOCATION_DELIMITED = re.compile(
+    r"\s[|\u2013\u2014-]\s*(" + _PLACE + r",\s*(?:[A-Z]{2}|[A-Z][a-z]{2,19}))$"
+)
+_LOCATION_POSTAL = re.compile(r",\s*(" + _PLACE + r",\s*[A-Z]{2})$")
+
+
+def _split_company_location(text: str) -> tuple[str, str]:
+    """Separate an employer name from a trailing city/state, if one is there."""
+    stripped = (text or "").strip()
+    for pattern in (_LOCATION_DELIMITED, _LOCATION_POSTAL):
+        match = pattern.search(stripped)
+        if not match:
+            continue
+        company = stripped[: match.start()].strip(" ,|-\u2013\u2014")
+        if not company:  # the whole string was the place — keep it as the employer
+            return stripped, ""
+        return company, match.group(1).strip()
+    return stripped, ""
 
 
 def _split_company_title(text: str) -> tuple[str, str]:
@@ -1377,11 +1430,14 @@ def _group_experience(entries: list) -> list:
     grouped: list = []
     for entry in entries:
         company = (entry.get("company") or "").strip()
+        location = (entry.get("location") or "").strip()
         title = (entry.get("title") or "").strip()
         dates = (entry.get("dates") or "").strip()
         bullets = entry.get("bullets") or []
         if company:
-            grouped.append({"company": company, "dates": dates, "roles": []})
+            grouped.append({
+                "company": company, "location": location, "dates": dates, "roles": [],
+            })
             if title:
                 grouped[-1]["roles"].append({"title": title, "dates": "", "bullets": []})
             if bullets:
@@ -1390,7 +1446,7 @@ def _group_experience(entries: list) -> list:
                 grouped[-1]["roles"][-1]["bullets"] = bullets
             continue
         if not grouped:
-            grouped.append({"company": "", "dates": dates, "roles": []})
+            grouped.append({"company": "", "location": "", "dates": dates, "roles": []})
         roles = grouped[-1]["roles"]
         # A headless entry right after a title with no bullets is that title's
         # own date range; anything else is the next role at the same employer.
