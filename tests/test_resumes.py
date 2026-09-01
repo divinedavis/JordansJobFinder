@@ -936,6 +936,37 @@ def test_heuristic_splits_roles_from_bullets_and_employers():
     )
 
 
+def test_a_long_role_does_not_swallow_the_next_roles_title():
+    """2026-09-01: the bullet extractor capped at 8 BEFORE the next role's
+    title was peeled off the tail of the last bullet, so a role with nine or
+    more bullets silently dropped both that bullet and the title of the role
+    beneath it — "Senior Associate, Technical Program Manager" vanished from
+    the rendered resume."""
+    from app.resumes import heuristic_structured_parse
+
+    bullets = " ".join(
+        f"\u2022 Delivered platform initiative number {n} on schedule."
+        for n in range(1, 10)
+    )
+    text = (
+        "Jordan Doe Senior Product Manager | Platforms "
+        "linkedin.com/in/jordandoe | 555-0142 | jordan.doe@example.com "
+        "Summary: Ten years shipping platforms. "
+        "Professional Experience: Acme Bank August 2021 - Present "
+        "Vice President, Product January 2024 - Present "
+        f"{bullets} Senior Associate, Product "
+        "August 2021 - January 2024 "
+        "\u2022 Ran modernization delivery."
+    )
+    parsed = heuristic_structured_parse(text, user_email="jordan.doe@example.com")
+    acme = parsed["experience"][0]
+    assert acme["company"] == "Acme Bank"
+    titles = [r["title"] for r in acme["roles"]]
+    assert titles == ["Vice President, Product", "Senior Associate, Product"]
+    # The ninth bullet is the user's own content and must survive too.
+    assert len(acme["roles"][0]["bullets"]) == 9
+
+
 def test_resume_regexes_do_not_blow_up_on_hostile_text():
     """Every one of these patterns runs over text lifted out of an UPLOADED
     resume. A nested quantifier against a $ anchor is a denial-of-service knob

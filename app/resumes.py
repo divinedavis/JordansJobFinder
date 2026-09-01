@@ -1055,6 +1055,9 @@ def _parse_experience(blob: str) -> list:
         lead, bullets = _split_lead_and_bullets(after_dates)
         bullets, next_title = _peel_role_title(bullets)
         bullets, next_company = _peel_company(bullets)
+        # Cap only after peeling, so a long role can never swallow the title of
+        # the role below it.
+        bullets = bullets[:_MAX_BULLETS]
         if not company and carried_company:
             company = carried_company
         if not title and len(bullets) == 1 and _looks_like_role_title(bullets[0]):
@@ -1145,13 +1148,13 @@ def _split_lead_and_bullets(text: str) -> tuple[str, list]:
         return "", []
     if "•" in text:
         lead, _, rest = text.partition("•")
-        return lead.strip(" .;,-"), _extract_bullets("•" + rest)
+        return lead.strip(" .;,-"), _extract_bullets("•" + rest, limit=None)
     # No bullet markers at all: a short job-title phrase is a title, not a
     # one-line bullet. This is the gap between an employer's date range and its
     # role's date range in a two-column layout.
     if _looks_like_role_title(text):
         return text.strip(" .;,-"), []
-    return "", _extract_bullets(text)
+    return "", _extract_bullets(text, limit=None)
 
 
 def _peel_role_title(bullets: list) -> tuple[list, str]:
@@ -1186,7 +1189,14 @@ def _peel_company(bullets: list) -> tuple[list, str]:
     return bullets[:-1] + [trimmed], company
 
 
-def _extract_bullets(text: str) -> list:
+def _extract_bullets(text: str, limit: Optional[int] = _MAX_BULLETS) -> list:
+    """Split a run of text into bullets.
+
+    `limit` is None while parsing an experience segment: the NEXT role's title
+    rides on the tail of this role's last bullet, so capping here would throw
+    the title away with the bullet. _parse_experience peels the title off and
+    caps the list itself.
+    """
     if not text:
         return []
     # Bullets may use •, *, or "- " markers; otherwise split on sentence boundaries.
@@ -1202,7 +1212,7 @@ def _extract_bullets(text: str) -> list:
         if len(it) < 6:
             continue
         cleaned.append(it.rstrip(".") + ".")
-    return cleaned[:8]  # cap so the rendered PDF stays readable
+    return cleaned if limit is None else cleaned[:limit]
 
 
 def _parse_competencies(blob: str) -> list:
