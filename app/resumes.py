@@ -662,15 +662,18 @@ def _styles():
             "Company", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
             leading=14,
         ),
+        # The title is bold (see _role_paragraph) and the line gets a little
+        # air above it: 2026-09-03 the owner couldn't tell a role line from
+        # the bullets under it when both were the same regular weight.
         "role": ParagraphStyle(
-            "Role", parent=base, fontSize=10.5, leading=14,
+            "Role", parent=base, fontSize=10.5, leading=14, spaceBefore=3,
         ),
         # The "\u2022 " marker is part of the paragraph TEXT, not reportlab's
         # bulletText — see _bulleted. A negative firstLineIndent hangs the
         # wrapped lines under the words instead of under the marker.
         "bullet": ParagraphStyle(
-            "Bullet", parent=base, fontSize=10, leading=13.5, leftIndent=20,
-            firstLineIndent=-12, spaceAfter=3,
+            "Bullet", parent=base, fontSize=10, leading=13.5, leftIndent=24,
+            firstLineIndent=-14, spaceAfter=3,
         ),
         "edu": ParagraphStyle(
             "Edu", parent=base, fontSize=10.5, leading=14,
@@ -790,6 +793,34 @@ def _header_block(data: dict, styles) -> list:
     return blocks
 
 
+# Text width of the letter page inside render_resume_pdf's margins.
+_BODY_WIDTH = LETTER[0] - 2 * 0.75 * inch
+
+
+def _role_paragraph(title: str, company: str, dates: str, styles,
+                    avail_width: float = _BODY_WIDTH) -> Paragraph:
+    """One self-describing role line: **Title**, Company | Dates.
+
+    The bold title is what makes the line stand apart from the bullets under
+    it. The dates stay inline rather than flush right, and the employer is
+    restated: right-aligned dates leave a column gap an ATS reads as a table,
+    which is how Workday turned four jobs into six titleless records.
+
+    Bold is ~4% wider than regular, and a wrapped role line puts the date on a
+    line of its own — the same parse bug. So the bold line is measured first,
+    and a title that only fits at regular weight prints at regular weight.
+    """
+    plain = _ats_line(", ".join(p for p in (title, company) if p), dates)
+    if not title:
+        return Paragraph(_escape(plain), styles["role"])
+    tail = plain[len(title):]  # exactly what follows the title in the plain line
+    bold = Paragraph(f"<b>{_escape(title)}</b>{_escape(tail)}", styles["role"])
+    one_line = styles["role"].leading
+    if bold.wrap(avail_width, 10_000)[1] <= one_line:
+        return bold
+    return Paragraph(_escape(plain), styles["role"])
+
+
 def _experience_block(data: dict, styles) -> list:
     """Render experience so a resume parser can read it.
 
@@ -828,11 +859,7 @@ def _experience_block(data: dict, styles) -> list:
             title = role.get("title", "")
             role_dates = role.get("dates", "")
             if title or role_dates:
-                chunk.append(Paragraph(
-                    _escape(_ats_line(", ".join(p for p in (title, company) if p),
-                                      role_dates)),
-                    styles["role"],
-                ))
+                chunk.append(_role_paragraph(title, company, role_dates, styles))
             for bullet in role.get("bullets", []) or []:
                 chunk.append(_bulleted(_escape(bullet), styles))
         chunk.append(Spacer(1, 8))

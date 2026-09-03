@@ -616,7 +616,8 @@ def test_experience_renders_without_table_flowables(app):
     assert "JPMorgan Chase &amp; Co. | New York, NY" in lines
     assert not any("Chase" in ln and "2022" in ln and "Vice President" not in ln for ln in lines)
     # The role line is self-describing: title, employer and dates together.
-    assert "Vice President, JPMorgan Chase &amp; Co. | 2022 – Present" in lines
+    # The title is bold so the line reads apart from its bullets (2026-09-03).
+    assert "<b>Vice President</b>, JPMorgan Chase &amp; Co. | 2022 – Present" in lines
 
 
 def test_competencies_render_as_bold_labelled_bullets(app):
@@ -1137,3 +1138,29 @@ def test_ai_failure_marker_goes_stale(app, tmp_path):
             json.dump({"failed_at": stale.isoformat(), "reason": "down"}, fh)
         assert resumes_module.ai_tailoring_status()["available"] is True
         os.remove(path)
+
+
+def test_role_title_is_bold_unless_bold_would_wrap_the_dates(app):
+    """2026-09-03: the owner couldn't tell a role line from the bullets under
+    it. The title now prints bold — but only when the bold line still fits,
+    because a wrapped role line puts the dates alone on the next line, which
+    is the Workday phantom-job bug all over again."""
+    from app.resumes import _role_paragraph, _styles
+
+    styles = _styles()
+    para = _role_paragraph(
+        "Vice President, Technical Program and Product Manager",
+        "JPMorgan Chase", "January 2024 - Present", styles,
+    )
+    assert para.text.startswith(
+        "<b>Vice President, Technical Program and Product Manager</b>, JPMorgan Chase | "
+    ), para.text
+    assert para.wrap(504, 10_000)[1] <= styles["role"].leading, "must stay on one line"
+
+    # A title that only fits at regular weight falls back to regular weight
+    # rather than wrapping the dates onto their own line.
+    long_title = "Vice President, Technical Program, Product and Portfolio Manager"
+    para = _role_paragraph(long_title, "JPMorgan Chase", "January 2024 - Present", styles,
+                           avail_width=480)
+    assert "<b>" not in para.text, para.text
+    assert para.text.startswith(long_title + ", JPMorgan Chase | ")

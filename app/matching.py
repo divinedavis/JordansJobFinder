@@ -4,7 +4,26 @@ from corporate_filter import is_corporate_role
 from .catalog import ADMIN_EMAILS_SET, CITY_LABELS, TITLE_KEYWORDS, TITLE_VERTICALS
 from .company_revenue import revenue_billions
 
-EXCLUDE_TITLES = ["governance"]
+# Title terms that disqualify a posting on EVERY track. "construction" was
+# added 2026-09-03 after a "Manager Project Management & Construction I & C
+# Engineering" (Duke Energy) scored 86% — the fit scorer sees "project
+# management" and can't tell a site build from a software launch.
+EXCLUDE_TITLES = ["governance", "construction"]
+# Postings that require a security clearance are out on every track: the
+# candidate doesn't hold one, and "able to obtain" still means months of
+# adjudication before a start date. Matched against title AND description
+# (the Databricks "Staff TPM - Cleared/Security" posting names it in the
+# title; most bury it in the requirements). "security" alone is NOT a
+# signal — it's a legitimate IT/product domain.
+CLEARANCE_PATTERN = None  # compiled lazily below
+CLEARANCE_TERMS = (
+    r"security clearance", r"secret clearance", r"active clearance",
+    r"clearance (?:is )?(?:required|preferred|a plus)",
+    r"(?:obtain|hold|maintain|possess|have)(?: and maintain)? an? "
+    r"(?:(?:dod|dhs|government|federal|u\.?s\.?|active|current|secret|top secret|ts/sci|public trust)\s+)*"
+    r"(?:security )?clearance",
+    r"ts/sci", r"top secret", r"\bcleared\b", r"public trust",
+)
 # Companies the user never wants to see on the dashboard, matched
 # case-insensitively against the normalized company name.
 EXCLUDE_COMPANIES = {"scale ai", "google", "celonis", "tjx", "pagerduty",
@@ -40,6 +59,29 @@ def normalize_text(value: str) -> str:
 
 def _title_excluded(normalized: str) -> bool:
     return any(term in normalized for term in EXCLUDE_TITLES)
+
+
+def _clearance_regex():
+    import re
+    global CLEARANCE_PATTERN
+    if CLEARANCE_PATTERN is None:
+        CLEARANCE_PATTERN = re.compile("|".join(CLEARANCE_TERMS), re.IGNORECASE)
+    return CLEARANCE_PATTERN
+
+
+def requires_clearance(title: str, description: str = "") -> bool:
+    """Whether a posting asks for a security clearance (title or body)."""
+    text = normalize_text(f"{title or ''} {description or ''}")
+    return bool(_clearance_regex().search(text))
+
+
+def posting_excluded(title: str, description: str = "") -> bool:
+    """Every-track negative keywords, checked against the whole posting.
+
+    The single gate the sync and the live matcher both call, so a blocked
+    posting never reaches a board no matter which vertical fed it.
+    """
+    return _title_excluded(normalize_text(title)) or requires_clearance(title, description)
 
 
 def company_excluded(company: str) -> bool:
@@ -223,8 +265,11 @@ PROJECT_NEGATIVE_KEYWORDS = ("intern", "internship")
 
 
 def title_is_project(title: str) -> bool:
-    """Project-management roles (coordinator through director), any industry."""
+    """Project-management roles (coordinator through director), any industry
+    except the globally excluded ones (construction, …)."""
     normalized = normalize_text(title)
+    if _title_excluded(normalized):
+        return False
     if not is_corporate_role(normalized):
         return False
     if any(neg in normalized for neg in PROJECT_NEGATIVE_KEYWORDS):
@@ -425,6 +470,8 @@ def match_job_for_user(
     QUALIFICATION semantics (job's required minimum <= the candidate's years)
     instead of band overlap — a 10-year candidate must match an "8+ years"
     job, which band overlap would wrongly reject."""
+    if posting_excluded(title, description):
+        return False
     vertical = TITLE_VERTICALS.get(title_slug, "pm")
     parsed = parse_experience_years(title, description)
 

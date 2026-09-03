@@ -247,3 +247,53 @@ def test_pm_search_also_matches_it_jobs(signed_in_client, db_session):
     }
     assert it_job.id in matched
     assert non_pm_it_job.id not in matched
+
+
+def test_pm_board_drops_clearance_postings_from_the_it_side_path(signed_in_client, db_session):
+    """The IT/project side path in _search_matches_job never reaches
+    match_job_for_user, so the every-track gate has to sit in the sync too.
+    A Databricks-style "Cleared" TPM must not ride the PM board that way."""
+    from app.models import Job, JobMatch, SavedSearch, User
+    from app.sync import rebuild_matches_for_user
+
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    search = db_session.query(SavedSearch).filter(
+        SavedSearch.user_id == user.id, SavedSearch.vertical == "pm"
+    ).one()
+    search.cities = ["Tampa, FL"]
+    db_session.commit()
+
+    ok = Job(
+        source="test", company="Jabil", title="IT Program Manager",
+        normalized_title="it program manager",
+        url="https://example.com/jobs/clr-1", city="tampa-fl",
+        location="Tampa, FL", description="Lead ERP rollouts.",
+        vertical="it", is_technical=True,
+    )
+    cleared_title = Job(
+        source="test", company="Jabil",
+        title="Staff Technical Program Manager - Cleared/Security",
+        normalized_title="staff technical program manager - cleared/security",
+        url="https://example.com/jobs/clr-2", city="tampa-fl",
+        location="Tampa, FL", description="", vertical="it", is_technical=True,
+    )
+    cleared_body = Job(
+        source="test", company="Jabil", title="Technical Program Manager",
+        normalized_title="technical program manager",
+        url="https://example.com/jobs/clr-3", city="tampa-fl",
+        location="Tampa, FL",
+        description="Must be able to obtain a DoD Secret clearance.",
+        vertical="it", is_technical=True,
+    )
+    db_session.add_all([ok, cleared_title, cleared_body])
+    db_session.commit()
+
+    rebuild_matches_for_user(user.id)
+    db_session.expire_all()
+    matched = {
+        m.job_id
+        for m in db_session.query(JobMatch).filter(JobMatch.user_id == user.id).all()
+    }
+    assert ok.id in matched
+    assert cleared_title.id not in matched
+    assert cleared_body.id not in matched

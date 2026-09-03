@@ -9,7 +9,6 @@ def test_title_is_project_accepts_project_roles():
         "Project Manager",
         "Senior Project Coordinator",
         "IT Program Manager",
-        "Construction Project Manager",
         "PMO Analyst",
         "Project Director, Facilities",
     ):
@@ -25,6 +24,11 @@ def test_title_is_project_rejects_unrelated_and_interns():
         "Financial Analyst",
         "Project Management Intern",
         "Supply Chain Manager",
+        # Owner call 2026-09-03: construction is a negative keyword on every
+        # track, and this feed is the one that let a Duke Energy
+        # "Manager Project Management & Construction I & C Engineering" through.
+        "Construction Project Manager",
+        "Manager Project Management & Construction I & C Engineering",
     ):
         assert not title_is_project(title), title
 

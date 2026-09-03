@@ -116,6 +116,62 @@ def test_title_matches_excludes_governance():
     assert title_matches("Data Governance Program Manager", "technical-program-manager") is False
 
 
+def test_title_matches_excludes_construction_everywhere():
+    from app.matching import title_is_it_pm, title_is_project
+
+    title = "Manager Project Management & Construction I & C Engineering"
+    assert title_matches(title, "technical-program-manager") is False
+    assert title_matches_superuser_scope("Program Manager, Construction") is False
+    assert title_is_project(title) is False
+    assert title_is_it_pm("Construction IT Project Manager") is False
+
+
+def test_requires_clearance_reads_title_and_description():
+    from app.matching import requires_clearance
+
+    # Named in the title (Databricks, 2026-09-02).
+    assert requires_clearance("Staff Technical Program Manager - Cleared/Security", "")
+    # Buried in the requirements.
+    assert requires_clearance(
+        "Sr. Field Technical Program Manager, Public Sector",
+        "Must hold an active TS/SCI clearance.",
+    )
+    assert requires_clearance(
+        "Program Manager",
+        "Ability to obtain and maintain a U.S. government security clearance is required.",
+    )
+    assert requires_clearance("Program Manager", "Candidates must be able to obtain a Public Trust.")
+    assert requires_clearance("Program Manager", "Top Secret clearance preferred.")
+
+
+def test_requires_clearance_ignores_ordinary_security_roles():
+    from app.matching import requires_clearance
+
+    # "security" is a legitimate product domain, not a clearance signal.
+    assert not requires_clearance(
+        "Senior Product Manager, Security", "Own the identity and security roadmap."
+    )
+    assert not requires_clearance(
+        "Product Manager, Customs", "Owns the customs brokerage clearance product."
+    )
+
+
+def test_match_job_for_user_rejects_clearance_postings(app):
+    from app.matching import match_job_for_user
+
+    good = match_job_for_user(
+        "technical-program-manager", "5-8", "Technical Program Manager",
+        "5+ years of experience.", 150000, 190000, "u@example.com",
+    )
+    assert good is True
+    cleared = match_job_for_user(
+        "technical-program-manager", "5-8", "Technical Program Manager",
+        "5+ years of experience. Active Secret clearance required.",
+        150000, 190000, "u@example.com",
+    )
+    assert cleared is False
+
+
 def test_title_matches_superuser_scope_accepts_both_roles():
     assert title_matches_superuser_scope("Senior Product Manager") is True
     assert title_matches_superuser_scope("Technical Program Manager") is True

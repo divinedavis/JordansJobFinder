@@ -16,6 +16,7 @@ from .matching import (
     job_excluded,
     location_matches_city,
     match_job_for_user,
+    posting_excluded,
     salary_meets_minimum,
     title_is_it_pm,
     title_is_project,
@@ -60,6 +61,11 @@ def _search_matches_job(search, job, user_email, resume_years=None) -> bool:
     # Excluded employers never surface, even if a stale Job row lingers in the
     # DB from before the company was blocked or the revenue bar was applied.
     if job_excluded(job.company or "", job.city or ""):
+        return False
+    # Every-track negative keywords (construction titles, security-clearance
+    # postings). Checked here so the IT/project side path below — which never
+    # reaches match_job_for_user — is gated too.
+    if posting_excluded(job.title or "", job.description or ""):
         return False
     if job.vertical != search.vertical:
         # Combined selection: the Product/Program Manager track also covers
