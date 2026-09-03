@@ -615,9 +615,12 @@ def test_experience_renders_without_table_flowables(app):
     # company row was read as an extra, titleless job.
     assert "JPMorgan Chase &amp; Co. | New York, NY" in lines
     assert not any("Chase" in ln and "2022" in ln and "Vice President" not in ln for ln in lines)
-    # The role line is title + dates, bold title so it reads apart from its
-    # bullets; the employer heads the block and is not repeated (2026-09-03).
-    assert "<b>Vice President</b> | 2022 – Present" in lines
+    # The role line is a bold title flush left with the dates flush right,
+    # drawn as one flowable; the employer heads the block and is not
+    # repeated (2026-09-03).
+    from app.resumes import _RoleLine
+    roles = [f for f in flat if isinstance(f, _RoleLine)]
+    assert [(r.title, r.dates) for r in roles] == [("Vice President", "2022 – Present")]
 
 
 def test_competencies_render_as_bold_labelled_bullets(app):
@@ -1044,8 +1047,14 @@ def test_rendered_pdf_is_parseable_by_an_ats(app, tmp_path):
     # the text layer may be a control character.
     assert not [c for c in text if ord(c) < 32 and c not in "\n\r\t"]
     assert "\x7f" not in text
-    # No wide column gaps left for a parser to read as a table.
-    assert not [ln for ln in lines if "      " in ln.strip()], "column gap in the text layer"
+    # The ONLY wide gaps in the text layer are the role lines' right-aligned
+    # dates — the owner's call (2026-09-03), matching their own Word resume.
+    # Everything else stays gap-free so no other line can read as a table.
+    role_dates = ("January 2024 - Present", "August 2021 - January 2024")
+    gappy = [ln for ln in lines if "      " in ln.strip()]
+    assert gappy, "role dates should be flush right"
+    for ln in gappy:
+        assert any(d in ln for d in role_dates), f"column gap outside a role line: {ln!r}"
 
 
 def test_employer_location_is_split_out_for_the_ats_location_field():
@@ -1141,29 +1150,35 @@ def test_ai_failure_marker_goes_stale(app, tmp_path):
         os.remove(path)
 
 
-def test_role_title_is_bold_unless_bold_would_wrap_the_dates(app):
+def test_role_line_puts_dates_flush_right_and_falls_back_inline(app):
     """2026-09-03: the owner couldn't tell a role line from the bullets under
-    it. The title now prints bold — but only when the bold line still fits,
-    because a wrapped role line puts the dates alone on the next line, which
-    is the Workday phantom-job bug all over again."""
-    from app.resumes import _role_paragraph, _styles
+    it and wants the dates flush right, as on their own Word resume. The
+    title prints bold, the dates right-aligned on the same baseline. A title
+    too long to share the line falls back to the inline **Title** | Dates
+    paragraph — and to regular weight if even bold would wrap the dates onto
+    their own line (the Workday phantom-job bug)."""
+    from reportlab.platypus import Paragraph
+    from app.resumes import _RoleLine, _role_line, _role_paragraph, _styles
 
     styles = _styles()
-    para = _role_paragraph(
-        "Vice President, Technical Program and Product Manager",
-        "JPMorgan Chase", "January 2024 - Present", styles,
-    )
-    assert para.text.startswith(
-        "<b>Vice President, Technical Program and Product Manager</b> | "
-    ), para.text
-    assert "JPMorgan" not in para.text, "the employer heads the block; not repeated here"
-    assert para.wrap(504, 10_000)[1] <= styles["role"].leading, "must stay on one line"
+    title = "Vice President, Technical Program and Product Manager"
+    line = _role_line(title, "January 2024 - Present", styles)
+    assert isinstance(line, _RoleLine)
+    assert (line.title, line.dates) == (title, "January 2024 - Present")
+    assert line.bold_font == "Helvetica-Bold" and line.regular_font == "Helvetica"
+    assert line.wrap(504, 10_000)[1] == styles["role"].leading
 
-    # A title that only fits at regular weight falls back to regular weight
-    # rather than wrapping the dates onto their own line.
+    # Too long for one line with a right-aligned date: inline fallback.
     long_title = ("Vice President, Technical Program, Product, Portfolio and "
                   "Platform Delivery Manager")
-    para = _role_paragraph(long_title, "JPMorgan Chase", "January 2024 - Present", styles,
-                           avail_width=480)
+    fallback = _role_line(long_title, "January 2024 - Present", styles, avail_width=480)
+    assert isinstance(fallback, Paragraph)
+    assert fallback.text.startswith(f"<b>{long_title}</b> | ") or fallback.text.startswith(long_title + " | ")
+
+    # The inline fallback drops bold rather than let the dates wrap.
+    para = _role_paragraph(long_title, "January 2024 - Present", styles, avail_width=480)
     assert "<b>" not in para.text, para.text
     assert para.text.startswith(long_title + " | ")
+    # No dates at all: just the bold title.
+    only = _role_line("Technical Program Manager", "", styles)
+    assert isinstance(only, Paragraph) and only.text == "<b>Technical Program Manager</b>"

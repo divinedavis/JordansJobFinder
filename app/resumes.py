@@ -28,7 +28,9 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import (
+    Flowable,
     HRFlowable,
     KeepTogether,
     Paragraph,
@@ -797,19 +799,65 @@ def _header_block(data: dict, styles) -> list:
 _BODY_WIDTH = LETTER[0] - 2 * 0.75 * inch
 
 
-def _role_paragraph(title: str, company: str, dates: str, styles,
-                    avail_width: float = _BODY_WIDTH) -> Paragraph:
-    """One role line: **Title** | Dates, under the employer heading.
+class _RoleLine(Flowable):
+    """A role's title flush left in bold and its dates flush right, on one
+    baseline — the way the candidate's own Word resume positions them.
 
-    The bold title is what makes the line stand apart from the bullets under
-    it. The dates stay inline rather than flush right: right-aligned dates
-    leave a column gap an ATS reads as a table, which is how Workday turned
-    four jobs into six titleless records. The employer is NOT restated here
-    (owner's call, 2026-09-03 — it already heads the block); the heading
-    itself stays dateless so it can't be read as a job of its own.
+    Owner's call, 2026-09-03, made knowing the trade: a right-aligned date
+    leaves a wide gap in the text layer, and on 2026-09-01 Workday read that
+    gap (then a two-column Table) as a column break and built six titleless
+    work-experience records from four jobs. The candidate's own Word PDF
+    carries the identical gap in its text layer, so this matches what they
+    already submit. The employer heading above stays dateless, and the
+    employer is not repeated on this line.
+
+    Drawn directly on the canvas rather than as a Table so both strings share
+    one baseline and one text line; the title is a real bold font run.
+    """
+
+    _MIN_GAP = 14  # points of clear space between the title and the dates
+
+    def __init__(self, title: str, dates: str, styles):
+        super().__init__()
+        self.title = title
+        self.dates = dates
+        style = styles["role"]
+        self.font_size = style.fontSize
+        self.leading = style.leading
+        self._space_before = style.spaceBefore
+        self.bold_font = "Helvetica-Bold"
+        self.regular_font = "Helvetica"
+
+    def fits(self, avail_width: float) -> bool:
+        needed = (stringWidth(self.title, self.bold_font, self.font_size)
+                  + self._MIN_GAP
+                  + stringWidth(self.dates, self.regular_font, self.font_size))
+        return needed <= avail_width
+
+    def getSpaceBefore(self):
+        return self._space_before
+
+    def wrap(self, avail_width, avail_height):
+        self.width = avail_width
+        self.height = self.leading
+        return avail_width, self.leading
+
+    def draw(self):
+        canvas = self.canv
+        baseline = self.leading - self.font_size
+        canvas.setFont(self.bold_font, self.font_size)
+        canvas.drawString(0, baseline, self.title)
+        canvas.setFont(self.regular_font, self.font_size)
+        canvas.drawRightString(self.width, baseline, self.dates)
+
+
+def _role_paragraph(title: str, dates: str, styles,
+                    avail_width: float = _BODY_WIDTH) -> Paragraph:
+    """Inline fallback: **Title** | Dates on one wrapping line, used when a
+    title is too long to share a line with a right-aligned date.
 
     Bold is ~4% wider than regular, and a wrapped role line puts the date on a
-    line of its own — the same parse bug. So the bold line is measured first,
+    line of its own — the parse bug again. So the bold line is measured first,
     and a title that only fits at regular weight prints at regular weight.
     """
     plain = _ats_line(title, dates)
@@ -821,6 +869,16 @@ def _role_paragraph(title: str, company: str, dates: str, styles,
     if bold.wrap(avail_width, 10_000)[1] <= one_line:
         return bold
     return Paragraph(_escape(plain), styles["role"])
+
+
+def _role_line(title: str, dates: str, styles, avail_width: float = _BODY_WIDTH):
+    """The flowable for one role: title left, dates right when both fit;
+    otherwise the inline **Title** | Dates paragraph."""
+    if title and dates:
+        line = _RoleLine(title, dates, styles)
+        if line.fits(avail_width):
+            return line
+    return _role_paragraph(title, dates, styles, avail_width)
 
 
 def _experience_block(data: dict, styles) -> list:
@@ -861,7 +919,7 @@ def _experience_block(data: dict, styles) -> list:
             title = role.get("title", "")
             role_dates = role.get("dates", "")
             if title or role_dates:
-                chunk.append(_role_paragraph(title, company, role_dates, styles))
+                chunk.append(_role_line(title, role_dates, styles))
             for bullet in role.get("bullets", []) or []:
                 chunk.append(_bulleted(_escape(bullet), styles))
         chunk.append(Spacer(1, 8))
