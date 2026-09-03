@@ -799,18 +799,20 @@ _BODY_WIDTH = LETTER[0] - 2 * 0.75 * inch
 
 def _role_paragraph(title: str, company: str, dates: str, styles,
                     avail_width: float = _BODY_WIDTH) -> Paragraph:
-    """One self-describing role line: **Title**, Company | Dates.
+    """One role line: **Title** | Dates, under the employer heading.
 
     The bold title is what makes the line stand apart from the bullets under
-    it. The dates stay inline rather than flush right, and the employer is
-    restated: right-aligned dates leave a column gap an ATS reads as a table,
-    which is how Workday turned four jobs into six titleless records.
+    it. The dates stay inline rather than flush right: right-aligned dates
+    leave a column gap an ATS reads as a table, which is how Workday turned
+    four jobs into six titleless records. The employer is NOT restated here
+    (owner's call, 2026-09-03 — it already heads the block); the heading
+    itself stays dateless so it can't be read as a job of its own.
 
     Bold is ~4% wider than regular, and a wrapped role line puts the date on a
     line of its own — the same parse bug. So the bold line is measured first,
     and a title that only fits at regular weight prints at regular weight.
     """
-    plain = _ats_line(", ".join(p for p in (title, company) if p), dates)
+    plain = _ats_line(title, dates)
     if not title:
         return Paragraph(_escape(plain), styles["role"])
     tail = plain[len(title):]  # exactly what follows the title in the plain line
@@ -824,11 +826,11 @@ def _role_paragraph(title: str, company: str, dates: str, styles,
 def _experience_block(data: dict, styles) -> list:
     """Render experience so a resume parser can read it.
 
-    Every role prints as ONE line carrying its own title, employer and date
-    range, because an ATS builds a work-experience record per date range it
-    finds and fills the record from that same line. The employer heading is
-    deliberately dateless: a company row with its own span used to be read as a
-    seventh, titleless job.
+    Every role prints as ONE line carrying its own title and date range,
+    because an ATS builds a work-experience record per date range it finds
+    and fills the record from that same line. The employer heading above is
+    deliberately dateless: a company row with its own span used to be read as
+    a seventh, titleless job.
     """
     entries = data.get("experience", []) or []
     if not entries:

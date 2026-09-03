@@ -615,9 +615,9 @@ def test_experience_renders_without_table_flowables(app):
     # company row was read as an extra, titleless job.
     assert "JPMorgan Chase &amp; Co. | New York, NY" in lines
     assert not any("Chase" in ln and "2022" in ln and "Vice President" not in ln for ln in lines)
-    # The role line is self-describing: title, employer and dates together.
-    # The title is bold so the line reads apart from its bullets (2026-09-03).
-    assert "<b>Vice President</b>, JPMorgan Chase &amp; Co. | 2022 – Present" in lines
+    # The role line is title + dates, bold title so it reads apart from its
+    # bullets; the employer heads the block and is not repeated (2026-09-03).
+    assert "<b>Vice President</b> | 2022 – Present" in lines
 
 
 def test_competencies_render_as_bold_labelled_bullets(app):
@@ -878,9 +878,8 @@ def test_layout_matches_the_candidates_own_resume(app, tmp_path):
         "Jira, Confluence",
     ):
         assert expected in text, expected
-    # The employer heads its roles AND is restated on each role line, so every
-    # date range an ATS finds sits next to the employer it belongs to.
-    assert text.count("Acme Bank") == 3
+    # The employer heads its roles once; role lines don't repeat it.
+    assert text.count("Acme Bank") == 1
     # Competencies come before experience, the way the candidate's resume runs.
     assert text.index("CORE COMPETENCIES:") < text.index("PROFESSIONAL EXPERIENCE:")
 
@@ -1026,10 +1025,12 @@ def test_rendered_pdf_is_parseable_by_an_ats(app, tmp_path):
     def line_with(*needles):
         return [ln for ln in lines if all(n in ln for n in needles)]
 
-    # Each role is one self-describing line, not a title in one column and a
-    # date in another.
-    assert line_with("Vice President", "Acme Bank", "January 2024 - Present")
-    assert line_with("Senior Associate", "Acme Bank", "August 2021 - January 2024")
+    # Each role is one line holding its title AND its dates, not a title in
+    # one column and a date in another.
+    assert line_with("Vice President", "January 2024 - Present")
+    assert line_with("Senior Associate", "August 2021 - January 2024")
+    # The employer heads the block, on its own dateless line right above.
+    assert line_with("Acme Bank", "New York, NY")
     # No dated employer row: the ONLY line holding the employer's own span also
     # names the role that span belongs to.
     for ln in line_with("August 2021 - Present"):
@@ -1153,14 +1154,16 @@ def test_role_title_is_bold_unless_bold_would_wrap_the_dates(app):
         "JPMorgan Chase", "January 2024 - Present", styles,
     )
     assert para.text.startswith(
-        "<b>Vice President, Technical Program and Product Manager</b>, JPMorgan Chase | "
+        "<b>Vice President, Technical Program and Product Manager</b> | "
     ), para.text
+    assert "JPMorgan" not in para.text, "the employer heads the block; not repeated here"
     assert para.wrap(504, 10_000)[1] <= styles["role"].leading, "must stay on one line"
 
     # A title that only fits at regular weight falls back to regular weight
     # rather than wrapping the dates onto their own line.
-    long_title = "Vice President, Technical Program, Product and Portfolio Manager"
+    long_title = ("Vice President, Technical Program, Product, Portfolio and "
+                  "Platform Delivery Manager")
     para = _role_paragraph(long_title, "JPMorgan Chase", "January 2024 - Present", styles,
                            avail_width=480)
     assert "<b>" not in para.text, para.text
-    assert para.text.startswith(long_title + ", JPMorgan Chase | ")
+    assert para.text.startswith(long_title + " | ")
