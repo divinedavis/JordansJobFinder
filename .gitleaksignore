@@ -1,0 +1,11 @@
+# Test fixture password shared by the test suite. Not a credential; the
+# accounts it creates live only in the per-test SQLite database.
+# Format: <commit>:<file>:<rule>:<line> or fingerprint patterns; gitleaks
+# also honours plain file globs here.
+tests/conftest.py:generic-api-key:74
+tests/test_applied.py:generic-api-key:284
+tests/test_auth.py:generic-api-key:30
+tests/test_city_picker.py:generic-api-key:121
+tests/test_gtag.py:generic-api-key:36
+tests/test_security.py:generic-api-key:10
+tests/test_turnstile.py:generic-api-key:11

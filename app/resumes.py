@@ -126,8 +126,10 @@ def _ensure_dir(path: str) -> None:
     # can't read it. (Full at-rest encryption belongs at the disk/backup layer.)
     try:
         os.chmod(path, 0o700)
-    except OSError:
-        pass
+    except OSError as e:
+        # A silent pass here means resumes sit world-readable and nothing says
+        # so. Log it: the storage still works, but the operator has to know.
+        logging.getLogger(__name__).warning("could not chmod resume dir %s to 0700: %s", path, e)
 
 
 def detect_kind(filename: str, content_type: str) -> str:
