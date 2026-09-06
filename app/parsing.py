@@ -69,8 +69,16 @@ def normalize_numeric_language(text: str) -> str:
 def _extract_amounts(text: str) -> list[int]:
     """Pull all dollar-like amounts from text, filtered to plausible salary range."""
     amounts = []
-    pattern = re.compile(r"(?:USD)?\$\s*(\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?")
+    # Three forms: "$129,840" (US), "$129 840,00" (Citi's Workday tenant
+    # renders NYC pay ranges with a space for thousands and a comma for
+    # cents — "Salary Range: $129 840,00 - $194 760,00" reached the board as
+    # no salary at all), and a bare "$180000" / "$180k".
+    pattern = re.compile(
+        r"(?:USD)?\$\s*(\d{1,3}(?: \d{3})+(?:,\d{2})?|\d{2,3}(?:,\d{3})+|\d+(?:\.\d+)?)\s*([kKmM])?"
+    )
     for raw_amount, suffix in pattern.findall(text):
+        if " " in raw_amount:
+            raw_amount = re.sub(r",\d{2}$", "", raw_amount).replace(" ", "")
         amount = float(raw_amount.replace(",", ""))
         suffix = suffix.lower()
         if suffix == "k":
@@ -86,7 +94,7 @@ def _extract_amounts(text: str) -> list[int]:
 # Two amounts written as one range. Dashes and "to" join a range on their own;
 # "and" only counts after "between", or "$100,000 salary and $20,000 bonus"
 # would read as a range starting at the bonus.
-_AMOUNT = r"(?:USD\s*)?\$\s*[\d,]+(?:\.\d+)?\s*[kKmM]?"
+_AMOUNT = r"(?:USD\s*)?\$\s*\d[\d,]*(?: \d{3})*(?:[.,]\d+)?\s*[kKmM]?"
 DASH_RANGE_PATTERN = re.compile(rf"{_AMOUNT}\s*(?:-|–|—|to|through)\s*{_AMOUNT}", re.I)
 BETWEEN_RANGE_PATTERN = re.compile(rf"between\s+{_AMOUNT}\s+and\s+{_AMOUNT}", re.I)
 
@@ -137,7 +145,7 @@ def _salary_from_context(text: str):
         return pair or single
 
     range_pattern = re.compile(
-        r"(?:USD)?\$\s*[\d,]+(?:\.\d+)?\s*[-\u2013\u2014]\s*(?:USD)?\$\s*[\d,]+(?:\.\d+)?",
+        rf"{_AMOUNT}\s*[-\u2013\u2014]\s*{_AMOUNT}",
         re.I,
     )
     for match in range_pattern.finditer(text):

@@ -1641,6 +1641,10 @@ def fetch_workday_detail(url):
     any dollar amount it finds.
     """
     detail = workday_detail_by_url(url, timeout=20)
+    if not detail["description"]:
+        # A silent empty body is how Blackstone's pay range went missing on
+        # 2026-09-05 — the log showed a clean MATCH with nothing to explain it.
+        log(f"    ! Workday detail HTTP {detail['status']} — no description, no pay")
     # Same cap the other verticals store under: a handful of ATS pages inline
     # their whole benefits handbook, and this text is fed to the tailoring and
     # interview-prep prompts as untrusted input.

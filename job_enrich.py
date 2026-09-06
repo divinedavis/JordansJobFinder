@@ -19,6 +19,7 @@ under several search terms.
 """
 import html as html_lib
 import re
+import time
 
 import requests
 
@@ -37,6 +38,14 @@ HEADERS = {"User-Agent": USER_AGENT}
 DESCRIPTION_MAX_CHARS = 20_000
 
 _WORKDAY_DETAIL_CACHE: dict[str, dict] = {}
+# A detail fetch that fails for a reason other than "the req is gone" is
+# retried once after this pause. Blackstone's NYC PM posting (which publishes
+# $165,000 - $185,000) was enriched in 0 seconds on 2026-09-05 — a fast
+# non-200 — and reached the board as "See posting" with no description, and
+# the next day's scrape skipped it as a duplicate, so one bad request became
+# a permanent gap.
+WORKDAY_TRANSIENT_RETRY_DELAY = 2.0
+_WORKDAY_DEFINITIVE_STATUSES = {200, 404}
 
 # A public Workday posting URL, e.g.
 # https://crowdstrike.wd5.myworkdayjobs.com/en-US/crowdstrikecareers/job/USA---New-York-NY/Sr-PM_R29578
@@ -102,6 +111,21 @@ def workday_detail_by_api_url(api: str, timeout: int = 15) -> dict:
     if api in _WORKDAY_DETAIL_CACHE:
         return _WORKDAY_DETAIL_CACHE[api]
 
+    detail = _workday_detail_once(api, timeout)
+    if detail["status"] not in _WORKDAY_DEFINITIVE_STATUSES:
+        # Timeout, 429, 5xx, a WAF hiccup: try once more before giving up.
+        time.sleep(WORKDAY_TRANSIENT_RETRY_DELAY)
+        detail = _workday_detail_once(api, timeout)
+
+    # Only a definitive answer is worth remembering. Caching a failure meant
+    # every later lookup of the same posting in the run — and the vertical
+    # scrapers share this cache — inherited the empty body.
+    if detail["status"] in _WORKDAY_DEFINITIVE_STATUSES:
+        _WORKDAY_DETAIL_CACHE[api] = detail
+    return detail
+
+
+def _workday_detail_once(api: str, timeout: int) -> dict:
     detail = {"description": "", "locations": [], "posted": "", "status": 0}
     try:
         resp = requests.get(api, headers=HEADERS, timeout=timeout)
@@ -115,8 +139,6 @@ def workday_detail_by_api_url(api: str, timeout: int = 15) -> dict:
             detail["posted"] = (info.get("postedOn") or info.get("startDate") or "").strip()
     except Exception:
         pass
-
-    _WORKDAY_DETAIL_CACHE[api] = detail
     return detail
 
 

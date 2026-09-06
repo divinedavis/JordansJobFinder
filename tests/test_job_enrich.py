@@ -196,3 +196,95 @@ def test_every_vertical_scraper_enriches(scraper):
     source = (pathlib.Path(__file__).resolve().parent.parent / scraper).read_text()
     assert "from job_enrich import" in source, f"{scraper} must import the shared enrichment"
     assert "enrich_job(" in source, f"{scraper} must call enrich_job on its scraped jobs"
+
+
+# Citi's Workday tenant renders NYC pay with a space for thousands and a comma
+# for cents. The Transformation Program Management Lead (NYC, 2026-09-04)
+# reached the board with no salary while the text plainly carried one.
+CITI = (
+    "New York United States ---- Primary Location Full Time Salary Range: "
+    "$129 840,00 - $194 760,00 In addition to salary, Citi\u2019s offerings may also "
+    "include, for eligible employees, discretionary and formulaic incentive and "
+    "retention awards."
+)
+
+
+def test_space_grouped_pay_range_is_parsed():
+    assert parse_salary_in_context(CITI) == (129_840, 194_760)
+    assert salary_fields(CITI)["salary_label"] == "$129,840 \u2013 $194,760"
+
+
+def test_us_pay_range_still_parses_after_the_space_grouped_form():
+    assert parse_salary_in_context(
+        "Expected annual base salary range: $165,000 - $185,000"
+    ) == (165_000, 185_000)
+
+
+def test_workday_detail_retries_a_transient_failure_and_does_not_cache_it(monkeypatch):
+    import job_enrich
+
+    monkeypatch.setattr(job_enrich, "WORKDAY_TRANSIENT_RETRY_DELAY", 0)
+    attempts = []
+
+    class _Ok:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"jobPostingInfo": {"jobDescription": f"<p>{GE_VERNOVA}</p>",
+                                       "location": "New York, NY"}}
+
+    class _Busy:
+        status_code = 503
+
+        @staticmethod
+        def json():
+            return {}
+
+    def _get(url, **kwargs):
+        attempts.append(url)
+        return _Busy() if len(attempts) == 1 else _Ok()
+
+    monkeypatch.setattr("job_enrich.requests.get", _get)
+    detail = workday_detail("bx", 1, "Blackstone_Careers", "/job/New-York/Flaky_R1")
+    assert detail["status"] == 200
+    assert salary_fields(detail["description"])["salary_min"] == 132_200
+    assert len(attempts) == 2
+
+    # The success is cached; a fresh lookup costs nothing.
+    workday_detail("bx", 1, "Blackstone_Careers", "/job/New-York/Flaky_R1")
+    assert len(attempts) == 2
+
+
+def test_workday_detail_does_not_cache_a_double_failure(monkeypatch):
+    import job_enrich
+
+    monkeypatch.setattr(job_enrich, "WORKDAY_TRANSIENT_RETRY_DELAY", 0)
+    attempts = []
+
+    def _boom(url, **kwargs):
+        attempts.append(url)
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("job_enrich.requests.get", _boom)
+    assert workday_detail("bx", 1, "site", "/job/New-York/Down_R2")["status"] == 0
+    assert len(attempts) == 2
+    # Not cached: the next caller gets its own attempt at the posting.
+    workday_detail("bx", 1, "site", "/job/New-York/Down_R2")
+    assert len(attempts) == 4
+
+
+def test_workday_detail_caches_a_404_without_retrying(monkeypatch):
+    attempts = []
+
+    class _Gone:
+        status_code = 404
+
+    def _get(url, **kwargs):
+        attempts.append(url)
+        return _Gone()
+
+    monkeypatch.setattr("job_enrich.requests.get", _get)
+    assert workday_detail("bx", 1, "site", "/job/New-York/Pulled_R3")["status"] == 404
+    workday_detail("bx", 1, "site", "/job/New-York/Pulled_R3")
+    assert len(attempts) == 1
