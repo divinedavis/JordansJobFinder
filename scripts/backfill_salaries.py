@@ -117,13 +117,18 @@ def main() -> int:
             skipped += 1
             continue
         fetched += 1
-        if fields["salary_min"] is None:
+        if fields["salary_min"] is None and description == (row["description"] or ""):
+            # Nothing new to say. A freshly fetched body with no pay in it is
+            # still worth keeping: Gartner's VP, Product Management sat on the
+            # board with an empty description ("too little detail to compare
+            # skills") because the first fetch failed and this script only
+            # wrote rows where it found a salary.
             continue
         # PM postings under the track's floor keep their salary hidden, exactly
         # as scraper.py has always stored them. Publishing it would make the
         # job fail the PM salary gate and disappear from the board.
         note = f"→ {fields['salary_label']}"
-        if row["vertical"] == "pm" and fields["salary_max"] < PM_MIN_SALARY:
+        if row["vertical"] == "pm" and fields["salary_max"] is not None and fields["salary_max"] < PM_MIN_SALARY:
             note = f"→ {fields['salary_label']} under the PM floor — not published"
             fields = {"salary_label": "", "salary_min": None, "salary_max": None}
         experience = parse_experience_years(row["title"] or "", description)
