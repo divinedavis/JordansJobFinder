@@ -207,3 +207,40 @@ def test_filtering_requires_sign_in(client):
     response = client.post("/dashboard/cities", data={"action": "apply", "city": "Dallas, TX"})
     assert response.status_code == 302
     assert "/sign-in" in response.headers["Location"]
+
+
+def test_a_selected_city_with_no_jobs_today_stays_in_the_filter(signed_in_client, db_session):
+    """Seen 2026-09-08: the owner had every metro but New York deselected, no
+    NYC job was posted over the holiday weekend, and the filter listed 21
+    unchecked boxes with New York nowhere on it — "showing 0 of 21" and
+    "No cities are selected", both false. A market active in the last two
+    weeks stays listed at (0), and the empty board says what actually happened."""
+    from datetime import datetime, timedelta, timezone
+    from app.models import Job, JobMatch, SavedSearch, User
+
+    _seed_board(db_session, cities=CITIES[:1])  # Philadelphia, posted today
+    user = db_session.query(User).filter(User.email == "user@example.com").one()
+    search = db_session.query(SavedSearch).filter(SavedSearch.user_id == user.id).first()
+    stale = datetime.now(timezone.utc) - timedelta(days=5)
+    job = Job(
+        source="test", company="Datadog", title="Staff Product Manager",
+        normalized_title="staff product manager", url="https://example.com/jobs/nyc-stale",
+        city="nyc", location="New York, NY", description="", vertical="pm",
+        is_technical=True, posted_at=stale, found_at=stale,
+    )
+    db_session.add(job)
+    db_session.commit()
+    db_session.add(JobMatch(user_id=user.id, saved_search_id=search.id, job_id=job.id))
+    db_session.commit()
+
+    body = _board(signed_in_client)
+    assert 'name="city" value="New York, NY" checked>' in body
+    assert "New York, NY <span class=\"muted\">(0)</span>" in body
+    assert "showing 2 of 2" in body
+
+    _apply(signed_in_client, ["New York, NY"], known=("Philadelphia, PA", "New York, NY"))
+    body = _board(signed_in_client)
+    assert 'name="city" value="New York, NY" checked>' in body
+    assert "showing 1 of 2" in body
+    assert "No cities are selected" not in body
+    assert "Nothing posted in the last 2 days in the cities you selected" in body

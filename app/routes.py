@@ -54,12 +54,14 @@ from .payments import (
     sync_checkout_result,
 )
 from .results import (
+    board_window_days,
     city_filter_options,
     group_matches_by_city,
     hidden_city_labels,
     home_board_preview,
     load_db_matches,
     preview_matches,
+    recent_city_labels,
     visible_city_groups,
 )
 from .experience import (
@@ -444,7 +446,9 @@ def dashboard():
     hidden_cities = hidden_city_labels(saved_search)
     all_groups = group_matches_by_city(matches) if matches else {}
     grouped = visible_city_groups(all_groups, hidden_cities)
-    filter_options = city_filter_options(all_groups, hidden_cities)
+    filter_options = city_filter_options(
+        all_groups, hidden_cities, recent_city_labels(saved_search)
+    )
     if hidden_cities:
         preview = [m for m in preview if m.get("display_city") not in hidden_cities]
     return render_template(
@@ -456,6 +460,7 @@ def dashboard():
         grouped_matches=grouped,
         city_filter_options=filter_options,
         selected_city_count=sum(1 for row in filter_options if row["selected"]),
+        board_window_days=board_window_days(active_tab),
         applied_hidden_count=len(applied_matches),
         title_labels=TITLE_LABELS,
         active_tab=active_tab,

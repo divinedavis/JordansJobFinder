@@ -157,7 +157,15 @@
 
       {% if matches and not grouped_matches %}
         <p class="muted">
-          No cities are selected. Pick at least one in the filter above.
+          {% if selected_city_count == 0 %}
+            No cities are selected. Pick at least one in the filter above.
+          {% else %}
+            {# The user's cities are selected — they just had nothing posted
+               inside the board window. Saying "no cities selected" here sent
+               the owner looking for a city that was ticked all along. #}
+            Nothing posted in the last {{ board_window_days }} days in the cities you selected.
+            The other markets are deselected in the filter above.
+          {% endif %}
         </p>
       {% endif %}
 

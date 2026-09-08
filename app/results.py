@@ -102,14 +102,53 @@ def visible_city_groups(grouped: dict, hidden: list[str]) -> dict:
     return {city: rows for city, rows in grouped.items() if city not in hidden_names}
 
 
-def city_filter_options(grouped: dict, hidden: list[str]) -> list[dict]:
+# How far back a market counts as "active" for the city filter. The board
+# itself keeps a 2-day window, so a metro that posts most weekdays still has
+# empty days (a holiday weekend, say), and on those days it must stay listed —
+# otherwise the one city a user kept selected vanishes from the filter and the
+# board reads "showing 0 of N" as if nothing were selected. Seen 2026-09-08:
+# every metro but NYC deselected, no NYC job posted over the Labor Day weekend,
+# and the filter showed 21 unchecked boxes with New York nowhere on it.
+RECENT_MARKET_DAYS = 14
+
+
+def recent_city_labels(saved_search, days: int = RECENT_MARKET_DAYS) -> list[str]:
+    """Display labels of every metro that had a match for this search in the
+    last `days` days — the board's own effective date (posted, else found)."""
+    if not saved_search:
+        return []
+    db = get_db()
+    cutoff = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+    ) - timedelta(days=days)
+    effective_date = case(
+        (Job.posted_at.isnot(None), Job.posted_at),
+        else_=Job.found_at,
+    )
+    rows = db.execute(
+        select(Job.city, Job.location)
+        .join(JobMatch, JobMatch.job_id == Job.id)
+        .where(JobMatch.saved_search_id == saved_search.id)
+        .where(effective_date >= cutoff)
+        .distinct()
+    ).all()
+    labels = {CITY_LABELS.get(city, location or "") for city, location in rows}
+    return sorted(c for c in labels if c)
+
+
+def city_filter_options(grouped: dict, hidden: list[str], recent: list[str] = ()) -> list[dict]:
     """Checkbox rows for the city filter, alphabetical.
 
-    Covers every city on the board plus any deselected city with no jobs today
-    — otherwise filtering out a quiet market would leave no way to re-select it.
+    Covers every city on the board, every market active in the last
+    RECENT_MARKET_DAYS (so a selected city with no jobs today still shows, at
+    zero), plus any deselected city with no jobs — otherwise filtering out a
+    quiet market would leave no way to re-select it.
     """
     hidden_names = [c for c in (hidden or []) if c]
-    cities = sorted(set(grouped) | set(hidden_names), key=lambda c: c.lower())
+    cities = sorted(
+        set(grouped) | set(hidden_names) | {c for c in (recent or []) if c},
+        key=lambda c: c.lower(),
+    )
     return [
         {
             "city": city,
@@ -127,8 +166,12 @@ BOARD_WINDOW_DAYS = {"it": 7, "hr": 7, "scm": 7, "project": 7, "analyst": 7}
 DEFAULT_BOARD_WINDOW_DAYS = 2
 
 
+def board_window_days(vertical: str) -> int:
+    return BOARD_WINDOW_DAYS.get(vertical, DEFAULT_BOARD_WINDOW_DAYS)
+
+
 def _board_cutoff(vertical: str):
-    days = BOARD_WINDOW_DAYS.get(vertical, DEFAULT_BOARD_WINDOW_DAYS)
+    days = board_window_days(vertical)
     return datetime.now(timezone.utc).replace(
         hour=0, minute=0, second=0, microsecond=0, tzinfo=None
     ) - timedelta(days=days)
