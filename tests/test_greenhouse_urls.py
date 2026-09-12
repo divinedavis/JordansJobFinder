@@ -133,3 +133,39 @@ def test_resolution_is_cached(monkeypatch):
     greenhouse_job_url(job, "acme")
     greenhouse_job_url(job, "acme")
     assert len(calls) == 1
+
+
+# ── A listing page can MOVE (2026-09-12) ──────────────────────────────────────
+
+def test_redirect_to_a_renamed_listing_page_falls_back(monkeypatch):
+    """Stripe moved its board from /jobs/search to /careers/search.
+
+    An unpublished req now 302s to a different PATH that is still the same
+    56-page role index, so "the path changed" no longer means "the site
+    resolved the req". Reported 2026-09-12: "Staff Product Manager, Payments"
+    opened the whole index instead of the posting.
+    """
+    job = {"id": 7819059,
+           "absolute_url": "https://stripe.com/jobs/search?gh_jid=7819059"}
+    _stub_head(monkeypatch, "https://stripe.com/careers/search?gh_jid=7819059")
+    assert greenhouse_job_url(job, "stripe") == EMBED_URL.format(
+        token="stripe", job_id="7819059")
+
+
+@pytest.mark.parametrize("final_path", [
+    "/careers/search", "/jobs", "/careers", "/en-us/careers/openings",
+    "/roles", "/positions/", "/open-roles",
+])
+def test_any_listing_endpoint_falls_back(monkeypatch, final_path):
+    job = {"id": 900, "absolute_url": "https://acme.com/jobs/search?gh_jid=900"}
+    _stub_head(monkeypatch, f"https://acme.com{final_path}?gh_jid=900")
+    assert greenhouse_job_url(job, "acme") == EMBED_URL.format(
+        token="acme", job_id="900")
+
+
+def test_singular_job_path_is_not_read_as_a_listing(monkeypatch):
+    """MongoDB's posting page IS /careers/job/?gh_jid=<id> — keep it."""
+    job = {"id": 7280325,
+           "absolute_url": "https://www.mongodb.com/jobs/search?gh_jid=7280325"}
+    _stub_head(monkeypatch, "https://www.mongodb.com/careers/job/?gh_jid=7280325")
+    assert greenhouse_job_url(job, "mongodb") == job["absolute_url"]

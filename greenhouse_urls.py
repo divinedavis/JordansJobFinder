@@ -8,6 +8,10 @@ dumped on the full job index with no way to find the posting (2026-07-21:
 Stripe's "Consumer Operations, Program Manager" was live on the Greenhouse API
 but absent from stripe.com/jobs, so "View Role" opened the whole board).
 
+The index the visitor lands on may sit at a different path than the one we
+probed — Stripe's board moved from /jobs/search to /careers/search — so a
+redirect counts as a deep link only when it stops naming a listing page.
+
 The rule here is deliberately conservative — the company's own page is nicer
 than Greenhouse's bare application form, so we only walk away from it on
 positive proof that it doesn't resolve:
@@ -34,6 +38,24 @@ _TIMEOUT = 10
 _resolved: dict = {}
 
 
+# Terminal path segments that name a board index rather than one posting. A
+# redirect landing on one of these never deep-linked, however much of the path
+# changed on the way there.
+_LISTING_SEGMENTS = {
+    "search", "jobs", "careers", "career", "openings",
+    "opportunities", "roles", "positions", "vacancies", "job-search",
+    "all-jobs", "open-roles", "index",
+}
+# Deliberately NOT here: a singular "job". MongoDB's real posting page is
+# /careers/job/?gh_jid=<id> — a job page keyed entirely by the query — and
+# calling that a listing would throw away a working company link.
+
+
+def _is_listing_path(path: str) -> bool:
+    segments = [seg for seg in path.split("/") if seg]
+    return not segments or segments[-1].lower() in _LISTING_SEGMENTS
+
+
 def _verdict(final_url, original_path, job_id, absolute, embed):
     """Did the company site actually route us to this specific role?
 
@@ -43,17 +65,25 @@ def _verdict(final_url, original_path, job_id, absolute, embed):
     * id landed in the path — routed to the job (Stripe, Databricks). Keep.
     * gh_jid dropped entirely — bounced to a generic careers page
       (Squarespace → /about/careers). Fall back.
-    * path changed but kept gh_jid — routed to a slugged job page that carries
-      the id in the query instead (FanDuel). Keep.
-    * nothing moved at all — the site never resolved the req and we're sitting
-      on its search page (Stripe's unpublished req). Fall back.
+    * path changed to a real job page that carries the id in the query instead
+      of the path — routed to the role (FanDuel). Keep.
+    * path still points at a listing endpoint, moved or not — the site never
+      resolved the req and we're sitting on its search page. Fall back.
+
+    That last case has to cover a moved listing, not just an unchanged one.
+    Stripe renamed its board from /jobs/search to /careers/search, so an
+    unpublished req now 302s to a DIFFERENT path while staying the same index
+    page (2026-09-12: "Staff Product Manager, Payments" sent visitors to the
+    56-page role index). Judging the redirect by "did the path move" called
+    that a resolution; judging it by "does the path still name a listing"
+    does not.
     """
     final = urlsplit(final_url)
     if job_id in final.path:
         return absolute
     if "gh_jid=" not in final_url:
         return embed
-    if final.path != original_path:
+    if final.path != original_path and not _is_listing_path(final.path):
         return absolute
     return embed
 

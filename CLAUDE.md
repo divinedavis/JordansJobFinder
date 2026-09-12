@@ -1100,6 +1100,30 @@ class kept reappearing in six duplicated copies of the same logic.
   "manhattan beach" normally. **Fix collisions by adding a decoy, not by
   reordering the metro list** — ordering only works when the true metro is
   checked first, which can't hold for every metro at once.
+### A board index can MOVE (2026-09-12)
+
+Owner report: Stripe's "Staff Product Manager, Payments" opened stripe.com's
+56-page role index, not the posting. The verdict treated **any** path change in
+the redirect as proof the company site had resolved the req — but Stripe
+renamed its board from `/jobs/search` to `/careers/search`, so an unpublished
+req now 302s to a DIFFERENT path that is still the same index. `_verdict` now
+asks whether the final path still NAMES a listing (`_LISTING_SEGMENTS`) rather
+than whether it moved. A singular `/job` is deliberately not in that set —
+MongoDB's real posting page is `/careers/job/?gh_jid=<id>`.
+
+The stored description is the tell: job 119's description was the careers index
+page's own text ("Open roles … 1 2 3 4 5 … 56"), which is also what the fit
+score and experience parser had been reading. **A scraped description that
+reads like a nav bar means the link never reached a posting.**
+
+Repair for rows already on the board:
+`python scripts/fix_listing_redirect_urls.py [--apply]` — re-probes every
+gh_jid link under the corrected rule, rewrites the feeds first, then UPDATEs
+`jobs.url` in place so job_matches and applied history follow the row. On
+2026-09-12 it moved 25 URLs (Stripe, Databricks, Cockroach Labs) to the
+Greenhouse embed page. The other 41 Stripe links genuinely deep-link
+(`/careers/listing/<slug>/<id>`) and were correctly left alone.
+
 - **greenhouse_urls.py** — `greenhouse_job_url(job, token)` replaces raw
   `absolute_url`. Boards that redirect to a company careers site return
   `<site>/jobs/search?gh_jid=<id>`, which deep-links only while that site
