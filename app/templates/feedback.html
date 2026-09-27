@@ -19,6 +19,7 @@
     <div class="button-row">
       <button type="submit" class="button">Send feedback</button>
     </div>
+    <p class="muted form-privacy">We keep your message{% if not user %}, the optional email{% endif %} and the page you came from so we can follow up. See our <a href="{{ url_for('web.privacy') }}">Privacy Policy</a>.</p>
   </form>
 </section>
 {% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy · Jordan's Job Finder{% endblock %}
+{% block content %}
+<section class="panel privacy" style="max-width: 820px; margin: 0 auto;">
+  <span class="eyebrow">Privacy</span>
+  <h1>Privacy Policy</h1>
+  <p class="muted" style="margin-top: 10px;">Last updated: September 27, 2026</p>
+
+  <p style="margin-top: 18px;">Jordan's Job Finder (jordansjobfinder.com) finds job postings that match a saved
+  search and can tailor your resume to each one. This policy explains what personal data we collect, why,
+  who else processes it, how long we keep it, and how to delete it. The service is run by Divine Davis,
+  who is the data controller.</p>
+
+  <h2 style="margin-top: 28px;">What we collect</h2>
+  <ul class="privacy-list">
+    <li><strong>Account:</strong> your email address and a password, which we store only as a salted
+      one-way hash. We also record failed sign-in attempts to lock out password guessing.</li>
+    <li><strong>Saved searches and preferences:</strong> the roles, experience level, salary and cities you
+      choose, the jobs matched to you, and which jobs you applied to (a record of each tailored resume you
+      download, with the company, title, location and date).</li>
+    <li><strong>Your resume:</strong> the PDF or DOCX you upload, the text we extract from it, an estimate
+      of your years of experience, the tailored resumes we generate from it, and any AI interview-prep
+      plans you request.</li>
+    <li><strong>Payments:</strong> if you subscribe, Stripe collects your card details directly &mdash; we
+      never see or store them. We keep your Stripe customer and subscription IDs and your plan status, and
+      we give Stripe your email address and account ID.</li>
+    <li><strong>Feedback:</strong> the message you send, the optional email you give (or your account email
+      if signed in), and the page you came from.</li>
+    <li><strong>Technical data:</strong> our servers log your IP address, browser user agent, pages
+      requested and times, and we log account events (sign-up, sign-in, deletion) with the IP address,
+      for security. A session cookie keeps you signed in.</li>
+    <li><strong>Advertising measurement:</strong> the Google Ads tag on our pages sets Google cookies and
+      tells Google when a new account is created, so we can measure which ads lead to sign-ups.</li>
+  </ul>
+
+  <h2 style="margin-top: 28px;">How we use it</h2>
+  <p>To run your account and saved searches, match and show you jobs, tailor resumes and interview prep,
+  process subscriptions, answer feedback, keep the service secure, and measure our ads. We do not sell your
+  data or use your resume for anything other than your own results.</p>
+
+  <h2 style="margin-top: 28px;">Who else processes your data</h2>
+  <ul class="privacy-list">
+    <li><strong>Anthropic</strong> (Anthropic, PBC) &mdash; the text of your resume, together with a job's
+      title, company and description, is sent to Anthropic's Claude API to write tailored resumes and
+      interview-prep plans. Anthropic does not use API data to train its models.</li>
+    <li><strong>Stripe</strong> (Stripe, Inc.) &mdash; payment processing and subscription management.</li>
+    <li><strong>Cloudflare</strong> (Cloudflare, Inc.) &mdash; Turnstile checks sign-up and sign-in forms
+      for bots; it receives your IP address and browser signals.</li>
+    <li><strong>Google</strong> (Google LLC) &mdash; the Google Ads tag (googletagmanager.com) and conversion
+      measurement. In the EEA, UK and Switzerland, advertising cookies stay off until you choose Accept on
+      our cookie banner.</li>
+    <li><strong>DigitalOcean</strong> (DigitalOcean, LLC) &mdash; hosts our server, database and your uploaded
+      files in the United States.</li>
+  </ul>
+
+  <h2 style="margin-top: 28px;">How long we keep it</h2>
+  <ul class="privacy-list">
+    <li>Account, saved searches, resume and tailored resumes: until you delete your account. Uploading a new
+      resume replaces the old one.</li>
+    <li>Applied-job history: about one year, then deleted automatically.</li>
+    <li>Feedback: kept after account deletion (with the email you gave) so we can follow up; ask and we will
+      delete it.</li>
+    <li>Web server logs: 14 days. Application logs are overwritten as they fill.</li>
+    <li>Stripe keeps payment records as financial law requires, under its own policy.</li>
+  </ul>
+
+  <h2 style="margin-top: 28px;">Deleting your data</h2>
+  <p>Signed in, go to <a href="{{ url_for('web.settings') }}">Settings</a> and choose <strong>Delete
+  account</strong>. That cancels any subscription and permanently deletes your account, saved searches,
+  matches, applied-job history, interview plans, and your uploaded and tailored resume files. You can also
+  email us to delete your data, including feedback.</p>
+
+  <h2 style="margin-top: 28px;">Your rights</h2>
+  <p><strong>Everyone</strong> can ask what we hold about them, get a copy, correct it, or have it deleted.
+  We reply within 30 days and never charge or treat you differently for asking.</p>
+  <p><strong>California (CCPA/CPRA):</strong> you have the right to know, access, correct and delete your
+  personal information, and to opt out of its sale or sharing. We do not sell personal information. Our
+  Google Ads tag may count as &ldquo;sharing&rdquo; for cross-context behavioural advertising; to opt out,
+  email us, turn on Global Privacy Control, or block third-party cookies. We do not use sensitive personal
+  information beyond providing the service. You may act through an authorised agent.</p>
+  <p><strong>EEA and UK (GDPR / UK GDPR):</strong> our legal bases are performance of a contract (your account,
+  resume tailoring and subscription), legitimate interests (security and fraud prevention), and your consent
+  (advertising cookies). You have the rights of access, rectification, erasure, restriction, portability and
+  objection, may withdraw consent at any time by clearing this site's storage to see the cookie banner again,
+  and may complain to your data protection authority (in the UK, the ICO). Your data is processed in the United
+  States; our processors use standard contractual clauses for these transfers.</p>
+
+  <h2 style="margin-top: 28px;">Children</h2>
+  <p>Jordan's Job Finder is for adults looking for professional jobs. It is not directed to children, and we do
+  not knowingly collect data from anyone under 16. If you think a child has created an account, email us and
+  we will delete it.</p>
+
+  <h2 style="margin-top: 28px;">Security</h2>
+  <p>Passwords are hashed, uploaded resumes are readable only by the server account, the site is served over
+  HTTPS, and sign-in is rate-limited and bot-checked. No system is perfectly secure; if a breach affects you
+  we will tell you as the law requires.</p>
+
+  <h2 style="margin-top: 28px;">Changes</h2>
+  <p>We will update the date above when this policy changes, and tell account holders about material changes.</p>
+
+  <h2 style="margin-top: 28px;">Contact</h2>
+  <p>Divine Davis &mdash; <a href="mailto:divinejdavis@gmail.com">divinejdavis@gmail.com</a>, or use the
+  <a href="{{ url_for('web.feedback') }}">feedback form</a>.</p>
+</section>
+<style>
+  .privacy h2 { font-size: 1.35rem; margin-bottom: 8px; }
+  .privacy p { margin-top: 8px; }
+  .privacy-list { margin: 8px 0 0 20px; color: #465164; line-height: 1.7; }
+  .privacy-list li { margin-top: 6px; }
+  .privacy a { color: var(--accent); }
+</style>
+{% endblock %}

@@ -44,6 +44,7 @@
       <form method="post" action="{{ url_for('web.billing_checkout', kind='city-5') }}" style="margin-top: 12px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button" type="submit">Get Plus</button>
+        <p class="muted form-privacy">Payment is handled by Stripe; we never see your card. <a href="{{ url_for('web.privacy') }}">Privacy Policy</a>.</p>
       </form>
       {% endif %}
     </article>
@@ -57,6 +58,7 @@
       <form method="post" action="{{ url_for('web.billing_checkout', kind='city-10') }}" style="margin-top: 12px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button" type="submit">Get Pro</button>
+        <p class="muted form-privacy">Payment is handled by Stripe; we never see your card. <a href="{{ url_for('web.privacy') }}">Privacy Policy</a>.</p>
       </form>
       {% endif %}
     </article>

@@ -47,6 +47,7 @@
       <div class="button-row" style="margin-top: 12px;">
         <button class="button" type="submit">Upload resume</button>
       </div>
+    <p class="muted form-privacy">Your resume is stored on our server and its text is sent to Anthropic's Claude API to tailor resumes and interview prep. See our <a href="{{ url_for('web.privacy') }}">Privacy Policy</a>.</p>
     </form>
     {% if base_resume %}
       <p class="muted" style="margin-top: 14px;">

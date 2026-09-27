@@ -758,6 +758,31 @@ def saved_search():
     )
 
 
+@web.get("/privacy")
+def privacy():
+    return render_template("privacy.html", user=current_user())
+
+
+def _delete_user_resume_files(user) -> None:
+    """Remove the uploaded base resume and every tailored PDF from disk.
+
+    The DB rows cascade on account deletion, but the files would otherwise
+    outlive the account — the privacy policy promises they don't."""
+    import shutil
+
+    base = user.base_resume
+    if base and base.file_path and os.path.exists(base.file_path):
+        try:
+            os.remove(base.file_path)
+        except OSError:
+            logger.warning("Could not remove base resume for user_id=%d", user.id)
+    tailored_root = current_app.config.get("RESUME_TAILORED_DIR")
+    if tailored_root:
+        user_dir = os.path.join(tailored_root, f"user-{user.id}")
+        if os.path.isdir(user_dir):
+            shutil.rmtree(user_dir, ignore_errors=True)
+
+
 @web.post("/account/delete")
 def delete_account():
     user = require_user()
@@ -777,6 +802,7 @@ def delete_account():
         user.subscription.status = "cancelled"
         if user.saved_search:
             revert_to_free_cities(user.saved_search)
+    _delete_user_resume_files(user)
     db.delete(user)
     db.commit()
     session.clear()

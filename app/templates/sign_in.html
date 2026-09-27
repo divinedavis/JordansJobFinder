@@ -35,6 +35,7 @@
         <a class="button secondary" href="{{ url_for('web.sign_in') }}">Create Account</a>
         {% endif %}
       </div>
+      <p class="muted form-privacy">We store your email and a hashed password; Cloudflare Turnstile checks you're not a bot. See our <a href="{{ url_for('web.privacy') }}">Privacy Policy</a>.</p>
     </form>
     {% if auth_mode == "signup" %}
     <p class="muted" style="margin-top: 16px;">
