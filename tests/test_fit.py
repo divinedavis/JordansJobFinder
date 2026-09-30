@@ -346,3 +346,81 @@ def test_only_the_strong_tone_is_green():
         line = next(l for l in css.splitlines() if f".fit-{tone} " in l)
         assert amber in line, line
     assert "#0a7f3f" in next(l for l in css.splitlines() if ".fit-strong " in l)
+
+
+# --- Requirement gaps -------------------------------------------------------
+# A Datadog Senior Director posting requiring 5+ years leading PM teams scored
+# 93 "Strong fit" against a resume with no direct reports (2026-09-30).
+
+DIRECTOR = (
+    "Own the vision and strategy for platform products. Define product "
+    "roadmaps, drive platform adoption, agile delivery, stakeholder "
+    "management, cloud migration on AWS, dashboards and KPIs. 10+ years of "
+    "product management experience, including 5+ years leading and scaling "
+    "teams of Product Managers. Build, mentor, and develop a multi-layer "
+    "organization of Product Managers."
+)
+
+
+def test_a_people_management_requirement_caps_the_score_below_good():
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(profile, "Senior Director, Product Management", DIRECTOR)
+    assert fit["gaps"] == ["people management"]
+    assert fit["score"] <= 64
+    assert "people management" in fit["summary"]
+
+
+def test_a_resume_that_shows_the_requirement_is_not_penalised():
+    """Evidence-based: someone who HAS run a team keeps their score."""
+    manager = build_profile(RESUME + " Managed a team of 6 product managers.", years=10)
+    fit = score_fit(manager, "Senior Director, Product Management", DIRECTOR)
+    assert fit["gaps"] == []
+    assert fit["score"] > 64
+
+
+def test_closing_deals_is_a_hard_gap():
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(
+        profile, "Senior Product Manager",
+        "Own the roadmap, agile delivery, stakeholder management, AWS, APIs. "
+        "Get into deal cycles directly and know what it takes to close "
+        "enterprise flagging deals. 5+ years of experience.",
+    )
+    assert fit["gaps"] == ["closing sales deals"]
+    assert fit["score"] <= 64
+
+
+def test_company_boilerplate_is_not_a_domain_ask():
+    """"digital payments choices" is Mastercard's About paragraph, not a
+    requirement; "understanding of payments" is."""
+    profile = build_profile(RESUME, years=10)
+    boilerplate = score_fit(
+        profile, "Lead Product Manager",
+        "We support a wide range of digital payments choices. Roadmap, "
+        "backlog, agile, stakeholder management, Jira. 5+ years of experience.",
+    )
+    assert boilerplate["gaps"] == []
+    asked = score_fit(
+        profile, "Program Manager",
+        "Roadmap, backlog, agile, stakeholder management, Jira. Solid "
+        "understanding of payments industry. 5+ years of experience.",
+    )
+    assert asked["gaps"] == ["payments experience"]
+    assert asked["score"] <= 84
+
+
+def test_or_another_regulated_industry_is_satisfied_by_banking():
+    profile = build_profile(RESUME, years=10)
+    fit = score_fit(
+        profile, "Principal Product Manager",
+        "Roadmap, agile, stakeholder management. Experience in healthcare, "
+        "insurance, or another regulated industry. 10+ years of experience.",
+    )
+    assert fit["gaps"] == []
+
+
+def test_gap_patterns_are_bounded_on_hostile_text():
+    profile = build_profile("x", years=10)
+    started = time.monotonic()
+    score_fit(profile, "PM", ("experience in the " + "a " * 5000 + "close ") * 40)
+    assert time.monotonic() - started < 3

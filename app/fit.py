@@ -391,6 +391,134 @@ OFF_TRACK_DECISIVE_PENALTY = 0.20
 OFF_TRACK_FLOOR = 0.35
 
 
+# ---------------------------------------------------------------------------
+# Requirement gaps.
+#
+# Skill coverage counts what a posting names; it can't tell "we'd like SQL"
+# from "you must have run a team of product managers for five years". On
+# 2026-09-30 a Datadog Senior Director posting requiring 5+ years leading PM
+# teams scored 93 "Strong fit" against a resume with no direct reports, and a
+# Citi Wealth role demanding wealth-management leadership scored 100 against a
+# resume with no wealth experience. Both matched plenty of keywords and both
+# were stretches.
+#
+# A gap fires only when the posting phrases the thing as an ask AND the resume
+# shows no evidence of it — evidence-based, so a user who HAS managed people
+# or closed deals is never penalised. Asks are matched as phrases, never bare
+# words: "payments" alone is Mastercard's company boilerplate ("digital
+# payments choices"); "understanding of payments" is a requirement.
+#
+# ``hard`` gaps (people management, closing deals) are gates a hiring manager
+# screens on, so they cap the card below Good. ``domain`` gaps cost less and
+# cap below Strong: green means "apply to this", and a required domain you
+# don't have isn't that.
+#
+# Every pattern runs over bounded text and every repeat has a ceiling.
+_WORD = r"[\w/&-]{1,30}"
+REQUIREMENT_GAPS = {
+    "people management": {
+        "kind": "hard",
+        "asks": (
+            r"\b(?:lead|leading|led|manag(?:e|es|ing|ed)|scal(?:e|ing)|build(?:ing)?)"
+            r"(?:\s+and\s+(?:scal(?:e|ing)|develop(?:ing)?|grow(?:ing)?))?"
+            r"\s+(?:a\s+)?teams?\s+of\s+(?:senior\s+)?(?:product|program|engineering)\s+managers\b",
+            r"\bmanag(?:e|es|ing)\s+(?:senior\s+)?(?:product|program)\s+managers\b",
+            r"\b(?:organization|org)\s+of\s+(?:product|program)\s+managers\b",
+            r"\bpeople\s+management\s+experience\b",
+            r"\bmanag(?:e|ing)\s+managers\b",
+            r"\bdirect\s+reports\b",
+        ),
+        "evidence": (
+            r"\b(?:managed|manage|manages|managing|led|lead|leads|leading|built|hired)"
+            r"\s+(?:and\s+\w{1,20}\s+)?(?:a\s+)?(?:team|staff|group)\s+of\s+\d{1,4}\b",
+            r"\bdirect\s+reports\b",
+            r"\bpeople\s+manag(?:er|ement)\b",
+            r"\b\d{1,4}\s+direct\b",
+        ),
+    },
+    "closing sales deals": {
+        "kind": "hard",
+        "asks": (
+            rf"\bclos(?:e|ed|ing)\s+(?:{_WORD}\s+){{0,2}}deals?\b",
+            r"\bdeal\s+cycles?\b",
+            r"\bquota[\s-]carrying\b",
+        ),
+        "evidence": (
+            rf"\bclos(?:ed|ing)\s+(?:{_WORD}\s+){{0,3}}(?:deals?|contracts?|sales|accounts)\b",
+            r"\bquota\b",
+            r"\bbookings\b",
+        ),
+    },
+    "payments experience": {
+        "kind": "domain",
+        "asks": (
+            rf"\b(?:experience|background|knowledge|understanding|expertise)\s+"
+            rf"(?:in|of|with|across)\s+(?:the\s+)?(?:{_WORD}\s+){{0,2}}payments?\b",
+            r"\bpayments?\s+(?:industry|domain)\s+(?:experience|knowledge)\b",
+        ),
+        "evidence": (r"\bpayments?\b", r"\bpayment\s+(?:rails|systems|processing)\b"),
+    },
+    "wealth management experience": {
+        "kind": "domain",
+        "asks": (
+            rf"\b(?:experience|background|knowledge|expertise)\s+(?:in|of|with|across)\s+"
+            rf"(?:the\s+)?(?:{_WORD}\s+){{0,2}}wealth\b",
+        ),
+        "evidence": (r"\bwealth\b",),
+    },
+    "healthcare experience": {
+        "kind": "domain",
+        "asks": (
+            rf"\b(?:experience|background)\s+(?:in|with)\s+(?:the\s+)?"
+            rf"(?:{_WORD}\s+){{0,2}}(?:healthcare|health\s+care|health\s+insurance)\b",
+        ),
+        "evidence": (r"\bhealth\s*care\b", r"\bhealth\s+(?:plan|insurance)\b",
+                     r"\bmedicare\b", r"\bmedicaid\b", r"\bclinical\b", r"\bhipaa\b"),
+    },
+}
+
+for _gap in REQUIREMENT_GAPS.values():
+    _gap["ask_re"] = [re.compile(p, re.I) for p in _gap["asks"]]
+    _gap["evidence_re"] = [re.compile(p, re.I) for p in _gap["evidence"]]
+
+# "Experience in healthcare, insurance, or another regulated industry" is
+# satisfied by any regulated industry — banking included — so a domain ask
+# followed closely by that escape clause is not a gap.
+_REGULATED_ESCAPE = re.compile(
+    r"\bor\s+(?:an(?:other)?|other|a\s+similar(?:ly)?)\s+(?:\w{1,20}\s+){0,2}"
+    r"(?:regulated|related)\s+(?:industry|industries|environment|field)",
+    re.I,
+)
+ESCAPE_WINDOW = 120
+
+GAP_PENALTY = {"hard": 0.20, "domain": 0.10}
+GAP_CAP = {"hard": 64, "domain": 84}
+
+
+def requirement_gaps(profile: ResumeProfile, text: str) -> list:
+    """[(name, kind)] for each requirement the posting asks for and the resume
+    shows no evidence of."""
+    if not text:
+        return []
+    scan = text[:MAX_SCAN_CHARS]
+    found = []
+    for name, gap in REQUIREMENT_GAPS.items():
+        if any(r.search(profile.text) for r in gap["evidence_re"]):
+            continue
+        for ask in gap["ask_re"]:
+            asked = False
+            for m in ask.finditer(scan):
+                tail = scan[m.end():m.end() + ESCAPE_WINDOW]
+                if gap["kind"] == "domain" and _REGULATED_ESCAPE.search(tail):
+                    continue
+                asked = True
+                break
+            if asked:
+                found.append((name, gap["kind"]))
+                break
+    return found
+
+
 def off_track_signals(text: str, vertical: Optional[str] = None) -> list:
     """[(label, [terms], penalty)] for every off-track vocabulary in this text.
 
@@ -535,7 +663,13 @@ def score_fit(
         penalty = sum(pen for _, _, pen in off_track)
         raw *= max(OFF_TRACK_FLOOR, 1.0 - penalty)
 
+    gaps = requirement_gaps(profile, f"{title}\n{description}")
+    for _, kind in gaps:
+        raw *= 1.0 - GAP_PENALTY[kind]
+
     score = int(round(max(0.0, min(1.0, raw)) * 100))
+    for _, kind in gaps:
+        score = min(score, GAP_CAP[kind])
     label, tone = next((lbl, tn) for floor, lbl, tn in LABELS if score >= floor)
 
     if low_signal:
@@ -546,6 +680,8 @@ def score_fit(
         summary = f"{summary} · {experience_phrase}"
     if off_track:
         summary = f"{summary} · Reads as {' and '.join(lbl for lbl, _, _ in off_track)}"
+    if gaps:
+        summary = f"{summary} · Asks for {', '.join(n for n, _ in gaps)} — not on your resume"
 
     return {
         "score": score,
@@ -557,4 +693,5 @@ def score_fit(
         "low_signal": low_signal,
         "off_track": [lbl for lbl, _, _ in off_track],
         "off_track_terms": sorted({t for _, terms, _ in off_track for t in terms})[:8],
+        "gaps": [n for n, _ in gaps],
     }
