@@ -2436,49 +2436,73 @@ def scrape_jpmorgan(page):
     return candidates
 
 
-# ── Goldman Sachs — Playwright ─────────────────────────────────────────────────
+# ── Goldman Sachs — GraphQL API ─────────────────────────────────────────────────
 
-def scrape_goldman(page):
-    log("  [Goldman Sachs] Playwright...")
-    candidates = []
-    for term in ["product manager", "program manager"]:
-        url = f"https://higher.gs.com/roles?query={urllib.parse.quote(term)}&region=Americas"
+GS_GRAPHQL_URL = "https://api-higher.gs.com/gateway/api/v1/graphql"
+GS_ROLES_QUERY = (
+    "query GetRoles($searchQueryInput: RoleSearchQueryInput!) { roleSearch(searchQueryInput: "
+    "$searchQueryInput) { totalCount items { roleId corporateTitle jobTitle division status "
+    "locations { city state } externalSource { sourceId } } } }"
+)
+GS_NYC_CITIES = {"new york", "jersey city"}
+
+
+def goldman_role_to_job(item):
+    """Map one higher.gs.com GraphQL role to a job dict, or None to skip it.
+
+    Skips the "_GS_NOTICE_OF_FILING_LCA" items: those are H-1B Labor Condition
+    Application notices for an existing worker, not open requisitions, even
+    though they read like real VP Product Management roles."""
+    role_id = item.get("roleId") or ""
+    if "LCA" in role_id.upper() or (item.get("status") or "POSTED") != "POSTED":
+        return None
+    title = (item.get("jobTitle") or "").strip()
+    corp = (item.get("corporateTitle") or "").strip()
+    cities = [(loc.get("city") or "").strip() for loc in item.get("locations") or []]
+    nyc = [c for c in cities if c.lower() in GS_NYC_CITIES]
+    if not nyc:
+        return None
+    if not (is_target_role(title) and is_vp(f"{title} {corp}")):
+        return None
+    source_id = (item.get("externalSource") or {}).get("sourceId") or role_id.split("_")[0]
+    return make_job(title=title, url=f"https://higher.gs.com/roles/{source_id}",
+                    company="Goldman Sachs", city="nyc",
+                    location=f"{nyc[0]}, {'NJ' if nyc[0].lower() == 'jersey city' else 'NY'}",
+                    source="api-goldman")
+
+
+def scrape_goldman(page=None):
+    """Goldman's careers site is a React SPA backed by a public GraphQL API.
+
+    The old Playwright scrape read only the first 20 search results and cut
+    titles at the first "New York", so "AWM-New York-Vice President, Product
+    Management" became "AWM-" and was dropped: 0 candidates most days. Reading
+    the API pages every posted role (about 700) in a few requests."""
+    log("  [Goldman Sachs] API...")
+    candidates, seen = [], set()
+    for page_number in range(20):
+        body = {"operationName": "GetRoles", "query": GS_ROLES_QUERY, "variables": {"searchQueryInput": {
+            "page": {"pageSize": 100, "pageNumber": page_number},
+            "sort": {"sortStrategy": "RELEVANCE", "sortOrder": "DESC"},
+            "filters": [], "experiences": ["EARLY_CAREER", "PROFESSIONAL"], "searchTerm": ""}}}
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=20_000)
-            page.wait_for_timeout(4000)
-        except PWTimeout:
-            continue
-
-        soup = BeautifulSoup(page.content(), "html.parser")
-        for link_el in soup.select("a[href*='/roles/']"):
-            full_text = link_el.get_text(separator=" ", strip=True)
-            href      = link_el["href"]
-            if not href.startswith("http"):
-                href = "https://higher.gs.com" + href
-
-            title    = full_text
-            location = ""
-            for loc_kw in ["New York", "Jersey City", "NYC"]:
-                if loc_kw in full_text:
-                    idx      = full_text.index(loc_kw)
-                    title    = full_text[:idx].strip().rstrip("-,·").strip()
-                    location = full_text[idx:]
-                    break
-
-            if not (is_target_role(title) and is_vp(title)):
-                continue
-            if location and not is_nyc(location):
-                continue
-            if not location and not is_nyc(full_text):
-                continue
-
-            candidates.append(make_job(title=title, url=href,
-                                       company="Goldman Sachs", city="nyc",
-                                       location=location or "New York, NY", source="playwright-goldman"))
-        time.sleep(2)
+            r = requests.post(GS_GRAPHQL_URL, json=body, timeout=30,
+                              headers={"Origin": "https://higher.gs.com", "User-Agent": "Mozilla/5.0"})
+            r.raise_for_status()
+            items = r.json()["data"]["roleSearch"]["items"]
+        except Exception as exc:
+            log(f"  [Goldman Sachs] API error page {page_number}: {exc}")
+            break
+        for item in items:
+            job = goldman_role_to_job(item)
+            if job and job["url"] not in seen:
+                seen.add(job["url"])
+                candidates.append(job)
+        if len(items) < 100:
+            break
+        time.sleep(1)
     log(f"  [Goldman Sachs] {len(candidates)} candidate(s)")
     return candidates
-
 
 # ── MetLife — Playwright ───────────────────────────────────────────────────────
 
