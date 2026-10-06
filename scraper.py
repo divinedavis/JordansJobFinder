@@ -2442,7 +2442,7 @@ GS_GRAPHQL_URL = "https://api-higher.gs.com/gateway/api/v1/graphql"
 GS_ROLES_QUERY = (
     "query GetRoles($searchQueryInput: RoleSearchQueryInput!) { roleSearch(searchQueryInput: "
     "$searchQueryInput) { totalCount items { roleId corporateTitle jobTitle division status "
-    "locations { city state } externalSource { sourceId } } } }"
+    "lastPostedDate locations { city state } externalSource { sourceId } } } }"
 )
 GS_NYC_CITIES = {"new york", "jersey city"}
 
@@ -2465,7 +2465,13 @@ def goldman_role_to_job(item):
     if not (is_target_role(title) and is_vp(f"{title} {corp}")):
         return None
     source_id = (item.get("externalSource") or {}).get("sourceId") or role_id.split("_")[0]
-    return make_job(title=title, url=f"https://higher.gs.com/roles/{source_id}",
+    # lastPostedDate ("2026-09-24T19:56:16.648Z") keeps the 2-day recency window
+    # honest; without it posted_at is NULL and the board falls back to the
+    # first time we saw the role, so a weeks-old posting would look new.
+    posted = (item.get("lastPostedDate") or "")[:10] or "Unknown"
+    if posted_label_too_old(posted):
+        return None
+    return make_job(title=title, url=f"https://higher.gs.com/roles/{source_id}", posted=posted,
                     company="Goldman Sachs", city="nyc",
                     location=f"{nyc[0]}, {'NJ' if nyc[0].lower() == 'jersey city' else 'NY'}",
                     source="api-goldman")
