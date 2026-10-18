@@ -1,13 +1,14 @@
 """Resume upload, text extraction, AI tailoring, and PDF rendering.
 
-The rendered PDF mirrors the reference resume style:
-- Helvetica throughout (built into reportlab)
-- Accent color #2356B2 (sampled from Divine_Davis_Mastercard_NAM_Consumer_Credit.pdf)
-- Centered name header + contact lines, blue rule
-- Section headings in accent color, all caps, light grey underline
-- Each experience entry uses a 2-col layout: company (blue, left) + dates (bold, right),
-  then the role title in bold, then bullet points
-- Core Competencies rendered as a 2-col table (bold label + items)
+The rendered PDF mirrors the candidate's own Word resume (2026-10-18, owner:
+"use this format", Divine J Davis Resume .pdf):
+- Carlito 11pt throughout, metric-compatible with that resume's Calibri and
+  vendored under app/fonts (OFL) because Calibri itself can't be shipped
+- Half-inch side margins, centred name / headline / contact block, no rule
+- Black underlined ALL-CAPS section headings with a colon
+- Company | Location in bold (dateless), then the bold role title with its
+  dates flush right, then U+2022 bullets with the text hung a tab stop in
+- Core Competencies as "**Label:** items" bullets
 - Education & Tools at the bottom
 """
 from __future__ import annotations
@@ -28,10 +29,12 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import inch
+from reportlab.lib.fonts import addMapping
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     Flowable,
-    HRFlowable,
     KeepTogether,
     Paragraph,
     SimpleDocTemplate,
@@ -42,7 +45,32 @@ logger = logging.getLogger(__name__)
 
 
 ACCENT = HexColor("#2356B2")
-LIGHT_RULE = HexColor("#C8C8C8")
+
+# Carlito is Calibri's metric twin, so a line breaks where it would in the
+# candidate's Word resume. An embedded TrueType subset also carries a
+# /ToUnicode map, which is what lets the real U+2022 bullet round-trip through
+# text extraction (base-14 Helvetica read it back as a DEL character).
+FONT = "Carlito"
+FONT_BOLD = "Carlito-Bold"
+_FONT_DIR = Path(__file__).resolve().parent / "fonts"
+
+
+def _register_fonts() -> None:
+    if FONT in pdfmetrics.getRegisteredFontNames():
+        return
+    pdfmetrics.registerFont(TTFont(FONT, str(_FONT_DIR / "Carlito-Regular.ttf")))
+    pdfmetrics.registerFont(TTFont(FONT_BOLD, str(_FONT_DIR / "Carlito-Bold.ttf")))
+    # <b> inside a Paragraph resolves through this mapping.
+    for bold, italic, face in ((0, 0, FONT), (1, 0, FONT_BOLD),
+                               (0, 1, FONT), (1, 1, FONT_BOLD)):
+        addMapping(FONT, bold, italic, face)
+
+
+_register_fonts()
+
+# Where the bullet text starts, measured from the marker: the Word resume's
+# 0.26in tab stop.
+_BULLET_INDENT = 19
 
 ACCEPTED_CONTENT_TYPES = {
     "application/pdf": "pdf",
@@ -309,10 +337,11 @@ def _normalize_ligatures(text: str) -> str:
 
 
 def _renderable(text: str) -> str:
-    """Strip anything the PDF's base-14 fonts can't draw.
+    """Strip anything outside cp1252 before it reaches the PDF.
 
-    Helvetica is WinAnsi-encoded: hand it a codepoint outside cp1252 and
-    ReportLab paints a solid black box. Ligatures expand to their letters,
+    Written when the PDF used WinAnsi-encoded Helvetica, where a codepoint
+    outside cp1252 painted as a solid black box. Carlito covers cp1252 too, and
+    keeping the filter means a glyph the font lacks still can't print as one. Ligatures expand to their letters,
     everything else falls back to its closest ASCII form (and is dropped if it
     has none), so a strange character can never again surface as a black mark
     in the middle of a sentence.
@@ -635,55 +664,51 @@ def _sanitize_structured(data: dict) -> dict:
 # ── PDF rendering ────────────────────────────────────────────────────────────
 
 def _styles():
-    """Layout mirrors the candidate's own Word resume: a centred name block over
-    a rule, then black underlined ALL-CAPS section headings with a colon,
-    company/date rows in bold with the dates flush right, and hanging bullets."""
+    """Sizes and spacing measured off the candidate's own Word resume:
+    Calibri 11 on Word's single-spaced 13.4pt leading, a blank line above each
+    section, and the bullet text hung 19pt in from the marker."""
     base = ParagraphStyle(
-        "Base", fontName="Helvetica", fontSize=10, leading=13.5, textColor=black
+        "Base", fontName=FONT, fontSize=11, leading=13.4, textColor=black
     )
     return {
         "name": ParagraphStyle(
-            "Name", parent=base, fontName="Helvetica-Bold", fontSize=14,
-            textColor=black, alignment=TA_CENTER, leading=17, spaceAfter=2,
+            "Name", parent=base, fontName=FONT_BOLD, fontSize=14,
+            textColor=black, alignment=TA_CENTER, leading=17, spaceAfter=1,
         ),
         "headline": ParagraphStyle(
-            "Headline", parent=base, fontSize=10.5, alignment=TA_CENTER,
-            leading=14, spaceAfter=1,
+            "Headline", parent=base, alignment=TA_CENTER, spaceAfter=1,
         ),
         "contact": ParagraphStyle(
-            "Contact", parent=base, alignment=TA_CENTER, fontSize=10,
-            textColor=black, leading=14,
+            "Contact", parent=base, alignment=TA_CENTER, textColor=black,
         ),
         "summary": ParagraphStyle(
-            "Summary", parent=base, fontSize=10.5, leading=14.5, spaceBefore=8,
-            spaceAfter=6,
+            "Summary", parent=base, spaceBefore=13, spaceAfter=2,
         ),
         "section": ParagraphStyle(
-            "Section", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
-            textColor=black, leading=14, spaceBefore=10, spaceAfter=4,
+            "Section", parent=base, fontName=FONT_BOLD, textColor=black,
+            spaceBefore=13, spaceAfter=3,
         ),
         "company": ParagraphStyle(
-            "Company", parent=base, fontName="Helvetica-Bold", fontSize=10.5,
-            leading=14,
+            "Company", parent=base, fontName=FONT_BOLD,
         ),
         # The title is bold (see _role_paragraph) and the line gets a little
         # air above it: 2026-09-03 the owner couldn't tell a role line from
         # the bullets under it when both were the same regular weight.
         "role": ParagraphStyle(
-            "Role", parent=base, fontSize=10.5, leading=14, spaceBefore=3,
+            "Role", parent=base, spaceBefore=2,
         ),
-        # The "\u2022 " marker is part of the paragraph TEXT, not reportlab's
+        # The "\u2022" marker is part of the paragraph TEXT, not reportlab's
         # bulletText — see _bulleted. A negative firstLineIndent hangs the
         # wrapped lines under the words instead of under the marker.
         "bullet": ParagraphStyle(
-            "Bullet", parent=base, fontSize=10, leading=13.5, leftIndent=24,
-            firstLineIndent=-14, spaceAfter=3,
+            "Bullet", parent=base, leftIndent=_BULLET_INDENT,
+            firstLineIndent=-_BULLET_INDENT, spaceAfter=1.5,
         ),
         "edu": ParagraphStyle(
-            "Edu", parent=base, fontSize=10.5, leading=14,
+            "Edu", parent=base,
         ),
         "tools": ParagraphStyle(
-            "Tools", parent=base, fontSize=10.5, leading=14.5, leftIndent=4,
+            "Tools", parent=base,
         ),
     }
 
@@ -747,26 +772,34 @@ def _section_heading(label: str, styles) -> Paragraph:
     return Paragraph(f"<u>{_escape(label.upper())}:</u>", styles["section"])
 
 
-# Middle dot, not U+2022 — see _bulleted for why the real bullet cannot be
-# read back out of the PDF.
-_BULLET = "\u00b7"
+_BULLET = "\u2022"
 
 
 def _bulleted(text: str, styles) -> Paragraph:
     """A bullet whose marker survives text extraction.
 
-    Two separate reasons this is not reportlab's bulletText and not "\u2022":
+    Not reportlab's bulletText: that draws the marker as its own text run,
+    and an ATS parser saw an undelimited wall of prose where the bullet list
+    should be. The marker lives in the paragraph text instead, padded out to
+    the tab stop with non-breaking spaces (reportlab collapses ordinary ones),
+    and the style's negative first-line indent hangs the wrapped lines.
 
-    bulletText draws the marker as its own text run, and an ATS parser saw an
-    undelimited wall of prose where the bullet list should be. Putting the
-    marker in the paragraph text costs a hanging indent (handled by the style).
-
-    U+2022 itself is unusable here. WinAnsiEncoding has bullet at BOTH 0x7F and
-    0x95; reportlab writes 0x7F, and with no /ToUnicode map on a base-14 font
-    an extractor reads it back as U+007F — a DEL control character sitting in
-    the middle of the resume. U+00B7 renders as a dot and round-trips.
+    The marker is a real U+2022 now that the font is an embedded TrueType
+    subset with a /ToUnicode map. On base-14 Helvetica it came back out of the
+    PDF as U+007F, which is why this used to be a middle dot.
     """
-    return Paragraph(_BULLET + " " + text, styles["bullet"])
+    style = styles["bullet"]
+    marker_width = stringWidth(_BULLET, style.fontName, style.fontSize)
+    space_width = stringWidth(" ", style.fontName, style.fontSize)
+    pad = max(1, round((_BULLET_INDENT - marker_width) / space_width))
+    # Whole spaces can't land exactly on the tab stop, so hang the wrapped
+    # lines where the padded first line's text actually starts.
+    hang = marker_width + pad * space_width
+    if abs(hang - style.leftIndent) > 0.01:
+        style = ParagraphStyle(f"{style.name}-hung", parent=style,
+                               leftIndent=hang, firstLineIndent=-hang)
+        styles["bullet"] = style
+    return Paragraph(_BULLET + "\u00a0" * pad + text, style)
 
 
 def _ats_line(*parts: str) -> str:
@@ -792,13 +825,12 @@ def _header_block(data: dict, styles) -> list:
         line = (data.get(key) or "").strip()
         if line:
             blocks.append(Paragraph(_contact_markup(line), styles["contact"]))
-    blocks.append(HRFlowable(width="100%", thickness=0.75, color=LIGHT_RULE,
-                             spaceBefore=6, spaceAfter=0))
     return blocks
 
 
 # Text width of the letter page inside render_resume_pdf's margins.
-_BODY_WIDTH = LETTER[0] - 2 * 0.75 * inch
+_SIDE_MARGIN = 0.5 * inch
+_BODY_WIDTH = LETTER[0] - 2 * _SIDE_MARGIN
 
 
 class _RoleLine(Flowable):
@@ -827,8 +859,8 @@ class _RoleLine(Flowable):
         self.font_size = style.fontSize
         self.leading = style.leading
         self._space_before = style.spaceBefore
-        self.bold_font = "Helvetica-Bold"
-        self.regular_font = "Helvetica"
+        self.bold_font = FONT_BOLD
+        self.regular_font = FONT
 
     def fits(self, avail_width: float) -> bool:
         needed = (stringWidth(self.title, self.bold_font, self.font_size)
@@ -924,7 +956,8 @@ def _experience_block(data: dict, styles) -> list:
                 chunk.append(_role_line(title, role_dates, styles))
             for bullet in role.get("bullets", []) or []:
                 chunk.append(_bulleted(_escape(bullet), styles))
-        chunk.append(Spacer(1, 8))
+        # A blank line between employers, as in the Word resume.
+        chunk.append(Spacer(1, 11))
         # Keep the company heading with its first role; letting the whole block
         # travel together would push a long employer onto its own page.
         blocks.append(KeepTogether(chunk[:2]))
@@ -1016,10 +1049,10 @@ def render_resume_pdf(data: dict, output_path: str, title: Optional[str] = None)
     doc = SimpleDocTemplate(
         output_path,
         pagesize=LETTER,
-        leftMargin=0.75 * inch,
-        rightMargin=0.75 * inch,
-        topMargin=0.6 * inch,
-        bottomMargin=0.6 * inch,
+        leftMargin=_SIDE_MARGIN,
+        rightMargin=_SIDE_MARGIN,
+        topMargin=0.5 * inch,
+        bottomMargin=0.5 * inch,
         title=title,
         author=author,
         subject="Resume",

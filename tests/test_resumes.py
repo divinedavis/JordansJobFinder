@@ -645,7 +645,7 @@ def test_competencies_render_as_bold_labelled_bullets(app):
     assert "<b>Technical Domain Expertise:</b>" in paragraphs[1].text
     # The marker is part of the TEXT, not reportlab's bulletText, so it lands
     # in the PDF's text layer where a resume parser can see it.
-    assert all(p.text.startswith("\u00b7 ") for p in paragraphs[1:])
+    assert all(p.text.startswith("\u2022\u00a0") for p in paragraphs[1:])
     assert all(not p.bulletText for p in paragraphs[1:])
 
 
@@ -1042,9 +1042,10 @@ def test_rendered_pdf_is_parseable_by_an_ats(app, tmp_path):
     assert line_with("State University | B.S. Computer Science | May 2016")
     # Bullet markers reach the text layer.
     text = "".join(p.extract_text() or "" for p in pages)
-    assert text.count("\u00b7") >= 3, "bullet markers must survive extraction"
-    # U+2022 comes back as a DEL control char from a base-14 font. Nothing in
-    # the text layer may be a control character.
+    assert text.count("\u2022") >= 3, "bullet markers must survive extraction"
+    # U+2022 came back as a DEL control char from the old base-14 font; the
+    # embedded Carlito subset maps it properly. Nothing in the text layer may
+    # be a control character.
     assert not [c for c in text if ord(c) < 32 and c not in "\n\r\t"]
     assert "\x7f" not in text
     # The ONLY wide gaps in the text layer are the role lines' right-aligned
@@ -1165,7 +1166,7 @@ def test_role_line_puts_dates_flush_right_and_falls_back_inline(app):
     line = _role_line(title, "January 2024 - Present", styles)
     assert isinstance(line, _RoleLine)
     assert (line.title, line.dates) == (title, "January 2024 - Present")
-    assert line.bold_font == "Helvetica-Bold" and line.regular_font == "Helvetica"
+    assert line.bold_font == "Carlito-Bold" and line.regular_font == "Carlito"
     assert line.wrap(504, 10_000)[1] == styles["role"].leading
 
     # Too long for one line with a right-aligned date: inline fallback.
